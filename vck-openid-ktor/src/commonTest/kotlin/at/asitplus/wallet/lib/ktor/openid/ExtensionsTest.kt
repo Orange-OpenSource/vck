@@ -40,7 +40,7 @@ val ExtensionsTest by testSuite {
             headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
         )
 
-        val result = response.onFailure { error, _ -> error }
+        val result = response.onFailure { this }
 
         val failure = result.shouldBeInstanceOf<IntermediateResult.Failure<OAuth2Error?>>()
         failure.result shouldBe expectedError
