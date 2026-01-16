@@ -16,4 +16,7 @@ data class KeyAttestationRequired(
      */
     @SerialName("user_authentication")
     val userAuthentication: Collection<String>? = null,
+
+    @SerialName("preferred_ttl")
+    val preferredTtl: Int? = 2678400,
 )

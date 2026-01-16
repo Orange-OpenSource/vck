@@ -64,7 +64,9 @@ class WalletService(
     private val loadKeyAttestation: (suspend (KeyAttestationInput) -> KmmResult<JwsSigned<KeyAttestationJwt>>)? = null,
     /** Handles credential request encryption and credential response decryption. */
     private val encryptionService: WalletEncryptionService = WalletEncryptionService(),
-) {
+    /** Returns a new unit attestation to use during credential issuance. */
+    val getUnitAttestation: (suspend (ttl: Int, type: String, payload: JsonWebToken) -> JwsSigned<JsonWebToken>)? = null,
+    ) {
 
     data class KeyAttestationInput(val clientNonce: String?, val supportedAlgorithms: Collection<String>?)
 
@@ -311,7 +313,13 @@ class WalletService(
         clock: Clock = Clock.System,
     ): CredentialRequestProofContainer =
         credentialFormat.supportedProofTypes?.get(ProofTypes.JWT)?.let {
-            createCredentialRequestProofJwt(clientNonce, metadata.credentialIssuer, clock, it.keyAttestationRequired())
+            createCredentialRequestProofJwt(
+                clientNonce,
+                metadata.credentialIssuer,
+                clock,
+                it.keyAttestationRequired(),
+                it.keyAttestationRequired?.preferredTtl ?: 2678400
+            )
         } ?: credentialFormat.supportedProofTypes?.get(ProofTypes.ATTESTATION)?.let {
             createCredentialRequestProofAttestation(clientNonce, it.supportedSigningAlgorithms)
         } ?: createCredentialRequestProofJwt(clientNonce, metadata.credentialIssuer, clock)
@@ -335,35 +343,21 @@ class WalletService(
         credentialIssuer: String?,
         clock: Clock = Clock.System,
         addKeyAttestation: Boolean = false,
+        ttl: Int = 2678400,
     ) = CredentialRequestProofContainer(
         jwt = setOf(
-            SignJwt<JsonWebToken>(
-                keyMaterial,
-                // TODO To be refactored once signJwt is not passed in the constructor but to this function
-                addKeyAttestationToJwsHeader(clientNonce, addKeyAttestation)
-            ).invoke(
+            getUnitAttestation?.invoke(
+                ttl,
                 OpenIdConstants.PROOF_JWT_TYPE,
                 JsonWebToken(
                     issuer = clientId, // omit when token was pre-authn?
                     audience = credentialIssuer,
                     issuedAt = clock.now().truncateToSeconds(),
                     nonce = clientNonce,
-                ),
-                JsonWebToken.serializer(),
-            ).getOrThrow().serialize()
+                )
+            )?.serialize() ?: ""
         )
     )
-
-    private fun addKeyAttestationToJwsHeader(
-        clientNonce: String?,
-        addKeyAttestation: Boolean = false,
-    ): suspend (JwsHeader, KeyMaterial) -> JwsHeader = { header: JwsHeader, key: KeyMaterial ->
-        val keyAttestation = if (addKeyAttestation) {
-            this.loadKeyAttestation?.invoke(KeyAttestationInput(clientNonce, null))?.getOrThrow()?.serialize()
-                ?: throw IllegalArgumentException("Key attestation required, none provided")
-        } else null
-        header.copy(jsonWebKey = key.jsonWebKey, keyAttestation = keyAttestation)
-    }
 
     @Throws(Exception::class)
     private fun String.toStoreCredentialInput(

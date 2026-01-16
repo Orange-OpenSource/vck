@@ -24,9 +24,13 @@ import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenIntrospectionResponse
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.openid.TokenResponseParameters
+import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.JsonWebKey
+import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
+import at.asitplus.signum.indispensable.josef.JwsSigned
+import at.asitplus.wallet.lib.jws.VerifyJwsSignature
 import at.asitplus.wallet.lib.oidvci.CodeService
 import at.asitplus.wallet.lib.oidvci.CredentialIssuer
 import at.asitplus.wallet.lib.oidvci.DefaultCodeService
@@ -136,6 +140,8 @@ class SimpleAuthorizationService(
      * - this is the default behaviour of [at.asitplus.wallet.lib.ktor.openid.OAuth2KtorClient]
      */
     private val requestObjectSigningAlgorithms: Set<JwsAlgorithm.Signature>? = setOf(JwsAlgorithm.Signature.ES256),
+
+    private val trustedAttestationKeys: Set<CryptoPublicKey>? = null
 ) : OAuth2AuthorizationServerAdapter, AuthorizationService {
 
     private val _metadata: OAuth2AuthorizationServerMetadata by lazy {
@@ -386,6 +392,21 @@ class SimpleAuthorizationService(
         }
         val validatedClientKey = tokenService.verification.extractValidatedClientKey(httpRequest).getOrThrow()
 
+        httpRequest?.clientAttestation?.let {
+            val instanceAttestation = JwsSigned.deserialize<JsonWebToken>(
+                it = it,
+                deserializationStrategy = JsonWebToken.Companion.serializer(),
+            ).getOrElse {
+                throw InvalidGrant("unable to decode instance attestation: $it")
+            }
+            val instanceAttestationValid = trustedAttestationKeys?.firstOrNull { publicKey ->
+                VerifyJwsSignature().invoke(instanceAttestation, publicKey).isSuccess
+            } ?: false
+
+            if(!instanceAttestationValid) {
+                throw InvalidGrant("instance attestation invalid: $it")
+            }
+        }
         val clientAuthRequest = request.loadClientAuthnRequest(httpRequest, validatedClientKey)
             ?: throw InvalidGrant("could not load user info for $request")
 
