@@ -1,6 +1,6 @@
 # Changelog
 
-Release 5.12.0 (unreleased):
+Release 5.12.0:
  - W3C JWT VC:
    - Presentation validation: Now verifies that the subject field contains the VP issuer's public key (VC holder's public key).
    - Replaced `CredentialSubject` abstract class with `JsonElement` for W3C VC `credentialSubject` field. Polymorphic deserialization using `type` discriminator is unreliable since W3C Data Model Spec 1.1 doesn't guarantee this field's presence.
