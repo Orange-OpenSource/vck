@@ -47,18 +47,17 @@ import at.asitplus.wallet.lib.cbor.SignCoseDetached
 import at.asitplus.wallet.lib.cbor.SignCoseDetachedFun
 import at.asitplus.wallet.lib.data.CredentialPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
-import at.asitplus.wallet.lib.data.vckJsonSerializer
 import at.asitplus.wallet.lib.jws.EncryptJwe
 import at.asitplus.wallet.lib.jws.EncryptJweFun
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
 import at.asitplus.wallet.lib.oidc.RequestObjectJwsVerifier
-import at.asitplus.wallet.lib.utils.DefaultMapStore
-import at.asitplus.wallet.lib.utils.MapStore
 import at.asitplus.wallet.lib.oidvci.OAuth2Error
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidRequest
+import at.asitplus.wallet.lib.utils.DefaultMapStore
+import at.asitplus.wallet.lib.utils.MapStore
 import com.benasher44.uuid.uuid4
 import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
@@ -450,7 +449,7 @@ class OpenId4VpHolder
     private suspend fun AuthenticationRequestParameters.loadPresentationDefinition(): PresentationDefinition? =
         presentationDefinition ?: presentationDefinitionUrl
             ?.let { remoteResourceRetriever(RemoteResourceRetrieverInput(it)) }
-            ?.let { vckJsonSerializer.decodeFromString(it) }
+            ?.let { joseCompliantSerializer.decodeFromString(it) }
 
 }
 
