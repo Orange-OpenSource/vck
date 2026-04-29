@@ -1,5 +1,8 @@
 # Changelog
 
+Release 6.0.0 (unreleased):
+ - tbd
+
 Release 5.12.0:
  - W3C JWT VC:
    - Presentation validation: Now verifies that the subject field contains the VP issuer's public key (VC holder's public key).
