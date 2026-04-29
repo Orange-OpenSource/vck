@@ -40,7 +40,11 @@ data class DCQLJwtVcCredentialMetadataAndValidityConstraints(
         const val TYPE_VALUES = "type_values"
     }
 
-    fun validate(actualCredentialTypes: List<String>?): KmmResult<Unit> = catching {
+    fun validateCredentialConformance(credential: DCQLVcJwsCredential) = validate(
+        actualCredentialTypes = credential.types,
+    )
+
+    fun validate(actualCredentialTypes: Collection<String>?): KmmResult<Unit> = catching {
         var valid = false
         if (!actualCredentialTypes.isNullOrEmpty()) {
             for (typeValue in typeValues) {
@@ -54,6 +58,5 @@ data class DCQLJwtVcCredentialMetadataAndValidityConstraints(
             true -> Unit
             false -> throw IllegalArgumentException("Incompatible JWT-VC document type")
         }
-
     }
 }

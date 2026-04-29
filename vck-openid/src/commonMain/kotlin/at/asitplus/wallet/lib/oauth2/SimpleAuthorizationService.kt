@@ -20,18 +20,25 @@ import at.asitplus.openid.PushedAuthenticationResponseParameters
 import at.asitplus.openid.RequestObjectParameters
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.SignatureRequestParameters
+import at.asitplus.openid.TokenIntrospectionJwtResponse
 import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenIntrospectionResponse
+import at.asitplus.openid.TokenIntrospectionResult
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.openid.TokenResponseParameters
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.JsonWebKey
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
+import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialScheme
+import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
+import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
+import at.asitplus.wallet.lib.jws.SignJwt
+import at.asitplus.wallet.lib.jws.SignJwtFun
 import at.asitplus.wallet.lib.oidvci.CodeService
 import at.asitplus.wallet.lib.oidvci.CredentialIssuer
 import at.asitplus.wallet.lib.oidvci.DefaultCodeService
-import at.asitplus.wallet.lib.utils.DefaultMapStore
-import at.asitplus.wallet.lib.utils.MapStore
 import at.asitplus.wallet.lib.oidvci.OAuth2AuthorizationServerAdapter
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.*
@@ -41,6 +48,8 @@ import at.asitplus.wallet.lib.oidvci.TokenInfo
 import at.asitplus.wallet.lib.oidvci.encodeToParameters
 import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.RequestParser
+import at.asitplus.wallet.lib.utils.DefaultMapStore
+import at.asitplus.wallet.lib.utils.MapStore
 import com.benasher44.uuid.uuid4
 import io.github.aakira.napier.Napier
 import io.ktor.http.*
@@ -134,11 +143,14 @@ class SimpleAuthorizationService(
      * Sets [OAuth2AuthorizationServerMetadata.requestObjectSigningAlgorithmsSupported].
      * Currently, we only support [JwsAlgorithm.Signature.ES256].
      * If set the client MAY wrap [RequestParameters] as [JarRequestParameters]
-     * - this is the default behaviour of [at.asitplus.wallet.lib.ktor.openid.OAuth2KtorClient]
+     * - this is the default behaviour of `OAuth2KtorClient`
      */
     private val requestObjectSigningAlgorithms: Set<JwsAlgorithm.Signature>? = setOf(JwsAlgorithm.Signature.ES256),
     /** Used for [OAuth2AuthorizationServerMetadata.clientAttestationSigningAlgValuesSupportedStrings] */
-    private val supportedSigningAlgorithms: Set<JwsAlgorithm.Signature> = setOf(JwsAlgorithm.Signature.ES256)
+    private val supportedSigningAlgorithms: Set<JwsAlgorithm.Signature> = setOf(JwsAlgorithm.Signature.ES256),
+    /** Used to sign JWT introspection responses (RFC 9701). */
+    private val signIntrospectionJwt: SignJwtFun<TokenIntrospectionResponse> =
+        SignJwt(EphemeralKeyWithoutCert(), JwsHeaderCertOrJwk()),
 ) : OAuth2AuthorizationServerAdapter, AuthorizationService {
 
     private val _metadata: OAuth2AuthorizationServerMetadata by lazy {
@@ -176,14 +188,6 @@ class SimpleAuthorizationService(
      */
     override suspend fun metadata(): OAuth2AuthorizationServerMetadata = _metadata
 
-    @Deprecated("Use credentialOfferWithAuthorizationCode with parameter configurationIds")
-    suspend fun credentialOfferWithAuthorizationCode(
-        credentialIssuer: String,
-    ) = credentialOfferWithAuthorizationCode(
-        credentialIssuer = credentialIssuer,
-        configurationIds = strategy.allCredentialIdentifier()
-    )
-
     /**
      * Offer some credential identifiers from [strategy] to clients with auth-code flow.
      *
@@ -191,14 +195,41 @@ class SimpleAuthorizationService(
      * i.e. by displaying a QR Code that can be scanned with wallet apps.
      *
      * @param credentialIssuer the public context of an [CredentialIssuer]
+     * @param schemes which credential configuration IDs to use in the offer.
+     * Pass an empty set to offer all known schemes.
      */
+    suspend fun offerWithAuthorizationCodeForSchemes(
+        credentialIssuer: String,
+        schemes: Set<Pair<CredentialScheme, CredentialRepresentation>> = emptySet(),
+    ): CredentialOffer = buildOfferWithAuthorizationCode(
+        credentialIssuer = credentialIssuer,
+        configurationIds = strategy.toCredentialConfigurationIds(schemes),
+    )
+
+    /**
+     * Offer some credential identifiers from [strategy] to clients with auth-code flow.
+     *
+     * @deprecated Pass credential schemes with representations instead of raw configuration ids.
+     */
+    @Deprecated(
+        "Pass credential schemes with representations instead of raw configuration ids.",
+        ReplaceWith("offerWithAuthorizationCodeForSchemes")
+    )
     suspend fun credentialOfferWithAuthorizationCode(
         credentialIssuer: String,
         configurationIds: Collection<String> = this.strategy.allCredentialIdentifier(),
+    ): CredentialOffer = buildOfferWithAuthorizationCode(
+        credentialIssuer = credentialIssuer,
+        configurationIds = configurationIds,
+    )
+
+    private suspend fun buildOfferWithAuthorizationCode(
+        credentialIssuer: String,
+        configurationIds: Collection<String>,
     ): CredentialOffer = codeService.provideCode().let { issuerState ->
         CredentialOffer(
             credentialIssuer = credentialIssuer,
-            configurationIds = configurationIds.ifEmpty { strategy.allCredentialIdentifier() }.toSet(),
+            configurationIds = configurationIds.toSet(),
             grants = CredentialOfferGrants(
                 authorizationCode = CredentialOfferGrantsAuthCode(
                     issuerState = issuerState,
@@ -218,14 +249,45 @@ class SimpleAuthorizationService(
      *
      * @param user used to create the credential when the wallet app requests the credential
      * @param credentialIssuer the public context of an [CredentialIssuer]
+     * @param schemes which credential configuration IDs to use in the offer.
+     * Pass an empty set to offer all known schemes.
      */
+    suspend fun offerWithPreAuthnForUserForSchemes(
+        user: OidcUserInfoExtended,
+        credentialIssuer: String,
+        schemes: Set<Pair<CredentialScheme, CredentialRepresentation>> = emptySet(),
+    ): CredentialOffer = buildOfferWithPreAuthnForUser(
+        user = user,
+        credentialIssuer = credentialIssuer,
+        configurationIds = strategy.toCredentialConfigurationIds(schemes),
+    )
+
+    /**
+     * Offer all available schemes from [strategy] to clients.
+     *
+     * @deprecated Pass credential schemes with representations instead of raw configuration ids.
+     */
+    @Deprecated(
+        "Pass credential schemes with representations instead of raw configuration ids.",
+        ReplaceWith("offerWithPreAuthnForUserForSchemes")
+    )
     suspend fun credentialOfferWithPreAuthnForUser(
         user: OidcUserInfoExtended,
         credentialIssuer: String,
         configurationIds: Collection<String> = this.strategy.allCredentialIdentifier(),
+    ): CredentialOffer = buildOfferWithPreAuthnForUser(
+        user = user,
+        credentialIssuer = credentialIssuer,
+        configurationIds = configurationIds,
+    )
+
+    private suspend fun buildOfferWithPreAuthnForUser(
+        user: OidcUserInfoExtended,
+        credentialIssuer: String,
+        configurationIds: Collection<String>,
     ): CredentialOffer = CredentialOffer(
         credentialIssuer = credentialIssuer,
-        configurationIds = configurationIds.ifEmpty { strategy.allCredentialIdentifier() }.toSet(),
+        configurationIds = configurationIds.toSet(),
         grants = CredentialOfferGrants(
             preAuthorizedCode = CredentialOfferGrantsPreAuthCode(
                 preAuthorizedCode = providePreAuthorizedCode(user),
@@ -615,19 +677,34 @@ class SimpleAuthorizationService(
     override suspend fun tokenIntrospection(
         request: TokenIntrospectionRequest,
         httpRequest: RequestInfo?,
-    ): KmmResult<TokenIntrospectionResponse> = catching {
+    ): KmmResult<TokenIntrospectionResult> = catching {
         // TODO Which client_id to pass?
         clientAuthenticationService.authenticateClient(httpRequest, null)
-        val validated = runCatching {
+        val response = runCatching {
             tokenService.verification.getTokenInfo(request.token)
-        }.getOrElse {
-            return@catching TokenIntrospectionResponse(active = false)
-        }
-        TokenIntrospectionResponse(
-            active = true,
-            scope = validated.scope,
-            authorizationDetails = validated.authorizationDetails,
+        }.fold(
+            onSuccess = {
+                TokenIntrospectionResponse(
+                    active = true,
+                    scope = it.scope,
+                    authorizationDetails = it.authorizationDetails,
+                )
+            },
+            onFailure = {
+                TokenIntrospectionResponse(active = false)
+            }
         )
+        when (request.responseFormat) {
+            TokenIntrospectionRequest.ResponseFormat.JWT -> TokenIntrospectionJwtResponse(
+                jwt = signIntrospectionJwt(
+                    JwsContentTypeConstants.TOKEN_INTROSPECTION_JWT,
+                    response,
+                    TokenIntrospectionResponse.serializer()
+                ).getOrThrow().serialize()
+            )
+
+            else -> response
+        }
     }
 
     override suspend fun validateAccessToken(

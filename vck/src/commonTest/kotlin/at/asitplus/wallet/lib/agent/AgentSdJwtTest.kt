@@ -39,8 +39,8 @@ import at.asitplus.wallet.lib.jws.VerifyStatusListTokenHAIP
 import at.asitplus.wallet.lib.randomCwtOrJwtResolver
 import com.benasher44.uuid.uuid4
 import de.infix.testBalloon.framework.core.testSuite
+import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldNotBeInstanceOf
@@ -106,7 +106,7 @@ val AgentSdJwtTest by testSuite {
                 validSdJwtCredential = credential,
                 claimName = CLAIM_GIVEN_NAME
             )
-            it.verifier.verifyPresentationSdJwt(sdJwt.sdJwt, it.challenge)
+            it.verifier.verifyPresentationSdJwt(sdJwt.sdJwt, it.challenge).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     reconstructedJsonObject.keys shouldContain CLAIM_GIVEN_NAME
                     freshnessSummary.tokenStatusValidationResult
@@ -123,7 +123,7 @@ val AgentSdJwtTest by testSuite {
             val vp = presentationParameters.presentationResults.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge)
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     reconstructedJsonObject[CLAIM_GIVEN_NAME]?.jsonPrimitive?.content shouldBe "Susanne"
                     reconstructedJsonObject[CLAIM_DATE_OF_BIRTH]?.jsonPrimitive?.content shouldBe "1990-01-01"
@@ -144,8 +144,12 @@ val AgentSdJwtTest by testSuite {
             val freshKbJwt = createFreshSdJwtKeyBinding(it.challenge, it.verifierId)
             val malformedVpSdJwt = vp.serialized.replaceAfterLast("~", freshKbJwt.substringAfterLast("~"))
 
-            it.verifier.verifyPresentationSdJwt(SdJwtSigned.parseCatching(malformedVpSdJwt).getOrThrow(), it.challenge)
-                .shouldBeInstanceOf<Verifier.VerifyPresentationResult.ValidationError>()
+            shouldThrowAny {
+                it.verifier.verifyPresentationSdJwt(
+                    SdJwtSigned.parseCatching(malformedVpSdJwt).getOrThrow(),
+                    it.challenge
+                ).getOrThrow()
+            }
         }
 
         "presex: wrong challenge in key binding jwt" {
@@ -158,8 +162,9 @@ val AgentSdJwtTest by testSuite {
             val vp = presentationParameters.presentationResults.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge)
-                .shouldBeInstanceOf<Verifier.VerifyPresentationResult.ValidationError>()
+            shouldThrowAny {
+                it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            }
         }
 
         "presex: revoked sd jwt" {
@@ -173,12 +178,12 @@ val AgentSdJwtTest by testSuite {
             it.holderCredentialStore.getCredentials().getOrThrow()
                 .filterIsInstance<SubjectCredentialStore.StoreEntry.SdJwt>()
                 .forEach { storeEntry ->
-                    it.statusListIssuer.revokeCredential(
+                    it.statusListIssuer.revokeCredentialByIndex(
                         FixedTimePeriodProvider.timePeriod,
-                        storeEntry.sdJwt.credentialStatus.shouldBeInstanceOf<StatusListInfo>().index
+                        storeEntry.sdJwt.statusElement.shouldBeInstanceOf<StatusListInfo>().index
                     ) shouldBe true
                 }
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge)
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .freshnessSummary.tokenStatusValidationResult
                 .shouldBeInstanceOf<TokenStatusValidationResult.Invalid>()
@@ -202,7 +207,7 @@ val AgentSdJwtTest by testSuite {
             val vp = presentationParameters.verifiablePresentations.values.flatten().firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge)
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     reconstructedJsonObject[CLAIM_GIVEN_NAME]?.jsonPrimitive?.content shouldBe "Susanne"
                     reconstructedJsonObject[CLAIM_DATE_OF_BIRTH]?.jsonPrimitive?.content shouldBe "1990-01-01"
@@ -229,8 +234,12 @@ val AgentSdJwtTest by testSuite {
             val freshKbJwt = createFreshSdJwtKeyBinding(it.challenge, it.verifierId)
             val malformedVpSdJwt = vp.serialized.replaceAfterLast("~", freshKbJwt.substringAfterLast("~"))
 
-            it.verifier.verifyPresentationSdJwt(SdJwtSigned.parseCatching(malformedVpSdJwt).getOrThrow(), it.challenge)
-                .shouldBeInstanceOf<Verifier.VerifyPresentationResult.ValidationError>()
+            shouldThrowAny {
+                it.verifier.verifyPresentationSdJwt(
+                    SdJwtSigned.parseCatching(malformedVpSdJwt).getOrThrow(),
+                    it.challenge
+                ).getOrThrow()
+            }
         }
 
         "dcql: wrong challenge in key binding jwt" {
@@ -252,8 +261,9 @@ val AgentSdJwtTest by testSuite {
             val vp = presentationParameters.verifiablePresentations.values.flatten().firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge)
-                .shouldBeInstanceOf<Verifier.VerifyPresentationResult.ValidationError>()
+            shouldThrowAny {
+                it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            }
         }
 
         "dcql: revoked sd jwt" {
@@ -274,12 +284,12 @@ val AgentSdJwtTest by testSuite {
             it.holderCredentialStore.getCredentials().getOrThrow()
                 .filterIsInstance<SubjectCredentialStore.StoreEntry.SdJwt>()
                 .forEach { storeEntry ->
-                    it.statusListIssuer.revokeCredential(
+                    it.statusListIssuer.revokeCredentialByIndex(
                         FixedTimePeriodProvider.timePeriod,
-                        storeEntry.sdJwt.credentialStatus.shouldBeInstanceOf<StatusListInfo>().index,
+                        storeEntry.sdJwt.statusElement.shouldBeInstanceOf<StatusListInfo>().index,
                     ) shouldBe true
                 }
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge)
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .freshnessSummary.tokenStatusValidationResult
                 .shouldBeInstanceOf<TokenStatusValidationResult.Invalid>()
@@ -317,7 +327,7 @@ val AgentSdJwtTest by testSuite {
             val vp = presentationParameters.verifiablePresentations.values.first().first()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            haipVerifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge)
+            haipVerifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .freshnessSummary.tokenStatusValidationResult
                 .shouldBeInstanceOf<TokenStatusValidationResult.Valid>()
@@ -363,7 +373,7 @@ val AgentSdJwtTest by testSuite {
             val vp = presentationParameters.verifiablePresentations.values.first().first()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            val test = haipVerifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge)
+            val test = haipVerifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
 
             test.shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .freshnessSummary.tokenStatusValidationResult

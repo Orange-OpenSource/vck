@@ -1,5 +1,17 @@
 package at.asitplus.wallet.lib.openid
 
+/*
+ * Software Name : VC-K
+ * SPDX-FileCopyrightText: Copyright (c) A-SIT Plus GmbH
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modifications: Credential subject is now a JsonElement
+ * SPDX-FileCopyrightText: Copyright (c) Orange Business
+ *
+ * This software is distributed under the Apache License 2.0,
+ * see the "LICENSE" file for more details
+ */
+
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.JarRequestParameters
 import at.asitplus.openid.OpenIdConstants
@@ -22,14 +34,17 @@ import at.asitplus.wallet.lib.jws.VerifyJwsObject
 import at.asitplus.wallet.lib.utils.MapStore
 import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.RequestOptionsCredential
+import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
 import at.asitplus.wallet.lib.oidvci.encodeToParameters
 import at.asitplus.wallet.lib.oidvci.formUrlEncode
 import com.benasher44.uuid.uuid4
 import de.infix.testBalloon.framework.core.testSuite
+import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.maps.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -38,8 +53,11 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
 import io.kotest.matchers.types.shouldBeInstanceOf
-import io.ktor.http.*
+import io.ktor.http.Url
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 
+@Suppress("unused")
 val PreRegisteredClientTest by testSuite {
 
     withFixtureGenerator(suspend {
@@ -79,9 +97,11 @@ val PreRegisteredClientTest by testSuite {
                 decryptionKeyMaterial = decryptionKeyMaterial
             )
             val defaultRequestOptions = OpenId4VpRequestOptions(
-                credentials = setOf(
-                    RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
-                ),
+                presentationRequest = CredentialPresentationRequestBuilder(
+                    credentials = setOf(
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
+                    ),
+                ).toPresentationExchangeRequest(),
             )
         }
     }) - {
@@ -89,7 +109,9 @@ val PreRegisteredClientTest by testSuite {
         "test with Fragment" {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
-                    credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                    ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.Fragment,
                 ),
                 OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
@@ -102,8 +124,12 @@ val PreRegisteredClientTest by testSuite {
             authnResponse.url.shouldContain("#")
             authnResponse.url.shouldStartWith(it.redirectUrl)
 
-            it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
-                .shouldBeInstanceOf<AuthnResponseResult.Success>()
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+                .inputDescriptorResponseValidations.values.map {
+                    it.getOrThrow()
+                }.shouldBeSingleton().first().shouldBeInstanceOf<Verifier.VerifyPresentationResult.Success>()
                 .vp.freshVerifiableCredentials.shouldNotBeEmpty()
 
             it.verifierOid4vp.createAuthnRequest(
@@ -119,7 +145,9 @@ val PreRegisteredClientTest by testSuite {
             val expectedState = uuid4().toString()
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
-                    credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                    ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.Query,
                     state = expectedState,
                 ),
@@ -133,8 +161,12 @@ val PreRegisteredClientTest by testSuite {
             authnResponse.url.shouldNotContain("#")
             authnResponse.url.shouldStartWith(it.redirectUrl)
 
-            it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
-                .shouldBeInstanceOf<AuthnResponseResult.Success>().apply {
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+                .inputDescriptorResponseValidations.values.map {
+                    it.getOrThrow()
+                }.shouldBeSingleton().first().shouldBeInstanceOf<Verifier.VerifyPresentationResult.Success>().apply {
                     vp.freshVerifiableCredentials.shouldNotBeEmpty()
                 }
         }
@@ -150,7 +182,9 @@ val PreRegisteredClientTest by testSuite {
                 }
             )
             val requestOptions = OpenId4VpRequestOptions(
-                credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                presentationRequest = CredentialPresentationRequestBuilder(
+                    credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                ).toPresentationExchangeRequest(),
                 responseType = OpenIdConstants.ID_TOKEN,
             )
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
@@ -160,9 +194,8 @@ val PreRegisteredClientTest by testSuite {
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
                 .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
-            it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
-                .shouldBeInstanceOf<AuthnResponseResult.ValidationError>()
-                .field shouldBe "idToken"
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+                .idTokenValidationResult.shouldNotBeNull().isFailure shouldBe true
         }
 
         "wrong client nonce in vp_token should lead to error" {
@@ -182,9 +215,7 @@ val PreRegisteredClientTest by testSuite {
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
                 .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
-            it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
-                .shouldBeInstanceOf<AuthnResponseResult.ValidationError>()
-                .field shouldBe "input"
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).isFailure shouldBe true
         }
 
         "test with QR Code" {
@@ -203,14 +234,20 @@ val PreRegisteredClientTest by testSuite {
             val authnResponse = it.holderOid4vp.createAuthnResponse(jar).getOrThrow()
                 .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
-            it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
-                .shouldBeInstanceOf<AuthnResponseResult.Success>()
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+                .inputDescriptorResponseValidations.values.map {
+                    it.getOrThrow()
+                }.shouldBeSingleton().first().shouldBeInstanceOf<Verifier.VerifyPresentationResult.Success>()
         }
 
         "test with direct_post" {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
-                    credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                    ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
                     responseUrl = it.redirectUrl
                 ),
@@ -221,15 +258,21 @@ val PreRegisteredClientTest by testSuite {
                 .shouldBeInstanceOf<AuthenticationResponseResult.Post>()
             authnResponse.url.shouldBe(it.redirectUrl)
 
-            it.verifierOid4vp.validateAuthnResponse(authnResponse.params.formUrlEncode())
-                .shouldBeInstanceOf<AuthnResponseResult.Success>()
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.params.formUrlEncode()).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+                .inputDescriptorResponseValidations.values.map {
+                    it.getOrThrow()
+                }.shouldBeSingleton().first().shouldBeInstanceOf<Verifier.VerifyPresentationResult.Success>()
                 .vp.freshVerifiableCredentials.shouldNotBeEmpty()
         }
 
         "test with direct_post.jwt" {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
-                    credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                    ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPostJwt,
                     responseUrl = it.redirectUrl
                 ),
@@ -242,8 +285,12 @@ val PreRegisteredClientTest by testSuite {
                     params.shouldHaveSize(1) // only the "response" object
                 }
 
-            it.verifierOid4vp.validateAuthnResponse(authnResponse.params.formUrlEncode())
-                .shouldBeInstanceOf<AuthnResponseResult.Success>()
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.params.formUrlEncode()).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+                .inputDescriptorResponseValidations.values.map {
+                    it.getOrThrow()
+                }.shouldBeSingleton().first().shouldBeInstanceOf<Verifier.VerifyPresentationResult.Success>()
                 .vp.freshVerifiableCredentials.shouldNotBeEmpty()
         }
 
@@ -255,7 +302,9 @@ val PreRegisteredClientTest by testSuite {
             )
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
-                    credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                    ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPostJwt,
                     responseUrl = it.redirectUrl
                 ),
@@ -283,8 +332,12 @@ val PreRegisteredClientTest by testSuite {
                 .params
             val authnResponseParams = authnResponse.encodeToParameters().formUrlEncode()
 
-            it.verifierOid4vp.validateAuthnResponse(authnResponseParams)
-                .shouldBeInstanceOf<AuthnResponseResult.Success>()
+            it.verifierOid4vp.validateAuthnResponse(authnResponseParams).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+                .inputDescriptorResponseValidations.values.map {
+                    it.getOrThrow()
+                }.shouldBeSingleton().first().shouldBeInstanceOf<Verifier.VerifyPresentationResult.Success>()
                 .vp.freshVerifiableCredentials.shouldNotBeEmpty()
         }
 
@@ -297,11 +350,19 @@ val PreRegisteredClientTest by testSuite {
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
                 .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
-            it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
-                .shouldBeInstanceOf<AuthnResponseResult.Success>()
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+                .inputDescriptorResponseValidations.values.map {
+                    it.getOrThrow()
+                }.shouldBeSingleton().first().shouldBeInstanceOf<Verifier.VerifyPresentationResult.Success>()
                 .vp.freshVerifiableCredentials.shouldNotBeEmpty()
                 .map { it.vcJws }.forEach {
-                    it.vc.credentialSubject.shouldBeInstanceOf<AtomicAttribute2023>()
+                    it.vc.credentialSubject.shouldBeInstanceOf<JsonElement>().also { credentialSubject ->
+                        shouldNotThrowAny {
+                            Json.decodeFromJsonElement(AtomicAttribute2023.serializer(), credentialSubject)
+                        }
+                    }
                 }
         }
 
@@ -313,11 +374,20 @@ val PreRegisteredClientTest by testSuite {
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequestWithRequestObject).getOrThrow()
                 .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
-            it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
-                .shouldBeInstanceOf<AuthnResponseResult.Success>()
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+                .inputDescriptorResponseValidations.values.map {
+                    it.getOrThrow()
+                }.shouldBeSingleton().first()
+                .shouldBeInstanceOf<Verifier.VerifyPresentationResult.Success>()
                 .vp.freshVerifiableCredentials.shouldNotBeEmpty()
                 .map { it.vcJws }.forEach {
-                    it.vc.credentialSubject.shouldBeInstanceOf<AtomicAttribute2023>()
+                    it.vc.credentialSubject.shouldBeInstanceOf<JsonElement>().also { credentialSubject ->
+                        shouldNotThrowAny {
+                            Json.decodeFromJsonElement(AtomicAttribute2023.serializer(), credentialSubject)
+                        }
+                    }
                 }
         }
 
@@ -340,11 +410,20 @@ val PreRegisteredClientTest by testSuite {
             val authnResponse = it.holderOid4vp.createAuthnResponse(authRequestUrlWithRequestUri).getOrThrow()
                 .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
-            it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
-                .shouldBeInstanceOf<AuthnResponseResult.Success>()
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+                .inputDescriptorResponseValidations.values.map {
+                    it.getOrThrow()
+                }.shouldBeSingleton().first()
+                .shouldBeInstanceOf<Verifier.VerifyPresentationResult.Success>()
                 .vp.freshVerifiableCredentials.shouldNotBeEmpty()
                 .map { it.vcJws }.forEach {
-                    it.vc.credentialSubject.shouldBeInstanceOf<AtomicAttribute2023>()
+                    it.vc.credentialSubject.shouldBeInstanceOf<JsonElement>().also { credentialSubject ->
+                        shouldNotThrowAny {
+                            Json.decodeFromJsonElement(AtomicAttribute2023.serializer(), credentialSubject)
+                        }
+                    }
                 }
         }
 
@@ -411,9 +490,11 @@ val PreRegisteredClientTest by testSuite {
 }
 
 private fun requestOptionsAtomicAttribute() = OpenId4VpRequestOptions(
-    credentials = setOf(
-        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
-    ),
+    presentationRequest = CredentialPresentationRequestBuilder(
+        credentials = setOf(
+            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
+        ),
+    ).toPresentationExchangeRequest(),
 )
 
 private suspend fun verifySecondProtocolRun(
@@ -424,6 +505,11 @@ private suspend fun verifySecondProtocolRun(
     val authnResponse = holderOid4vp.createAuthnResponse(authnRequestUrl)
         .getOrThrow()
         .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
-    verifierOid4vp.validateAuthnResponse(authnResponse.url)
-        .shouldBeInstanceOf<AuthnResponseResult.Success>()
+    verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+        .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+        .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+        .inputDescriptorResponseValidations.values.map {
+            it.getOrThrow()
+        }.shouldBeSingleton().first()
+        .shouldBeInstanceOf<Verifier.VerifyPresentationResult.Success>()
 }

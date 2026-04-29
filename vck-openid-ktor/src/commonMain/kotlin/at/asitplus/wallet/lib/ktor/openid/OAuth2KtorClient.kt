@@ -12,12 +12,14 @@ import at.asitplus.openid.OpenIdConstants.TOKEN_TYPE_DPOP
 import at.asitplus.openid.PushedAuthenticationResponseParameters
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.SupportedCredentialFormat
+import at.asitplus.openid.TokenIntrospectionJwtResponse
 import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenIntrospectionResponse
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.openid.TokenResponseParameters
 import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
+import at.asitplus.signum.indispensable.josef.JwsSigned
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.data.vckJsonSerializer
@@ -75,8 +77,10 @@ class OAuth2KtorClient(
      * the key behind [signClientAttestationPop], see
      * [OAuth 2.0 Attestation-Based Client Authentication](https://www.ietf.org/archive/id/draft-ietf-oauth-attestation-based-client-auth-04.html)
      */
+    @Deprecated("Removed, use new loadInstanceAttestation function instead")
     private val loadClientAttestationJwt: (suspend () -> String)? = null,
     /** Used for authenticating the client at the authorization server with client attestation. */
+    @Deprecated("Removed, use new loadInstanceAttestationPop function instead")
     private val signClientAttestationPop: SignJwtFun<JsonWebToken>? =
         SignJwt(EphemeralKeyWithoutCert(), JwsHeaderNone()),
     /** Used to calculate DPoP, i.e. the key the access token and refresh token gets bound to. */
@@ -90,6 +94,15 @@ class OAuth2KtorClient(
     val oAuth2Client: OAuth2Client,
     /** Source for random bytes, i.e., nonces for proof-of-possession of key material for sender-constrained tokens. */
     private val randomSource: RandomSource = RandomSource.Secure,
+    /**
+     * Verifies signed token introspection responses (RFC 9701). By default, every syntactically valid JWS is accepted.
+     */
+    private val verifyTokenIntrospectionJwt: suspend (JwsSigned<TokenIntrospectionResponse>) -> Boolean = { true },
+
+    /** Returns a new instance attestation to validate the app against an authorization server. */
+    val loadInstanceAttestation: (suspend () -> KmmResult<JwsSigned<JsonWebToken>>)? = null,
+    /** Returns a proof of possession for an instance attestation */
+    val loadInstanceAttestationPop: (suspend () -> KmmResult<JwsSigned<JsonWebToken>>)? = null,
 ) {
     /**
      * Stores the latest DPoP nonce per origin. RFC 9449 requires using only the most recent nonce
@@ -420,7 +433,10 @@ class OAuth2KtorClient(
             updateDpopNonceAndRetry(response, introspectionUrl, retryCount) {
                 callTokenIntrospection(oauthMetadata, request, token, popAudience, retryCount + 1)
             }
-        }.onSuccessTokenIntrospection { httpResponse ->
+        }.onSuccessTokenIntrospection(
+            verifyTokenIntrospectionJwt = verifyTokenIntrospectionJwt,
+            requestedResponseFormat = request.responseFormat,
+        ) { httpResponse ->
             updateDpopNonce(introspectionUrl, httpResponse.dpopNonce)
             if (!active) {
                 throw InvalidToken("Introspected token is not active")
@@ -470,8 +486,11 @@ class OAuth2KtorClient(
     }
 
     /**
-     * Sets the appropriate headers when accessing a token endpoint,
-     * i.e., performs client authentication, also sign DPoP proof when [useDpop] is set.
+     * Sets the appropriate headers when accessing a token endpoint:
+     * - loads client attestation when [loadClientAttestationJwt] is set
+     * - sends a DPoP proof when [useDpop] is set
+     * Previously, this method evaluated [oauthMetadata], but authorization servers are not required
+     * to set the corresponding fields in the metadata, so we set the headers anyway.
      */
     suspend fun applyAuthnForToken(
         oauthMetadata: OAuth2AuthorizationServerMetadata,
@@ -480,20 +499,28 @@ class OAuth2KtorClient(
         httpMethod: HttpMethod,
         useDpop: Boolean,
     ): HttpRequestBuilder.() -> Unit {
-        val (clientAttJwt, clientAttPop) = oauthMetadata.useClientAuth().takeIf { it }?.let {
-            loadClientAttestationJwt?.invoke()?.let { clientAttestationJwt ->
-                clientAttestationJwt to signClientAttestationPop?.let {
-                    BuildClientAttestationPoPJwt(
-                        signClientAttestationPop,
-                        clientId = oAuth2Client.clientId,
-                        audience = popAudience,
-                        lifetime = 10.minutes,
-                    ).serialize()
-                }
+        val (clientAttJwt, clientAttPop) = when (loadInstanceAttestation != null && loadInstanceAttestationPop != null) {
+            true -> {
+                loadInstanceAttestation.let {
+                    it().getOrNull()?.serialize()
+                } to loadInstanceAttestationPop.let { it().getOrNull()?.serialize() }
             }
-        } ?: (null to null)
 
-        val dpopHeader = oauthMetadata.hasMatchingDpopAlgorithm().takeIf { it && useDpop }?.let {
+            else -> {
+                loadClientAttestationJwt?.invoke()?.let { jwt ->
+                    jwt to signClientAttestationPop?.let {
+                        BuildClientAttestationPoPJwt(
+                            signClientAttestationPop,
+                            clientId = oAuth2Client.clientId,
+                            audience = popAudience,
+                            lifetime = 10.minutes,
+                        ).serialize()
+                    }
+                } ?: (null to null)
+            }
+        }
+
+        val dpopHeader = useDpop.takeIf { it }?.let {
             BuildDPoPHeader(
                 signDpop = signDpop,
                 url = resourceUrl,
@@ -512,11 +539,6 @@ class OAuth2KtorClient(
         }
     }
 
-    private fun OAuth2AuthorizationServerMetadata.useClientAuth(): Boolean =
-        tokenEndPointAuthMethodsSupported?.contains(OpenIdConstants.AUTH_METHOD_ATTEST_JWT_CLIENT_AUTH) == true
-
-    private fun OAuth2AuthorizationServerMetadata.hasMatchingDpopAlgorithm(): Boolean =
-        dpopSigningAlgValuesSupported?.contains(dpopAlgorithm) == true
 }
 
 val HttpHeaders.OAuthClientAttestation: String
@@ -548,5 +570,46 @@ private suspend inline fun <R> IntermediateResult<R>.onSuccessToken(
 ) = onSuccess<TokenResponseParameters, R>(block)
 
 private suspend inline fun <R> IntermediateResult<R>.onSuccessTokenIntrospection(
+    noinline verifyTokenIntrospectionJwt: suspend (JwsSigned<TokenIntrospectionResponse>) -> Boolean,
+    requestedResponseFormat: TokenIntrospectionRequest.ResponseFormat?,
     block: TokenIntrospectionResponse.(httpResponse: HttpResponse) -> R,
-) = onSuccess<TokenIntrospectionResponse, R>(block)
+) = when (this) {
+    is IntermediateResult.Failure<R> -> result
+    is IntermediateResult.Success<R> -> block(
+        parseTokenIntrospectionResponse(
+            body = httpResponse.bodyAsText(),
+            verifyTokenIntrospectionJwt = verifyTokenIntrospectionJwt,
+            requestedResponseFormat = requestedResponseFormat,
+        ), httpResponse
+    )
+}
+
+private suspend fun parseTokenIntrospectionResponse(
+    body: String,
+    verifyTokenIntrospectionJwt: suspend (JwsSigned<TokenIntrospectionResponse>) -> Boolean,
+    requestedResponseFormat: TokenIntrospectionRequest.ResponseFormat?,
+): TokenIntrospectionResponse = runCatching {
+    if (requestedResponseFormat == TokenIntrospectionRequest.ResponseFormat.JWT) {
+        parseJwt(body, verifyTokenIntrospectionJwt)
+    } else {
+        runCatching {
+            vckJsonSerializer.decodeFromString(TokenIntrospectionResponse.serializer(), body)
+        }.getOrElse {
+            parseJwt(body, verifyTokenIntrospectionJwt)
+        }
+    }
+}.getOrElse {
+    throw InvalidToken("Token introspection response could not be parsed", it)
+}
+
+private suspend fun parseJwt(
+    body: String,
+    verifyTokenIntrospectionJwt: suspend (JwsSigned<TokenIntrospectionResponse>) -> Boolean
+): TokenIntrospectionResponse =
+    vckJsonSerializer.decodeFromString(TokenIntrospectionJwtResponse.serializer(), body).let { jwtResponse ->
+        JwsSigned.deserialize(TokenIntrospectionResponse.serializer(), jwtResponse.jwt, vckJsonSerializer)
+            .getOrThrow().run {
+                require(verifyTokenIntrospectionJwt(this)) { "Token introspection JWT validation failed" }
+                payload
+            }
+    }

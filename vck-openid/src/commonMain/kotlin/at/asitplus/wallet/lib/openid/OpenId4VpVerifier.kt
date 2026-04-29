@@ -2,12 +2,12 @@ package at.asitplus.wallet.lib.openid
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
-import at.asitplus.catchingUnwrapped
 import at.asitplus.dcapi.DCAPIHandover
 import at.asitplus.dcapi.OpenID4VPDCAPIHandoverInfo
 import at.asitplus.dcapi.OpenId4VpResponse
 import at.asitplus.dcapi.SessionTranscriptContentHashable
 import at.asitplus.dif.ClaimFormat
+import at.asitplus.dif.DifInputDescriptor
 import at.asitplus.dif.FormatContainerJwt
 import at.asitplus.dif.FormatContainerSdJwt
 import at.asitplus.dif.PresentationSubmissionDescriptor
@@ -35,6 +35,8 @@ import at.asitplus.openid.TransactionDataBase64Url
 import at.asitplus.openid.VpFormatsSupported
 import at.asitplus.openid.dcql.DCQLCredentialQueryIdentifier
 import at.asitplus.openid.dcql.DCQLQuery
+import at.asitplus.openid.dcql.DCQLQueryResponse
+import at.asitplus.rfc6749OAuth2AuthorizationFramework.ResponseType
 import at.asitplus.signum.indispensable.SignatureAlgorithm
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.cosef.toCoseAlgorithm
@@ -48,6 +50,8 @@ import at.asitplus.signum.indispensable.josef.JwsSigned
 import at.asitplus.signum.indispensable.josef.toJsonWebKey
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
 import at.asitplus.wallet.lib.AbstractMdocVerifier
+import at.asitplus.wallet.lib.DefaultNonceService
+import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.Verifier
@@ -55,9 +59,11 @@ import at.asitplus.wallet.lib.agent.Verifier.VerifyPresentationResult
 import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKey
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKeyFun
+import at.asitplus.wallet.lib.data.CredentialPresentationRequest
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.data.toBase64UrlJsonString
 import at.asitplus.wallet.lib.data.vckJsonSerializer
+import at.asitplus.wallet.lib.extensions.sessionTranscriptThumbprint
 import at.asitplus.wallet.lib.jws.DecryptJwe
 import at.asitplus.wallet.lib.jws.DecryptJweFun
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
@@ -67,14 +73,12 @@ import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
 import at.asitplus.wallet.lib.jws.VerifyJwsObject
 import at.asitplus.wallet.lib.jws.VerifyJwsObjectFun
-import at.asitplus.wallet.lib.utils.DefaultMapStore
-import at.asitplus.wallet.lib.DefaultNonceService
-import at.asitplus.wallet.lib.utils.MapStore
-import at.asitplus.wallet.lib.NonceService
-import at.asitplus.wallet.lib.extensions.sessionTranscriptThumbprint
 import at.asitplus.wallet.lib.oidvci.encodeToParameters
+import at.asitplus.wallet.lib.procedures.dcql.DCQLQueryAdapter
+import at.asitplus.wallet.lib.utils.DefaultMapStore
+import at.asitplus.wallet.lib.utils.MapStore
 import io.github.aakira.napier.Napier
-import io.ktor.http.*
+import io.ktor.http.URLBuilder
 import io.matthewnelson.encoding.core.Decoder.Companion.decodeToByteArray
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
@@ -128,10 +132,6 @@ class OpenId4VpVerifier(
     override val nonceService: NonceService = DefaultNonceService(),
     /** Used to store issued authn requests to verify the authn response to it */
     private val stateToAuthnRequestStore: MapStore<String, AuthenticationRequestParameters> = DefaultMapStore(),
-    @Deprecated("Use supportedJweEncryptionAlgorithms instead")
-    private val supportedJweAlgorithm: JweAlgorithm = JweAlgorithm.ECDH_ES,
-    @Deprecated("Use supportedJweEncryptionAlgorithms instead")
-    private val supportedJweEncryptionAlgorithm: JweEncryption = JweEncryption.A256GCM,
     /** Algorithms supported to decrypt responses from wallets, for [metadataWithEncryption]. */
     private val supportedJweEncryptionAlgorithms: Set<JweEncryption> = JweEncryption.entries.toSet(),
 ) : AbstractMdocVerifier() {
@@ -370,11 +370,36 @@ class OpenId4VpVerifier(
         idTokenType = if (isSiop) IdTokenType.SUBJECT_SIGNED.text else null,
         responseMode = responseMode,
         state = if (!isAnyDcApi) state else null,
-        dcqlQuery = if (isDcql) toDCQLQuery() else null,
-        presentationDefinition = if (isPresentationExchange)
-            toPresentationDefinition(containerJwt, containerSdJwt) else null,
+        dcqlQuery = (presentationRequest as? CredentialPresentationRequest.DCQLRequest)?.dcqlQuery,
+        presentationDefinition = (presentationRequest as? CredentialPresentationRequest.PresentationExchangeRequest)?.presentationDefinition?.run {
+            copy(
+                inputDescriptors = inputDescriptors.map {
+                    when (val inputDescriptor = it) {
+                        is DifInputDescriptor -> inputDescriptor.replaceAvailableFormatHolders()
+                    }
+                }
+            )
+        },
         transactionData = transactionData?.map { it.toBase64UrlJsonString() },
         expectedOrigins = expectedOrigins,
+    )
+
+    /**
+     * Defining *some* non-null format container is our way of specifying the allowed credential representations,
+     * but provided values are overridden here
+     */
+    private fun DifInputDescriptor.replaceAvailableFormatHolders() = copy(
+        format = format?.copy(
+            jwtVp = format?.jwtVp?.let {
+                containerJwt
+            },
+            sdJwt = format?.sdJwt?.let {
+                containerSdJwt
+            },
+            msoMdoc = format?.msoMdoc?.let {
+                containerJwt
+            },
+        )
     )
 
     /**
@@ -394,15 +419,17 @@ class OpenId4VpVerifier(
     )
 
     @Suppress("DEPRECATION")
-    private fun OpenId4VpRequestOptions.clientMetadata(): RelyingPartyMetadata? = when (clientIdScheme) {
-        is ClientIdScheme.RedirectUri,
-        is ClientIdScheme.VerifierAttestation,
-        is ClientIdScheme.CertificateSanDns,
-        is ClientIdScheme.CertificateHash,
-            ->
-            if (encryption || responseMode.requiresEncryption) metadataWithEncryption else metadata
+    private fun OpenId4VpRequestOptions.clientMetadata(): RelyingPartyMetadata? = when (verifierMetadataMode) {
+        VerifierMetadataMode.OMIT_IF_OUT_OF_BAND -> null
+        VerifierMetadataMode.AUTO -> when (clientIdScheme) {
+            is ClientIdScheme.RedirectUri,
+            is ClientIdScheme.VerifierAttestation,
+            is ClientIdScheme.CertificateSanDns,
+            is ClientIdScheme.CertificateHash,
+                -> if (responseMode.requiresEncryption) metadataWithEncryption else metadata
 
-        else -> null
+            else -> null
+        }
     }
 
     /**
@@ -413,7 +440,7 @@ class OpenId4VpVerifier(
      */
     suspend fun validateAuthnResponse(
         input: String,
-    ): AuthnResponseResult = validateAuthnResponse(
+    ): KmmResult<AuthnResponseResult> = validateAuthnResponse(
         input = input,
         externalId = null
     )
@@ -430,12 +457,9 @@ class OpenId4VpVerifier(
     suspend fun validateAuthnResponse(
         input: String,
         externalId: String? = null,
-    ): AuthnResponseResult = catchingUnwrapped {
-        responseParser.parseAuthnResponse(input)
-    }.getOrElse {
-        return AuthnResponseResult.Error("Can't parse input: $input", cause = it)
-    }.let {
-        validateAuthnResponse(it, externalId)
+    ): KmmResult<AuthnResponseResult> = catching {
+        val response = responseParser.parseAuthnResponse(input)
+        validateAuthnResponse(response, externalId).getOrThrow()
     }
 
     /**
@@ -446,12 +470,9 @@ class OpenId4VpVerifier(
     suspend fun validateAuthnResponse(
         input: OpenId4VpResponse,
         externalId: String,
-    ): AuthnResponseResult = catchingUnwrapped {
-        responseParser.parseAuthnResponse(input)
-    }.getOrElse {
-        return AuthnResponseResult.Error("Can't parse input: $input", cause = it)
-    }.let {
-        validateAuthnResponse(it, externalId)
+    ): KmmResult<AuthnResponseResult> = catching {
+        val response = responseParser.parseAuthnResponse(input)
+        validateAuthnResponse(response, externalId).getOrThrow()
     }
 
     /**
@@ -475,33 +496,35 @@ class OpenId4VpVerifier(
     suspend fun validateAuthnResponse(
         input: ResponseParametersFrom,
         externalId: String? = null,
-    ): AuthnResponseResult {
+    ): KmmResult<AuthnResponseResult> = catching {
         Napier.d("validateAuthnResponse: $input")
-        val authnRequest = catching {
-            loadAuthnRequest(input, externalId)
-        }.getOrElse {
-            return AuthnResponseResult.ValidationError("input", cause = it)
-        }
-        // TODO: support concurrent presentation of ID token and VP token?
-        return if (authnRequest.responseType?.contains(OpenIdConstants.VP_TOKEN) == true) {
-            catching {
-                validateVpToken(authnRequest, input)
-            }.getOrElse {
-                AuthnResponseResult.ValidationError("vpToken", input.parameters.state, it)
-            }
-        } else if (authnRequest.responseType?.contains(OpenIdConstants.ID_TOKEN) == true) {
-            catching {
-                extractValidatedIdToken(input)
-            }.getOrElse {
-                AuthnResponseResult.ValidationError("idToken", input.parameters.state, it)
-            }
+        val authnRequest = loadAuthnRequest(input, externalId)
+
+        val responseType = authnRequest.responseType?.let {
+            ResponseType(it)
+        } ?: throw IllegalStateException(
+            "No response type was specified in the original authentication request."
+        )
+        val idTokenValidationResult = if (OpenIdConstants.ID_TOKEN in responseType) {
+            extractValidatedIdToken(input)
         } else {
-            AuthnResponseResult.Error(
-                reason = "Neither id_token nor vp_token",
-                state = authnRequest.state,
-                cause = IllegalArgumentException(authnRequest.responseType)
-            )
+            null
         }
+        val vpTokenValidationResult = if (OpenIdConstants.VP_TOKEN in responseType) {
+            validateVpToken(authnRequest, input)
+        } else {
+            null
+        }
+
+        if (listOfNotNull(idTokenValidationResult, vpTokenValidationResult).isEmpty()) {
+            throw IllegalStateException("Unsupported response type: $responseType")
+        }
+
+        AuthnResponseResult(
+            idTokenValidationResult = idTokenValidationResult,
+            vpTokenValidationResult = vpTokenValidationResult,
+            request = authnRequest,
+        )
     }
 
     @Throws(IllegalArgumentException::class, CancellationException::class)
@@ -524,7 +547,7 @@ class OpenId4VpVerifier(
     @Throws(IllegalArgumentException::class, CancellationException::class)
     private suspend fun extractValidatedIdToken(
         input: ResponseParametersFrom,
-    ): AuthnResponseResult {
+    ): KmmResult<IdToken> = catching {
         val idTokenJws = input.parameters.idToken
             ?: throw IllegalArgumentException("idToken")
         val jwsSigned = JwsSigned.deserialize(IdToken.serializer(), idTokenJws, vckJsonSerializer)
@@ -556,7 +579,7 @@ class OpenId4VpVerifier(
         if (idToken.subject != idToken.subjectJwk!!.jwkThumbprint)
             throw IllegalArgumentException("idToken.sub")
                 .also { Napier.d("subject does not equal thumbprint of sub_jwk: ${idToken.subject}") }
-        return AuthnResponseResult.IdToken(idToken)
+        idToken
     }
 
     /**
@@ -568,7 +591,7 @@ class OpenId4VpVerifier(
     private suspend fun validateVpToken(
         authnRequest: AuthenticationRequestParameters,
         responseParameters: ResponseParametersFrom,
-    ): AuthnResponseResult {
+    ): KmmResult<VpTokenValidationResult> = catching {
         val expectedNonce = authnRequest.nonce
             ?: throw IllegalArgumentException("nonce")
         val vpToken = responseParameters.parameters.vpToken
@@ -581,12 +604,12 @@ class OpenId4VpVerifier(
             authnRequest.verifyExpectedOrigin(it.origin)
         }
 
-        return authnRequest.presentationDefinition?.let { _ ->
+        authnRequest.presentationDefinition?.let { presentationDefinition ->
             val presentationSubmission = responseParameters.parameters.presentationSubmission?.descriptorMap
                 ?: throw IllegalArgumentException("Presentation Exchange need to present a presentation submission.")
 
-            presentationSubmission.map { descriptor ->
-                verifyPresentationResult(
+            val presentation = presentationSubmission.associate { descriptor ->
+                descriptor.id to verifyPresentationResult(
                     claimFormat = descriptor.format,
                     relatedPresentation = descriptor.relatedPresentation(vpToken),
                     expectedNonce = expectedNonce,
@@ -596,8 +619,12 @@ class OpenId4VpVerifier(
                     transactionData = authnRequest.transactionData,
                     clientIdRequired = clientIdRequired,
                     origin = (originalResponseParameters as? ResponseParametersFrom.DcApi)?.origin,
-                ).mapToAuthnResponseResult(responseParameters.parameters.state)
-            }.firstOrList()
+                )
+            }
+
+            VpTokenValidationResultPresentationExchange(
+                inputDescriptorResponseValidations = presentation,
+            )
         } ?: authnRequest.dcqlQuery?.let { query ->
             val presentation = vpToken.jsonObject.mapKeys {
                 DCQLCredentialQueryIdentifier(it.key)
@@ -605,36 +632,38 @@ class OpenId4VpVerifier(
                 val credentialQuery = query.credentialQuery(credentialQueryId)
                     ?: throw IllegalArgumentException("Unknown credential query identifier.")
 
-                catchingUnwrapped {
-                    relatedPresentation.jsonArray.map {
-                        verifyPresentationResult(
-                            claimFormat = credentialQuery.format.toClaimFormat(),
-                            relatedPresentation = it.jsonPrimitive,
-                            expectedNonce = expectedNonce,
-                            input = responseParameters,
-                            clientId = authnRequest.clientId,
-                            responseUrl = authnRequest.responseUrl
-                                ?: authnRequest.redirectUrlExtracted,
-                            transactionData = authnRequest.transactionData,
-                            clientIdRequired = clientIdRequired,
-                            origin = (originalResponseParameters as? ResponseParametersFrom.DcApi)?.origin,
-                        )
-                    }.map {
-                        it.mapToAuthnResponseResult(responseParameters.parameters.state)
-                    }
-                }.getOrElse {
-                    return AuthnResponseResult.ValidationError(
-                        "Invalid presentation",
-                        responseParameters.parameters.state,
-                        it
+                relatedPresentation.jsonArray.map {
+                    verifyPresentationResult(
+                        claimFormat = credentialQuery.format.toClaimFormat(),
+                        relatedPresentation = it.jsonPrimitive,
+                        expectedNonce = expectedNonce,
+                        input = responseParameters,
+                        clientId = authnRequest.clientId,
+                        responseUrl = authnRequest.responseUrl
+                            ?: authnRequest.redirectUrlExtracted,
+                        transactionData = authnRequest.transactionData,
+                        clientIdRequired = clientIdRequired,
+                        origin = (originalResponseParameters as? ResponseParametersFrom.DcApi)?.origin,
+                        requireCryptographicHolderBinding = query.credentialQuery(credentialQueryId)?.requireCryptographicHolderBinding,
                     )
                 }
             }
+            val submissionRequirementsValidationResult = catching {
+                val queryResponse = presentation.mapValues {
+                    it.value.map {
+                        it.getOrThrow()
+                    }
+                }
+                DCQLQueryAdapter(query).checkSubmissionRequirements(
+                    DCQLQueryResponse(queryResponse)
+                ).getOrThrow()
+            }
+
             // TODO: Validation errors are (sometimes) put into a VerifiableDCQLPresentationValidationResults which means that the success page is shown
             // However, if we return a ValidationError, a BadRequest is sent, which is not shown to the user in the UI
-            AuthnResponseResult.VerifiableDCQLPresentationValidationResults(
-                validationResults = presentation.mapValues { it.value.firstOrList() },
-                allValidationResults = presentation
+            VpTokenValidationResultDCQL(
+                credentialQueryResponseValidations = presentation,
+                submissionRequirementsValidationResult = submissionRequirementsValidationResult,
             )
         } ?: throw IllegalArgumentException("Unsupported presentation mechanism")
     }
@@ -655,10 +684,6 @@ class OpenId4VpVerifier(
             -> throw IllegalStateException("Unsupported credential format")
     }
 
-    private fun List<AuthnResponseResult>.firstOrList(): AuthnResponseResult =
-        if (size == 1) this[0]
-        else AuthnResponseResult.VerifiablePresentationValidationResults(this)
-
     /**
      * Extract and verifies verifiable presentations, according to format defined in
      * [OpenID for VCI](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html),
@@ -674,41 +699,53 @@ class OpenId4VpVerifier(
         transactionData: List<TransactionDataBase64Url>?,
         clientIdRequired: Boolean,
         origin: String?,
-    ) = when (claimFormat) {
-        ClaimFormat.SD_JWT -> verifier.verifyPresentationSdJwt(
-            input = SdJwtSigned.parseCatching(relatedPresentation.extractContent()).getOrElse {
-                throw IllegalArgumentException("relatedPresentation")
-            },
-            challenge = expectedNonce,
-            transactionData = transactionData
-        )
+        requireCryptographicHolderBinding: Boolean? = null,
+    ): KmmResult<VerifyPresentationResult> = catching {
+        when (claimFormat) {
+            ClaimFormat.SD_JWT -> verifier.verifyPresentationSdJwt(
+                input = SdJwtSigned.parseCatching(relatedPresentation.extractContent()).getOrElse {
+                    throw IllegalArgumentException("relatedPresentation")
+                },
+                challenge = expectedNonce,
+                transactionData = transactionData,
+                requireCryptographicHolderBinding = requireCryptographicHolderBinding != false,
+            )
 
-        ClaimFormat.JWT_VP -> verifier.verifyPresentationVcJwt(
-            input = JwsSigned.deserialize(
-                VerifiablePresentationJws.serializer(),
-                relatedPresentation.extractContent(),
-                vckJsonSerializer
-            ).getOrThrow(),
-            challenge = expectedNonce
-        )
+            ClaimFormat.JWT_VP -> if (requireCryptographicHolderBinding != false) {
+                verifier.verifyPresentationVcJwt(
+                    input = JwsSigned.deserialize(
+                        VerifiablePresentationJws.serializer(),
+                        relatedPresentation.extractContent(),
+                        vckJsonSerializer
+                    ).getOrThrow(),
+                    challenge = expectedNonce
+                )
+            } else {
+                verifier.verifyUnsignedVcJws(
+                    input = relatedPresentation.extractContent()
+                ).map {
+                    VerifyPresentationResult.SuccessUnsigned(it.vc)
+                }
+            }
 
-        ClaimFormat.MSO_MDOC -> verifier.verifyPresentationIsoMdoc(
-            input = relatedPresentation.extractContent().decodeToByteArray(Base64UrlStrict)
-                .let { coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(it) },
-            verifyDocument = verifyDocument(
-                sessionTranscript = createSessionTranscript(
-                    input = input,
-                    clientId = clientId,
-                    expectedNonce = expectedNonce,
-                    hasBeenEncrypted = input.hasBeenEncrypted,
-                    responseUrl = responseUrl,
-                    clientIdRequired = clientIdRequired,
-                    origin = origin
+            ClaimFormat.MSO_MDOC -> verifier.verifyPresentationIsoMdoc(
+                input = relatedPresentation.extractContent().decodeToByteArray(Base64UrlStrict)
+                    .let { coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(it) },
+                verifyDocument = verifyDocument(
+                    sessionTranscript = createSessionTranscript(
+                        input = input,
+                        clientId = clientId,
+                        expectedNonce = expectedNonce,
+                        hasBeenEncrypted = input.hasBeenEncrypted,
+                        responseUrl = responseUrl,
+                        clientIdRequired = clientIdRequired,
+                        origin = origin
+                    )
                 )
             )
-        )
 
-        else -> throw IllegalArgumentException("descriptor.format: $claimFormat")
+            else -> throw IllegalArgumentException("descriptor.format: $claimFormat")
+        }.getOrThrow()
     }
 
     private fun createSessionTranscript(
@@ -784,20 +821,6 @@ class OpenId4VpVerifier(
             ).sha256(),
         )
     )
-
-
-    private fun VerifyPresentationResult.mapToAuthnResponseResult(state: String?) = when (this) {
-        is VerifyPresentationResult.ValidationError -> AuthnResponseResult.ValidationError("vpToken", state, cause)
-        is VerifyPresentationResult.Success -> AuthnResponseResult.Success(vp, state)
-        is VerifyPresentationResult.SuccessIso -> AuthnResponseResult.SuccessIso(documents, state)
-        is VerifyPresentationResult.SuccessSdJwt -> AuthnResponseResult.SuccessSdJwt(
-            sdJwtSigned = sdJwtSigned,
-            verifiableCredentialSdJwt = verifiableCredentialSdJwt,
-            reconstructed = reconstructedJsonObject,
-            disclosures = disclosures,
-            freshnessSummary = freshnessSummary,
-        )
-    }
 
     // should always be ecdh-es for encryption
     private fun JsonWebKey.withAlgorithm(): JsonWebKey = this.copy(algorithm = JweAlgorithm.ECDH_ES)

@@ -1,8 +1,65 @@
 # Changelog
 
+Release 5.12.0:
+ - W3C JWT VC:
+   - Presentation validation: Now verifies that the subject field contains the VP issuer's public key (VC holder's public key).
+   - Replaced `CredentialSubject` abstract class with `JsonElement` for W3C VC `credentialSubject` field. Polymorphic deserialization using `type` discriminator is unreliable since W3C Data Model Spec 1.1 doesn't guarantee this field's presence.
+   - Deprecate `LibraryInitializer.registerExtensionLibrary` overloads that take a `SerializersModule`; use the overloads without it.
+ - Digital Credentials API:
+   - Add issuance data classes: `CredentialCreationOptions`, `DigitalCredentialCreationOptions`, `DigitalCredentialCreateRequest`, `DigitalCredentialOfferReturn`, and `DigitalCredentialOfferReturnData`. These classes are based on a preliminary specification and are subject to change.
+   - Add `CredentialRequestOptions.create()` method which automatically sets `mediation` to required and takes the list of requests, make the default constructor private.
+   - Change: `DCAPIWalletRequest` now exposes and serializes `credentialIds`; deprecated single-ID constructors keep the old call shape available.
+ - ISO mdoc:
+   - Preserve `Document.errors` in parsed ISO document results instead of failing validation
+   - Add data classes from ISO/IEC 18013-5 from 2026 update
+   - BREAKING Change: Return type of `Iso180137AnnexCVerifier.validateResponse` from `Iso180137AnnexCResponseResult` to reworked `KmmResult<Iso180137AnnexCVerifiedPresentationResult>`
+ - OpenID for Verifiable Presentations:
+   - Change: Executing unsatisfiable DCQL queries no longer throws on matching, only on submission.
+   - Change: `Holder.matchInputDescriptorsAgainstCredentialStoreV2` now accepts `filterByIds: Collection<String>?` for multi-credential DC API selections.
+   - Change: Update DCQLClaimsQuery and DCQLCredentialQuery to OpenID4VP 1.0
+   - Change: Do not fail when only matching credentials without submitting a presentation
+   - Allow issuance and verification of `IdentifierList` Revocation Mechanism
+   - Change: Don't send response on user initiated signature cancellation
+   - BREAKING CHANGE: The result type from `verifyAuthnResponse`, `AuthnResponseResult` has been reworked to a data class
+   - DCQL: Add custom credential types and proper satisfaction evaluation
+   - Add: DCQL submission requirements validation
+   - Add `VerifierMetadataMode` for `OpenId4VpRequestOptions` to provide them out-of-band when necessary, e.g. for Age Verification
+ - OpenID for Verifiable Credential Issuance:
+   - Moved the class `RefreshTokenInfo` from `OpenId4VciClient` to `SubjectCredentialStore.kt` and renamed it to `CredentialRenewalInfo` to better describe its role in the renewal process.
+     Kept `RefreshTokenInfo` in the original package for backward compatibility
+   - Added `CredentialRenewalInfo` to `SubjectCredentialStore.StoreEntry`
+   - Added support for refresh tokens in BearerTokenService
+   - Change: When no cryptographic holder binding is required, present raw W3C Verifiable Credentials
+   - Change: When no cryptographic holder binding is required and no holder binding is available in SdJwt credentials, still accept those credentials
+   - Change: OpenId4VPRequestOptions now transports a presentation request directly instead of credentials and presentation mechanism
+   - Change: Return type of `Verifier.verifyPresentationSdJwt` from `VerifyPresentationResult` to `KmmResult<VerifyPresentationResult.SuccessSdJwt>`
+   - Change: Return type of `Verifier.verifyPresentationVcJwt` from `VerifyPresentationResult` to `KmmResult<VerifyPresentationResult.Success>`
+   - Change: Return type of `Verifier.verifyPresentationIsoMdoc` from `VerifyPresentationResult` to `KmmResult<VerifyPresentationResult.SuccessIso>`
+   - Add: `Verifier.verifyUnsignedVcJws`
+   - Add: `AuthnResponseResult.SuccessUnsigned`
+   - Add: `CreatePresentationResult.VcJws`
+   - Rename: `CreatePresentationResult.Signed` to `CreatePresentationResult.VpJws`
+   - Add method `loadUnitAttestationPop` to `WalletService`
+   - Add data class `LoadUnitAttestationPopInput` to `WalletService`
+   - Deprecate `OAuth2KtorClient` methods `loadClientAttestationJwt` and `signClientAttestationPop`, point to `loadInstanceAttestation` and `loadInstanceAttestationPop`
+   - Deprecate `WalletService` method `loadKeyAttestation`, point to `loadUnitAttestationPop`
+   - Change method `ProofValidator.verifyAttestationProof` to suspend
+   - Add member `statusListTokenResolver` to `CredentialIssuer`
+   - Add member `preferredTtl` to `KeyAttestationRequired`
+ - OAuth 2.0:
+   - In `SimpleAuthorizationService` implement [JWT Response for OAuth Token Introspection](https://datatracker.ietf.org/doc/html/rfc9701/)
+   - In `SimpleAuthorizationService` deprecate `credentialOffer*` methods to prevent configuration identifier mismatches
+   - In `SimpleAuthorizationService` add `offer*` methods to take pairs of credential schemes and representations
+ - SD-JWT:
+   - Fix presentation of nested claims with the last name segment being present in structures with different names (e.g. `country` in `place_of_birth` and `address`)
+ - Dependencies:
+   - Update to [Signum 3.21.0](https://github.com/a-sit-plus/signum/releases/tag/3.21.0) fixing CBOR parsing and tolerating cursed X.509 certificate encodings
+   - Remove code elements deprecated in 5.11.0
+
 Release 5.11.1:
  - OAuth 2.0:
    - Fix bug in `SimpleAuthorizationRequest` validating `issuer_state` on pushed authorization requests twice (and failing on the second time)
+
 
 Release 5.11.0:
  - Digital Credentials API:

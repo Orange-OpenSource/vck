@@ -1,0 +1,28 @@
+{
+  "include" : [
+    {
+      "module": "csc-data-classes",
+      "artifactName": "CscDataClasses"
+    },
+    {
+      "module": "dif-data-classes",
+      "artifactName": "DifDataClasses"
+    },
+    {
+      "module": "openid-data-classes",
+      "artifactName": "OpenIdDataClasses"
+    },
+    {
+      "module": "vck",
+      "artifactName": "VckKmm"
+    },
+    {
+      "module": "vck-openid",
+      "artifactName": "VckOpenIdKmm"
+    },
+    {
+      "module": "vck-openid-ktor",
+      "artifactName": "VckOpenIdKtorKmm"
+    }
+  ]
+}

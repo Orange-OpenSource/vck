@@ -30,4 +30,34 @@ data class CredentialOffer(
      */
     @SerialName("grants")
     val grants: CredentialOfferGrants? = null,
-)
+
+    /**
+     * Additional parameters for issuance via the Digital Credentials API, as per OID4VCI draft pull request
+     * https://github.com/openid/OpenID4VCI/pull/476
+     */
+
+    /**
+     * OID4VCI: REQUIRED for DC API. The Issuer's Credential Issuer Metadata object.
+     */
+    @SerialName("credential_issuer_metadata")
+    val credentialIssuerMetadata: IssuerMetadata? = null,
+
+    /**
+     * OID4VCI: OPTIONAL and only for DC API. The Authorization Server metadata object as defined by Section 2 of [@!RFC8414].
+     * When provided, the authorization_server parameter must not be present. TODO do they really mean authorization_server or actually authorization_servers? check with final spec
+     */
+    @SerialName("authorization_server_metadata")
+    val authorizationServerMetadata: OAuth2AuthorizationServerMetadata? = null,
+) {
+    init {
+        if (authorizationServerMetadata != null) {
+            require(grants?.authorizationCode?.authorizationServer == null) { "authorization_server_metadata and authorization_server are mutually exclusive" }
+            require(grants?.preAuthorizedCode?.authorizationServer == null) { "authorization_server_metadata and authorization_server are mutually exclusive" }
+            require(credentialIssuerMetadata?.authorizationServers == null) { "authorization_server_metadata and authorization_servers are mutually exclusive" }
+        }
+    }
+
+    fun checkDcApiRequirements() {
+        require(credentialIssuerMetadata != null) { "credential_issuer_metadata is required for DC API" }
+    }
+}

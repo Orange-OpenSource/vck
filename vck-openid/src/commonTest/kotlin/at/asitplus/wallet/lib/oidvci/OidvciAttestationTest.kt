@@ -1,15 +1,30 @@
 package at.asitplus.wallet.lib.oidvci
 
+/*
+ * Software Name : VC-K
+ * SPDX-FileCopyrightText: Copyright (c) A-SIT Plus GmbH
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modifications: Credential subject is now a JsonElement
+ * SPDX-FileCopyrightText: Copyright (c) Orange Business
+ *
+ * This software is distributed under the Apache License 2.0,
+ * see the "LICENSE" file for more details
+ */
+
 import at.asitplus.catching
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenResponseParameters
+import at.asitplus.signum.indispensable.josef.JsonWebToken
+import at.asitplus.signum.indispensable.josef.JwsHeader
 import at.asitplus.signum.indispensable.josef.JwsSigned
 import at.asitplus.signum.indispensable.josef.KeyAttestationJwt
 import at.asitplus.testballoon.withFixtureGenerator
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.IssuerAgent
+import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex
@@ -18,6 +33,7 @@ import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.data.vckJsonSerializer
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
+import at.asitplus.wallet.lib.jws.JwsHeaderIdentifierFun
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
@@ -26,11 +42,14 @@ import at.asitplus.wallet.lib.openid.DummyOAuth2IssuerCredentialDataProvider
 import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import com.benasher44.uuid.uuid4
 import de.infix.testBalloon.framework.core.testSuite
+import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlin.time.Clock.System
 
 val OidvciAttestationTest by testSuite {
@@ -63,11 +82,9 @@ val OidvciAttestationTest by testSuite {
                     resource = issuer.metadata.credentialIssuer
                 )
                 val input = authnRequest as RequestParameters
-                val authnResponse = authorizationService.authorize(input) { catching { dummyUser() } }
-                    .getOrThrow()
+                val authnResponse = authorizationService.authorize(input) { catching { dummyUser() } }.getOrThrow()
                     .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
-                val code = authnResponse.params?.code
-                    .shouldNotBeNull()
+                val code = authnResponse.params?.code.shouldNotBeNull()
                 val tokenRequest = oauth2Client.createTokenRequestParameters(
                     state = state,
                     authorization = OAuth2Client.AuthorizationForToken.Code(code),
@@ -80,17 +97,29 @@ val OidvciAttestationTest by testSuite {
             fun buildClientWithKeyAttestation() =
                 with(EphemeralKeyWithoutCert()) {
                     client = WalletService(
-                        loadKeyAttestation = {
+                        loadUnitAttestationPop = { input ->
                             catching {
                                 SignJwt<KeyAttestationJwt>(this, JwsHeaderCertOrJwk())(
                                     OpenIdConstants.KEY_ATTESTATION_JWT_TYPE,
                                     KeyAttestationJwt(
                                         issuedAt = System.now(),
-                                        nonce = it.clientNonce,
                                         attestedKeys = setOf(this.jsonWebKey)
                                     ),
                                     KeyAttestationJwt.serializer(),
-                                ).getOrThrow()
+                                ).getOrThrow().let { unitAttestation ->
+                                    SignJwt<JsonWebToken>(
+                                        this
+                                    ) { it, keyMaterial ->
+                                        it.copy(
+                                            keyAttestation = unitAttestation.serialize(),
+                                            jsonWebKey = keyMaterial.jsonWebKey
+                                        )
+                                    }.invoke(
+                                        input.type,
+                                        input.payload,
+                                        JsonWebToken.serializer(),
+                                    ).getOrThrow()
+                                }
                             }
                         }
                     )
@@ -131,7 +160,15 @@ val OidvciAttestationTest by testSuite {
                         .first().credentialString.shouldNotBeNull(),
                     vckJsonSerializer
                 ).getOrThrow()
-                    .payload.vc.credentialSubject.shouldBeInstanceOf<AtomicAttribute2023>()
+                    .payload.vc.credentialSubject.shouldBeInstanceOf<JsonElement>()
+                    .also { credentialSubject ->
+                        shouldNotThrowAny {
+                            Json.decodeFromJsonElement(
+                                AtomicAttribute2023.serializer(),
+                                credentialSubject
+                            )
+                        }
+                    }
             }
         }
 

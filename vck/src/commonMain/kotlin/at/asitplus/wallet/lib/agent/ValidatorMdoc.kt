@@ -1,5 +1,7 @@
 package at.asitplus.wallet.lib.agent
 
+import at.asitplus.KmmResult
+import at.asitplus.catching
 import at.asitplus.iso.DeviceResponse
 import at.asitplus.iso.Document
 import at.asitplus.iso.IssuerSigned
@@ -47,10 +49,10 @@ class ValidatorMdoc(
     suspend fun verifyDeviceResponse(
         deviceResponse: DeviceResponse,
         verifyDocumentCallback: suspend (MobileSecurityObject, Document) -> Boolean,
-    ): VerifyPresentationResult {
+    ): KmmResult<VerifyPresentationResult.SuccessIso> = catching {
         require(deviceResponse.status == 0U) { "status: ${deviceResponse.status}" }
         require(deviceResponse.documents != null) { "documents are null" }
-        return VerifyPresentationResult.SuccessIso(
+        VerifyPresentationResult.SuccessIso(
             documents = deviceResponse.documents!!.map {
                 verifyDocument(it, verifyDocumentCallback)
             }
@@ -65,7 +67,7 @@ class ValidatorMdoc(
         document: Document,
         verifyDocumentCallback: suspend (MobileSecurityObject, Document) -> Boolean,
     ): IsoDocumentParsed {
-        require(document.errors == null) { "Errors: ${document.errors}" }
+        val documentErrors = document.errors.orEmpty()
         val issuerSigned = document.issuerSigned
         val issuerAuth = issuerSigned.issuerAuth
 
@@ -108,6 +110,7 @@ class ValidatorMdoc(
             validItems = validItems,
             invalidItems = invalidItems,
             freshnessSummary = validator.checkCredentialFreshness(issuerSigned),
+            documentErrors = documentErrors,
         )
     }
 
@@ -134,14 +137,12 @@ class ValidatorMdoc(
      *
      * @param it The [IssuerSigned] structure from ISO 18013-5
      */
-    suspend fun verifyIsoCred(it: IssuerSigned, issuerKey: CoseKey?): VerifyCredentialResult {
+    suspend fun verifyIsoCred(it: IssuerSigned, issuerKey: CoseKey?) = catching {
         Napier.d("Verifying ISO Cred $it")
         val mdocInputValidator = mdocInputValidator(it, issuerKey)
         if (!mdocInputValidator.isSuccess) {
-            return VerifyCredentialResult.ValidationError(
-                cause = mdocInputValidator.error ?: IllegalArgumentException("No details available")
-            )
+            throw mdocInputValidator.error ?: IllegalArgumentException("No details available")
         }
-        return SuccessIso(it)
+        SuccessIso(it)
     }
 }

@@ -1,0 +1,30 @@
+name: Test Everything (All OS/Arch)
+
+on:
+  #For caching
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      kotlin-version:
+        description: "Override Kotlin version?"
+        required: false
+        default: ""
+        type: string
+      testballoon-version:
+        description: "Override TestBalloon version (full version string)?"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  test-everything:
+    uses: a-sit-plus/internal-workflows/.github/workflows/test-everything.yml@v2
+    with:
+      override-cache: ${{ github.ref_name == 'develop' }}
+      matrix-file-name: ".github/config/test-strategy-matrix.json"
+      kotlin-version: ${{ inputs.kotlin-version }}
+      testballoon-version: ${{ inputs.testballoon-version }}

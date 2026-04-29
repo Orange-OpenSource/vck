@@ -1,7 +1,9 @@
 package at.asitplus.wallet.lib
 
 import at.asitplus.iso.IssuerSignedItem
-import at.asitplus.iso.IssuerSignedItemSerializer
+import at.asitplus.iso.IssuerSignedList
+import at.asitplus.iso.IssuerSignedListSerializer
+import at.asitplus.signum.indispensable.cosef.io.ByteStringWrapper
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.testballoon.invoke
 import at.asitplus.wallet.lib.data.AttributeIndex
@@ -32,8 +34,20 @@ private data class TestCredentialScheme(
     ),
 ) : ConstantIndex.CredentialScheme
 
+@Suppress("DEPRECATION")
 val LibraryInitializerTest by testSuite {
-    "registerExtensionLibrary registers schemes and serializers" {
+    "registerExtensionLibrary registers schemes without serializer modules" {
+        val scheme = TestCredentialScheme(
+            schemaUri = "urn:test:${uuid4()}",
+            vcType = "TestCredential-${uuid4()}",
+        )
+
+        LibraryInitializer.registerExtensionLibrary(scheme)
+
+        AttributeIndex.resolveAttributeType(scheme.vcType!!) shouldBe scheme
+    }
+
+    "deprecated registerExtensionLibrary overload still registers serializers modules" {
         @Serializable
         @SerialName("TestCredentialSubject")
         data class TestCredentialSubject(
@@ -51,9 +65,11 @@ val LibraryInitializerTest by testSuite {
             }
         }
 
+        @Suppress("DEPRECATION")
         LibraryInitializer.registerExtensionLibrary(scheme, serializersModule)
 
         AttributeIndex.resolveAttributeType(scheme.vcType!!) shouldBe scheme
+        JsonCredentialSerializer.serializersModules[scheme] shouldBe serializersModule
     }
 
     "registerExtensionLibrary registers ISO encoders and serializers" {
@@ -82,27 +98,33 @@ val LibraryInitializerTest by testSuite {
 
         LibraryInitializer.registerExtensionLibrary(
             scheme,
-            serializersModule = null,
             jsonValueEncoder = jsonValueEncoder,
             itemValueSerializerMap = itemValueSerializerMap,
         )
 
         JsonCredentialSerializer.encode(MockIssuerSignedValue("encoded")) shouldBe
-            vckJsonSerializer.encodeToJsonElement(MockIssuerSignedValue("encoded"))
+                vckJsonSerializer.encodeToJsonElement(MockIssuerSignedValue("encoded"))
 
-        val item = IssuerSignedItem(
-            digestId = 1u,
-            random = Random.nextBytes(16),
-            elementIdentifier = elementId,
-            elementValue = MockIssuerSignedValue("round-trip"),
+        val list = IssuerSignedList(
+            listOf(
+                ByteStringWrapper(
+                    IssuerSignedItem(
+                        digestId = 1u,
+                        random = Random.nextBytes(16),
+                        elementIdentifier = elementId,
+                        elementValue = MockIssuerSignedValue("round-trip"),
+                    )
+                )
+            )
         )
-        val encodedItem =
-            coseCompliantSerializer.encodeToByteArray(IssuerSignedItemSerializer(isoNamespace, elementId), item)
-        val decodedItem = coseCompliantSerializer.decodeFromByteArray(
-            IssuerSignedItemSerializer(isoNamespace, elementId),
-            encodedItem
+        val encodedList = coseCompliantSerializer.encodeToByteArray(
+            IssuerSignedListSerializer(isoNamespace),
+            list
         )
-
-        decodedItem shouldBe item
+        val decodedList = coseCompliantSerializer.decodeFromByteArray(
+            IssuerSignedListSerializer(isoNamespace),
+            encodedList
+        )
+        decodedList shouldBe list
     }
 }

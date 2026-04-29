@@ -1,9 +1,7 @@
 package at.asitplus.wallet.lib.agent
 
-import at.asitplus.dif.ConstraintField
 import at.asitplus.dif.PresentationSubmission
 import at.asitplus.iso.DeviceNameSpaces
-import at.asitplus.jsonpath.core.NodeList
 import at.asitplus.jsonpath.core.NormalizedJsonPath
 import at.asitplus.openid.TransactionDataBase64Url
 import at.asitplus.openid.dcql.DCQLCredentialQueryIdentifier
@@ -102,8 +100,11 @@ sealed interface PresentationResponseParameters {
     }
 
     companion object {
+        @Suppress("DEPRECATION")
         private fun CreatePresentationResult.toJsonPrimitive() = when (val presentationResult = this) {
             is CreatePresentationResult.Signed -> JsonPrimitive(presentationResult.serialized)
+            is CreatePresentationResult.VpJws -> JsonPrimitive(presentationResult.serialized)
+            is CreatePresentationResult.VcJws -> JsonPrimitive(presentationResult.serialized)
             is CreatePresentationResult.SdJwt -> JsonPrimitive(presentationResult.serialized)
             is CreatePresentationResult.DeviceResponse -> JsonPrimitive(
                 coseCompliantSerializer.encodeToByteArray(presentationResult.deviceResponse)
@@ -113,44 +114,39 @@ sealed interface PresentationResponseParameters {
     }
 }
 
-sealed class CreatePresentationResult {
+sealed interface CreatePresentationResult {
+    sealed interface VcJwsPresentationData : CreatePresentationResult
+
+    data class VcJws(
+        val serialized: String,
+    ) : VcJwsPresentationData
+
+    data class VpJws(
+        val serialized: String,
+        val jwsSigned: JwsSigned<VerifiablePresentationJws>,
+    ) : VcJwsPresentationData
+
+    @Deprecated("Replaced with class using more expressive name `VpJws`.", ReplaceWith("VpJws"))
     data class Signed(
         val serialized: String,
         val jwsSigned: JwsSigned<VerifiablePresentationJws>,
-    ) : CreatePresentationResult()
+    ) : VcJwsPresentationData
 
     data class SdJwt(
         val serialized: String,
         val sdJwt: SdJwtSigned,
-    ) : CreatePresentationResult()
+    ) : CreatePresentationResult
 
     data class DeviceResponse(
         val deviceResponse: at.asitplus.iso.DeviceResponse,
-    ) : CreatePresentationResult()
+    ) : CreatePresentationResult
 }
 
 @Serializable
-data class PresentationExchangeCredentialDisclosure(
-    val credential: SubjectCredentialStore.StoreEntry,
+data class PresentationExchangeCredentialDisclosure<Credential: Any>(
+    val credential: Credential,
     val disclosedAttributes: Collection<NormalizedJsonPath>,
 )
-
-typealias InputDescriptorMatches = Map<SubjectCredentialStore.StoreEntry, Map<ConstraintField, NodeList>>
-
-fun Map<String, Map<SubjectCredentialStore.StoreEntry, Map<ConstraintField, NodeList>>>.toDefaultSubmission() =
-    mapNotNull { descriptorCredentialMatches ->
-        descriptorCredentialMatches.value.entries.firstNotNullOfOrNull { credentialConstraintFieldMatches ->
-            PresentationExchangeCredentialDisclosure(
-                credential = credentialConstraintFieldMatches.key,
-                disclosedAttributes = credentialConstraintFieldMatches.value.values.mapNotNull {
-                    it.firstOrNull()?.normalizedJsonPath
-                },
-            )
-        }?.let {
-            descriptorCredentialMatches.key to it
-        }
-    }.toMap()
-
 
 /**
  * Implementations should return true, when the credential attribute may be disclosed to the verifier.

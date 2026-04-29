@@ -16,7 +16,6 @@ import kotlinx.serialization.encoding.*
 import net.orandja.obor.codec.Cbor
 import net.orandja.obor.data.CborMap
 import net.orandja.obor.data.CborObject
-import net.orandja.obor.data.CborText
 
 /**
  * Serializes [IssuerSignedList.entries] as an "inline list",
@@ -75,10 +74,8 @@ open class IssuerSignedListSerializer(private val namespace: String) : KSerializ
                 }
                 val readBytes = decoder.decodeSerializableValue(ByteArraySerializer())
                 val item = Cbor.decodeFromByteArray<CborObject>(readBytes) as CborMap
-                val elementIdItem = item.first { (it.key as CborText).value == IssuerSignedItem.PROP_ELEMENT_ID }
-                val elementId = (elementIdItem.value as CborText).value
                 entries += ByteStringWrapper(
-                    coseCompliantSerializer.decodeFromByteArray(IssuerSignedItemSerializer(namespace, elementId), item.cbor),
+                    IssuerSignedItemSerializer(namespace, "").deserializeFromOborMap(item),
                     item.cbor
                 )
             }

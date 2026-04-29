@@ -22,9 +22,13 @@ data class DCQLSdJwtCredentialMetadataAndValidityConstraints(
         const val VCT_VALUES = "vct_values"
     }
 
-    fun validate(actualCredentialType: String?): KmmResult<Unit> = catching {
-        if (actualCredentialType !in vctValues) {
-            throw IllegalArgumentException("Incompatible SD-JWT document type")
+    fun validateCredentialConformance(credential: DCQLSdJwtCredential) = validate(
+        actualCredentialType = credential.type
+    )
+
+    fun validate(actualCredentialType: String): KmmResult<Unit> = catching {
+        require(actualCredentialType in vctValues) {
+            "Incompatible SD-JWT document type"
         }
     }
 }

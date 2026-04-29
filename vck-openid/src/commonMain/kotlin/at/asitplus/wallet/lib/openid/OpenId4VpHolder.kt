@@ -34,6 +34,7 @@ import at.asitplus.signum.indispensable.josef.JsonWebKeySet
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.toJsonWebKey
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
+import at.asitplus.signum.supreme.UserInitiatedCancellationReason
 import at.asitplus.wallet.lib.RemoteResourceRetrieverFunction
 import at.asitplus.wallet.lib.RemoteResourceRetrieverInput
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
@@ -59,6 +60,7 @@ import at.asitplus.wallet.lib.oidvci.OAuth2Error
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidRequest
 import com.benasher44.uuid.uuid4
+import io.github.aakira.napier.Napier
 import kotlin.time.Clock
 
 /**
@@ -230,10 +232,24 @@ class OpenId4VpHolder(
         finalizeAuthorizationResponseParameters(
             state = preparationState,
         ).getOrElse {
+            it.getUserSignatureCancellationException()?.let {
+                throw it // DON'T create error response for user initiated signature cancellation, just expose it
+            }
             return createAuthnErrorResponse(it, preparationState.request)
         }.let {
             authenticationResponseFactory.createAuthenticationResponse(preparationState.request, it)
         }
+    }
+
+    private fun Throwable.getUserSignatureCancellationException(): UserInitiatedCancellationReason? {
+        var current: Throwable? = this
+        while(current != null) {
+            if(current is UserInitiatedCancellationReason) {
+                return current // DON'T send error response for user cancellation
+            }
+            current = current.cause
+        }
+        return null
     }
 
     /**
@@ -293,6 +309,9 @@ class OpenId4VpHolder(
             state = preparationState,
             credentialPresentation = credentialPresentation
         ).getOrElse {
+            it.getUserSignatureCancellationException()?.let { userCancellationException ->
+                throw userCancellationException // DON'T create error response for user initiated signature cancellation
+            }
             return createAuthnErrorResponse(it, preparationState.request)
         }.let {
             authenticationResponseFactory.createAuthenticationResponse(preparationState.request, it)
@@ -350,30 +369,27 @@ class OpenId4VpHolder(
     suspend fun getMatchingCredentials(
         preparationState: AuthorizationResponsePreparationState,
     ) = catchingUnwrapped {
-        when (val it = preparationState.credentialPresentationRequest) {
-            is CredentialPresentationRequest.DCQLRequest ->
+        when (val presentationRequest = preparationState.credentialPresentationRequest) {
+            is CredentialPresentationRequest.DCQLRequest -> holder.matchDCQLQueryAgainstCredentialStoreV2(
+                dcqlQuery = presentationRequest.dcqlQuery,
+                filterByIds = preparationState.request.credentialIds()
+            ).getOrThrow().let {
                 DCQLMatchingResult(
-                    presentationRequest = it,
-                    dcqlQueryResult = holder.matchDCQLQueryAgainstCredentialStore(
-                        dcqlQuery = it.dcqlQuery,
-                        filterById = preparationState.request.credentialId()
-                    ).getOrThrow()
+                    presentationRequest = presentationRequest,
+                    matchingResult = it,
                 )
+            }
 
             is CredentialPresentationRequest.PresentationExchangeRequest ->
-                holder.matchInputDescriptorsAgainstCredentialStore(
-                    inputDescriptors = it.presentationDefinition.inputDescriptors,
-                    fallbackFormatHolder = it.fallbackFormatHolder,
-                    filterById = preparationState.request.credentialId()
+                holder.matchInputDescriptorsAgainstCredentialStoreV2(
+                    inputDescriptors = presentationRequest.presentationDefinition.inputDescriptors,
+                    fallbackFormatHolder = presentationRequest.fallbackFormatHolder,
+                    filterByIds = preparationState.request.credentialIds()
                 ).getOrThrow().let { matchInputDescriptors ->
-                    if (matchInputDescriptors.values.find { it.size != 0 } == null) {
-                        throw OAuth2Exception.AccessDenied("No matching credential")
-                    } else {
-                        PresentationExchangeMatchingResult(
-                            presentationRequest = it,
-                            matchingInputDescriptorCredentials = matchInputDescriptors
-                        )
-                    }
+                    PresentationExchangeMatchingResult(
+                        presentationRequest = presentationRequest,
+                        matchingResult = matchInputDescriptors
+                    )
                 }
 
             null -> TODO()
@@ -408,14 +424,14 @@ class OpenId4VpHolder(
         ?: throw InvalidRequest("could not parse audience")
 
     private fun RequestParametersFrom<AuthenticationRequestParameters>.callingOrigin() = when (this) {
-        is RequestParametersFrom.DcApiSigned<*> -> dcApiRequest.callingOrigin
-        is RequestParametersFrom.DcApiUnsigned<*> -> dcApiRequest.callingOrigin
+        is RequestParametersFrom.DcApiSigned -> dcApiRequest.callingOrigin
+        is RequestParametersFrom.DcApiUnsigned -> dcApiRequest.callingOrigin
         else -> null
     }
 
-    private fun RequestParametersFrom<AuthenticationRequestParameters>.credentialId() = when (this) {
-        is RequestParametersFrom.DcApiSigned<*> -> dcApiRequest.credentialId
-        is RequestParametersFrom.DcApiUnsigned<*> -> dcApiRequest.credentialId
+    private fun RequestParametersFrom<AuthenticationRequestParameters>.credentialIds() = when (this) {
+        is RequestParametersFrom.DcApiSigned -> dcApiRequest.credentialIds
+        is RequestParametersFrom.DcApiUnsigned -> dcApiRequest.credentialIds
         else -> null
     }
 

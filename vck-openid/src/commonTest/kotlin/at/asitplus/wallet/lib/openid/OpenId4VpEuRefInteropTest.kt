@@ -22,10 +22,13 @@ import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.HolderAgent
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
 import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.data.vckJsonSerializer
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
@@ -34,6 +37,7 @@ import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.oidvci.formUrlEncode
 import com.benasher44.uuid.uuid4
 import de.infix.testBalloon.framework.core.testSuite
+import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldHaveSingleElement
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -284,8 +288,6 @@ val OpenId4VpEuRefInteropTest by testSuite {
             val cm = parsed.clientMetadata
             cm.shouldNotBeNull()
             cm.subjectSyntaxTypesSupported.shouldNotBeNull() shouldHaveSingleElement "urn:ietf:params:oauth:jwk-thumbprint"
-            cm.authorizationEncryptedResponseAlg shouldBe JweAlgorithm.ECDH_ES
-            cm.authorizationEncryptedResponseEncoding shouldBe JweEncryption.A128CBC_HS256
             cm.idTokenEncryptedResponseAlg shouldBe JweAlgorithm.RSA_OAEP_256
             cm.idTokenEncryptedResponseEncoding shouldBe JweEncryption.A128CBC_HS256
             cm.idTokenSignedResponseAlg shouldBe JwsAlgorithm.Signature.RS256
@@ -351,15 +353,17 @@ val OpenId4VpEuRefInteropTest by testSuite {
             val requestUrl = "https://example.com/request/$nonce"
             val (walletUrl, jar) = verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(
+                            RequestOptionsCredential(
+                                ConstantIndex.AtomicAttribute2023,
+                                ConstantIndex.CredentialRepresentation.SD_JWT,
+                                setOf(CLAIM_FAMILY_NAME, CLAIM_GIVEN_NAME)
+                            )
+                        )
+                    ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
                     responseUrl = "https://example.com/response",
-                    credentials = setOf(
-                        RequestOptionsCredential(
-                            ConstantIndex.AtomicAttribute2023,
-                            ConstantIndex.CredentialRepresentation.SD_JWT,
-                            setOf(CLAIM_FAMILY_NAME, CLAIM_GIVEN_NAME)
-                        )
-                    )
                 ),
                 OpenId4VpVerifier.CreationOptions.SignedRequestByReference("https://wallet.a-sit.at/mobile", requestUrl)
             ).getOrThrow()
@@ -377,8 +381,11 @@ val OpenId4VpEuRefInteropTest by testSuite {
             val state = it.holderOid4vp.startAuthorizationResponsePreparation(walletUrl).getOrThrow()
             val response = it.holderOid4vp.finalizeAuthorizationResponse(state).getOrThrow()
                 .shouldBeInstanceOf<AuthenticationResponseResult.Post>()
-            verifierOid4vp.validateAuthnResponse(response.params.formUrlEncode())
-                .shouldBeInstanceOf<AuthnResponseResult.SuccessSdJwt>()
+            verifierOid4vp.validateAuthnResponse(response.params.formUrlEncode()).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+                .inputDescriptorResponseValidations.values.shouldBeSingleton().first().getOrThrow()
+                .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
         }
     }
 }

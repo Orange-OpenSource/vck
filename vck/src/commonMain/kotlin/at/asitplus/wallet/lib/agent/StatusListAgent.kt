@@ -14,6 +14,7 @@ import at.asitplus.wallet.lib.cbor.SignCoseFun
 import at.asitplus.wallet.lib.data.StatusListCwt
 import at.asitplus.wallet.lib.data.StatusListJwt
 import at.asitplus.wallet.lib.data.StatusListToken
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.IdentifierList
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.MediaTypes
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListAggregation
@@ -43,7 +44,9 @@ class StatusListAgent(
     private val keyMaterial: KeyMaterial = EphemeralKeyWithSelfSignedCert(),
     private val issuerCredentialStore: ReferencedTokenStore = InMemoryIssuerCredentialStore(),
     private val statusListBaseUrl: String = "https://wallet.a-sit.at/backend/credentials/status",
+    private val identifierListBaseUrl: String = "https://wallet.a-sit.at/backend/credentials/identifier",
     private val statusListAggregationUrl: String? = null,
+    private val identifierListAggregationUrl: String? = null,
     private val zlibService: ZlibService = DefaultZlibService(),
     private val revocationListLifetime: Duration = 48.hours,
     private val clock: Clock = Clock.System,
@@ -106,7 +109,15 @@ class StatusListAgent(
             issuedAt = clock.now().truncateToSeconds(),
             timeToLive = PositiveDuration(revocationListLifetime),
             subject = UniformResourceIdentifier(
-                getRevocationListUrlFor(timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock))
+                when (kind) {
+                    RevocationList.Kind.STATUS_LIST -> getStatusListUrlFor(
+                        timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock)
+                    )
+
+                    RevocationList.Kind.IDENTIFIER_LIST -> getIdentifierListUrlFor(
+                        timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock)
+                    )
+                }
             ),
         ).also {
             Napier.d("revocation status list: ${it.revocationList}")
@@ -121,16 +132,36 @@ class StatusListAgent(
                 .getStatusListView(timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock))
                 .toStatusList(zlibService, statusListAggregationUrl)
 
-            RevocationList.Kind.IDENTIFIER_LIST -> TODO("IdentifierList has not been implemented yet")
+            RevocationList.Kind.IDENTIFIER_LIST -> IdentifierList(
+                identifiers = issuerCredentialStore.getRawIdentifierList(
+                    timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock)
+                ),
+                aggregationUri = identifierListAggregationUrl
+            )
         }
+
+
+    /**
+     * Sets the status of one specific credential to [at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus.Invalid].
+     * Returns true if this credential has been revoked.
+     */
+    @Deprecated("Renamed", replaceWith = ReplaceWith("revokeCredentialByIndex"))
+    override fun revokeCredential(timePeriod: Int, statusListIndex: ULong): Boolean =
+        revokeCredentialByIndex(timePeriod, statusListIndex)
 
     /**
      * Sets the status of one specific credential to [TokenStatus.Invalid].
      * Returns true if this credential has been revoked.
-     * TODO extend for IdentifierInfo!
      */
-    override fun revokeCredential(timePeriod: Int, statusListIndex: ULong): Boolean =
+    override fun revokeCredentialByIndex(timePeriod: Int, statusListIndex: ULong): Boolean =
         issuerCredentialStore.setStatus(timePeriod, statusListIndex, TokenStatus.Invalid)
+
+    /**
+     * Sets the status of one specific credential to [TokenStatus.Invalid].
+     * Returns true if this credential has been revoked.
+     */
+    override fun revokeCredentialByIdentifier(timePeriod: Int, identifier: ByteArray): Boolean =
+        issuerCredentialStore.revokeIdentifier(timePeriod, identifier)
 
     override suspend fun provideStatusListToken(
         acceptedContentTypes: List<StatusListTokenMediaType>,
@@ -147,24 +178,46 @@ class StatusListAgent(
     }
 
     override suspend fun provideStatusListAggregation() = StatusListAggregation(
-        statusLists = compileCurrentRevocationLists().map {
+        statusLists = compileCurrentStatusLists().map {
             UniformResourceIdentifier(it)
         }
     )
 
-    private fun compileCurrentRevocationLists(): List<String> {
+    override suspend fun provideIdentifierListAggregation() = StatusListAggregation(
+        statusLists = compileCurrentIdentifierLists().map {
+            UniformResourceIdentifier(it)
+        }
+    )
+
+    private fun compileCurrentStatusLists(): List<String> {
         val list = mutableListOf<String>()
         for (timePeriod in timePeriodProvider.getRelevantTimePeriods(clock)) {
             if (timePeriodProvider.getCurrentTimePeriod(clock) == timePeriod
                 || issuerCredentialStore.getStatusListView(timePeriod).isNotEmpty()
             ) {
-                list.add(getRevocationListUrlFor(timePeriod))
+                list.add(getStatusListUrlFor(timePeriod))
             }
         }
         return list
     }
 
-    private fun getRevocationListUrlFor(timePeriod: Int) = statusListBaseUrl.let {
+    private fun compileCurrentIdentifierLists(): List<String> {
+        val list = mutableListOf<String>()
+        for (timePeriod in timePeriodProvider.getRelevantTimePeriods(clock)) {
+            if (timePeriodProvider.getCurrentTimePeriod(clock) == timePeriod
+                || issuerCredentialStore.getRawIdentifierList(timePeriod).isNotEmpty()
+            ) {
+                list.add(getIdentifierListUrlFor(timePeriod))
+            }
+        }
+        return list
+    }
+
+    private fun getStatusListUrlFor(timePeriod: Int) = statusListBaseUrl.let {
+        it + (if (!it.endsWith('/')) "/" else "") + timePeriod
+    }
+
+    private fun getIdentifierListUrlFor(timePeriod: Int) = identifierListBaseUrl.let {
         it + (if (!it.endsWith('/')) "/" else "") + timePeriod
     }
 

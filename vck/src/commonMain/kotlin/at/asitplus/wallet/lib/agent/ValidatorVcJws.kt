@@ -1,10 +1,22 @@
 package at.asitplus.wallet.lib.agent
 
+/*
+ * Software Name : VC-K
+ * SPDX-FileCopyrightText: Copyright (c) A-SIT Plus GmbH
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modifications: Get the public key from the JWS header when verifying a vp.
+ * SPDX-FileCopyrightText: Copyright (c) Orange Business
+ *
+ * This software is distributed under the Apache License 2.0,
+ * see the "LICENSE" file for more details
+ */
+
+import at.asitplus.KmmResult
+import at.asitplus.catching
 import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.josef.JwsSigned
 import at.asitplus.wallet.lib.agent.Verifier.VerifyCredentialResult
-import at.asitplus.wallet.lib.agent.Verifier.VerifyCredentialResult.SuccessJwt
-import at.asitplus.wallet.lib.agent.Verifier.VerifyCredentialResult.ValidationError
 import at.asitplus.wallet.lib.agent.Verifier.VerifyPresentationResult
 import at.asitplus.wallet.lib.agent.validation.vcJws.VcJwsInputValidationResult.ContentValidationSummary
 import at.asitplus.wallet.lib.agent.validation.vcJws.VcJwsInputValidationResult.ParsingError
@@ -55,23 +67,23 @@ class ValidatorVcJws(
         input: JwsSigned<VerifiablePresentationJws>,
         challenge: String,
         clientId: String,
-    ): VerifyPresentationResult {
+    ): KmmResult<VerifyPresentationResult.Success> = catching {
         Napier.d("Verifying VP $input with $challenge and $clientId")
         verifyJwsObject(input).getOrThrow()
         val vpJws = input.payload.validate(challenge, clientId)
         val vcValidationResults = vpJws.vp.verifiableCredential
-            .map { it to verifyVcJws(it, null, input) }
+            .map { it to verifyVcJws(it, input.header.publicKey, input) }
 
         val invalidVcList = vcValidationResults.filter {
-            it.second !is SuccessJwt
+            it.second.isFailure
         }.map {
             it.first
         }
 
         val verificationResultWithFreshnessSummary = vcValidationResults.map {
             it.second
-        }.filterIsInstance<SuccessJwt>().map {
-            it.jws
+        }.mapNotNull {
+            it.getOrNull()?.jws
         }.map {
             VcJwsVerificationResultWrapper(
                 vcJws = it,
@@ -93,7 +105,7 @@ class ValidatorVcJws(
         )
         Napier.d("VP: Valid")
 
-        return VerifyPresentationResult.Success(vp)
+        VerifyPresentationResult.Success(vp)
     }
 
     @Throws(IllegalArgumentException::class)
@@ -118,7 +130,7 @@ class ValidatorVcJws(
      */
     suspend fun verifyVcJws(
         input: JwsSigned<VerifiableCredentialJws>,
-        publicKey: CryptoPublicKey?,
+        publicKey: CryptoPublicKey,
         vpJws: JwsSigned<VerifiablePresentationJws>? = null,
     ) = verifyVcJws(input.serialize(), publicKey, vpJws)
 
@@ -133,16 +145,17 @@ class ValidatorVcJws(
         input: String,
         publicKey: CryptoPublicKey?,
         vpJws: JwsSigned<VerifiablePresentationJws>? = null,
-    ): VerifyCredentialResult =
+    ): KmmResult<VerifyCredentialResult.SuccessJwt> = catching {
         when (val result = vcJwsInputValidator(input, publicKey, vpJws)) {
-            is ParsingError -> ValidationError(result.throwable)
-            is ContentValidationSummary ->
-                if (result.isSuccess)
-                    SuccessJwt(result.payload)
-                else
-                    ValidationError(result.toString())
+            is ParsingError -> throw result.throwable
+            is ContentValidationSummary -> if (result.isSuccess) {
+                VerifyCredentialResult.SuccessJwt(result.payload)
+            } else {
+                throw ValidatiorVcJwsValidationException(result)
+            }
         }.also {
             Napier.d("Validating VC-JWS $input got $it")
         }
-
+    }
 }
+

@@ -2,21 +2,26 @@ package at.asitplus.wallet.lib.openid
 
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.QCertCreationAcceptance
+import at.asitplus.openid.dcql.DCQLClaimsPathPointerSegment
 import at.asitplus.openid.dcql.DCQLIsoMdocClaimsQuery
 import at.asitplus.openid.dcql.DCQLIsoMdocCredentialMetadataAndValidityConstraints
+import at.asitplus.openid.dcql.DCQLIsoMdocCredentialQuery
 import at.asitplus.openid.dcql.DCQLJsonClaimsQuery
 import at.asitplus.openid.dcql.DCQLSdJwtCredentialMetadataAndValidityConstraints
+import at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery
 import at.asitplus.signum.indispensable.asn1.ObjectIdentifier
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.data.ConstantIndex
 import de.infix.testBalloon.framework.core.testSuite
 import io.kotest.assertions.throwables.shouldThrowAny
+import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
-@Suppress("unused")
+
 val OpenId4VpRequestOptionsTest by testSuite {
 
     test("transaction data requires matching credential ids") {
@@ -31,19 +36,26 @@ val OpenId4VpRequestOptionsTest by testSuite {
             credentialIds = setOf("cred-2")
         )
 
-        shouldThrowAny {
-            OpenId4VpRequestOptions(
-                credentials = setOf(credential),
-                transactionData = listOf(transactionData)
-            )
+        val requestBuilder = CredentialPresentationRequestBuilder(setOf(credential))
+        listOf(
+            requestBuilder.toDCQLRequest(),
+            requestBuilder.toDCQLRequest()
+        ).forEach {
+            shouldThrowAny {
+                OpenId4VpRequestOptions(
+                    presentationRequest = it,
+                    transactionData = listOf(transactionData)
+                )
+            }
         }
     }
 
     test("dc api requires dcql and expected origins") {
         shouldThrowAny {
             OpenId4VpRequestOptions(
-                credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
-                presentationMechanism = PresentationMechanismEnum.PresentationExchange,
+                presentationRequest = CredentialPresentationRequestBuilder(
+                    setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023))
+                ).toPresentationExchangeRequest(),
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf("https://wallet.example")
             )
@@ -51,8 +63,9 @@ val OpenId4VpRequestOptionsTest by testSuite {
 
         shouldThrowAny {
             OpenId4VpRequestOptions(
-                credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
-                presentationMechanism = PresentationMechanismEnum.DCQL,
+                presentationRequest = CredentialPresentationRequestBuilder(
+                    setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023))
+                ).toDCQLRequest(),
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = null
             )
@@ -62,70 +75,25 @@ val OpenId4VpRequestOptionsTest by testSuite {
     test("non dc api requires client id population") {
         shouldThrowAny {
             OpenId4VpRequestOptions(
-                credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                presentationRequest = CredentialPresentationRequestBuilder(
+                    setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023))
+                ).toDCQLRequest(),
                 responseMode = OpenIdConstants.ResponseMode.Fragment,
                 populateClientId = false
             )
         }
     }
 
-    test("sd-jwt dcql mapping includes metadata and claims") {
-        val options = OpenId4VpRequestOptions(
-            credentials = setOf(
-                RequestOptionsCredential(
-                    credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.SD_JWT,
-                    requestedAttributes = setOf(ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME),
-                    requestedOptionalAttributes = setOf(ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME),
-                    id = "cred-1"
-                )
-            ),
-            presentationMechanism = PresentationMechanismEnum.DCQL
-        )
-
-        val query = options.toDCQLQuery().shouldNotBeNull()
-        val credentialQuery = query.credentials.first()
-            .shouldBeInstanceOf<at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery>()
-
-        credentialQuery.meta.shouldBeInstanceOf<DCQLSdJwtCredentialMetadataAndValidityConstraints>()
-            .vctValues shouldContain ConstantIndex.AtomicAttribute2023.sdJwtType
-
-        val claims = credentialQuery.claims.shouldNotBeNull().toList()
-        claims.size shouldBe 2
-        val claimNames = claims.map {
-            it.shouldBeInstanceOf<DCQLJsonClaimsQuery>().path.segments.first()
-                .shouldBeInstanceOf<at.asitplus.openid.dcql.DCQLClaimsPathPointerSegment.NameSegment>()
-                .name
-        }.toSet()
-        claimNames shouldBe setOf(
-            ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME,
-            ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME
-        )
-    }
-
-    test("iso mdoc dcql mapping includes namespace and doctype") {
-        val options = OpenId4VpRequestOptions(
-            credentials = setOf(
-                RequestOptionsCredential(
-                    credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.ISO_MDOC,
-                    requestedAttributes = setOf(ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME),
-                    id = "cred-1"
-                )
-            ),
-            presentationMechanism = PresentationMechanismEnum.DCQL
-        )
-
-        val query = options.toDCQLQuery().shouldNotBeNull()
-        val credentialQuery = query.credentials.first()
-            .shouldBeInstanceOf<at.asitplus.openid.dcql.DCQLIsoMdocCredentialQuery>()
-
-        credentialQuery.meta.shouldBeInstanceOf<DCQLIsoMdocCredentialMetadataAndValidityConstraints>()
-            .doctypeValue shouldBe ConstantIndex.AtomicAttribute2023.isoDocType
-
-        val claim = credentialQuery.claims.shouldNotBeNull().first()
-            .shouldBeInstanceOf<DCQLIsoMdocClaimsQuery>()
-        claim.namespace shouldBe ConstantIndex.AtomicAttribute2023.isoNamespace
-        claim.claimName shouldBe ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
+    test("omitting verifier metadata is rejected for encrypted response modes") {
+        shouldThrowAny {
+            OpenId4VpRequestOptions(
+                presentationRequest = CredentialPresentationRequestBuilder(
+                    setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023))
+                ).toDCQLRequest(),
+                responseMode = OpenIdConstants.ResponseMode.DirectPostJwt,
+                responseUrl = "https://example.com/response",
+                verifierMetadataMode = VerifierMetadataMode.OMIT_IF_OUT_OF_BAND,
+            )
+        }
     }
 }

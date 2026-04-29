@@ -1,50 +1,34 @@
 package at.asitplus.wallet.lib.openid
 
-import at.asitplus.data.NonEmptyList.Companion.nonEmptyListOf
-import at.asitplus.data.NonEmptyList.Companion.toNonEmptyList
-import at.asitplus.dif.DifInputDescriptor
-import at.asitplus.dif.FormatContainerJwt
-import at.asitplus.dif.FormatContainerSdJwt
-import at.asitplus.dif.InputDescriptor
-import at.asitplus.dif.PresentationDefinition
 import at.asitplus.openid.OpenIdConstants
+import at.asitplus.openid.OpenIdConstants.ResponseMode
 import at.asitplus.openid.OpenIdConstants.SCOPE_OPENID
 import at.asitplus.openid.OpenIdConstants.SCOPE_PROFILE
 import at.asitplus.openid.OpenIdConstants.VP_TOKEN
 import at.asitplus.openid.TransactionData
-import at.asitplus.openid.dcql.DCQLClaimsPathPointer
-import at.asitplus.openid.dcql.DCQLClaimsPathPointerSegment
-import at.asitplus.openid.dcql.DCQLClaimsQueryList
-import at.asitplus.openid.dcql.DCQLCredentialQuery
-import at.asitplus.openid.dcql.DCQLCredentialQueryIdentifier
-import at.asitplus.openid.dcql.DCQLCredentialQueryList
-import at.asitplus.openid.dcql.DCQLIsoMdocClaimsQuery
-import at.asitplus.openid.dcql.DCQLIsoMdocCredentialMetadataAndValidityConstraints
-import at.asitplus.openid.dcql.DCQLIsoMdocCredentialQuery
-import at.asitplus.openid.dcql.DCQLJsonClaimsQuery
-import at.asitplus.openid.dcql.DCQLJwtVcCredentialMetadataAndValidityConstraints
-import at.asitplus.openid.dcql.DCQLJwtVcCredentialQuery
-import at.asitplus.openid.dcql.DCQLQuery
-import at.asitplus.openid.dcql.DCQLSdJwtCredentialMetadataAndValidityConstraints
-import at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery
 import at.asitplus.wallet.lib.RequestOptions
 import at.asitplus.wallet.lib.RequestOptionsCredential
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialPresentationRequest
 import com.benasher44.uuid.uuid4
 
-data class OpenId4VpRequestOptions(
-    /** Requested credentials, should be at least one. */
-    override val credentials: Set<RequestOptionsCredential>,
+enum class VerifierMetadataMode {
+    AUTO,
+    OMIT_IF_OUT_OF_BAND,
+}
 
-    /** Presentation mechanism to be used for requesting credentials. */
-    val presentationMechanism: PresentationMechanismEnum = PresentationMechanismEnum.PresentationExchange,
+data class OpenId4VpRequestOptions(
+    /**
+     * Presentation mechanism to be used for requesting credentials.
+     * Use [CredentialPresentationRequestBuilder] for simple requests.
+     */
+    val presentationRequest: CredentialPresentationRequest?,
 
     /**
      * Response mode to request, see [OpenIdConstants.ResponseMode],
      * by default [OpenIdConstants.ResponseMode.Fragment].
      * Setting this to any other value may require setting [responseUrl] too.
      */
-    val responseMode: OpenIdConstants.ResponseMode = OpenIdConstants.ResponseMode.Fragment,
+    val responseMode: ResponseMode = ResponseMode.Fragment,
 
     /**
      * Response URL to set in the [at.asitplus.openid.AuthenticationRequestParameters.responseUrl],
@@ -62,9 +46,6 @@ data class OpenId4VpRequestOptions(
 
     /** Opaque value which will be returned by the OpenId Provider and also in [AuthnResponseResult]. */
     override val state: String = uuid4().toString(),
-
-    @Deprecated("Encryption depends on [responseMode]")
-    val encryption: Boolean = false,
 
     /**
      * Non-empty array of strings, where each string is a base64url-encoded JSON object that contains a typed parameter
@@ -90,11 +71,60 @@ data class OpenId4VpRequestOptions(
      * verification of the request signature or retrieving client metadata.
      */
     val populateClientId: Boolean = true,
+
+    /**
+     * Controls whether verifier metadata should be embedded in the authentication request.
+     *
+     * [VerifierMetadataMode.OMIT_IF_OUT_OF_BAND] may be used when the Wallet already knows the verifier metadata
+     * through another mechanism, e.g., a profile-specific static configuration.
+     */
+    val verifierMetadataMode: VerifierMetadataMode = VerifierMetadataMode.AUTO,
 ) : RequestOptions {
+    @Deprecated("Replace with primary constructor, building a presentation request using [CredentialPresentationRequestBuilder]")
+    constructor(
+        credentials: Set<RequestOptionsCredential>,
+        presentationMechanism: PresentationMechanismEnum = PresentationMechanismEnum.PresentationExchange,
+        responseMode: ResponseMode = ResponseMode.Fragment,
+        responseUrl: String? = null,
+        responseType: String = VP_TOKEN,
+        state: String = uuid4().toString(),
+        transactionData: List<TransactionData>? = null,
+        expectedOrigins: List<String>? = null,
+        populateClientId: Boolean = true,
+        verifierMetadataMode: VerifierMetadataMode = VerifierMetadataMode.AUTO,
+    ) : this(
+        presentationRequest = CredentialPresentationRequestBuilder(
+            credentials = credentials
+        ).let {
+            when(presentationMechanism) {
+                PresentationMechanismEnum.PresentationExchange -> it.toPresentationExchangeRequest()
+                PresentationMechanismEnum.DCQL -> it.toDCQLRequest()
+                PresentationMechanismEnum.DeviceRequest -> throw IllegalArgumentException("Invalid presentation mechanism for OpenId4VP: $presentationMechanism")
+            }
+        },
+        responseMode = responseMode,
+        responseUrl = responseUrl,
+        responseType = responseType,
+        state = state,
+        transactionData = transactionData,
+        expectedOrigins = expectedOrigins,
+        populateClientId = populateClientId,
+        verifierMetadataMode = verifierMetadataMode,
+    )
+
     init {
         if (!transactionData.isNullOrEmpty()) {
-            val transactionIds = transactionData.map { it.credentialIds.toList() }.flatten().sorted().distinct()
-            val credentialIds = credentials.map { it.id }.sorted().distinct()
+            val transactionIds = transactionData.map { it.credentialIds.toList() }.flatten().toSet()
+            val credentialIds = when(presentationRequest) {
+                is CredentialPresentationRequest.DCQLRequest -> presentationRequest.dcqlQuery.credentials.map {
+                    it.id.string
+                }
+                is CredentialPresentationRequest.PresentationExchangeRequest -> presentationRequest.presentationDefinition.inputDescriptors.map {
+                    it.id
+                }
+
+                null -> setOf()
+            }.toSet()
             require(transactionIds == credentialIds) { "OpenId4VP defines that the credential_ids that must be part of a transaction_data element have to be an ID from InputDescriptor" }
         }
         if (isAnyDcApi) {
@@ -103,116 +133,25 @@ data class OpenId4VpRequestOptions(
         } else {
             require(populateClientId) { "client_id should be set for anything but (unsigned) DC API requests" }
         }
+        if (verifierMetadataMode == VerifierMetadataMode.OMIT_IF_OUT_OF_BAND) {
+            require(!responseMode.requiresEncryption) {
+                "verifier metadata cannot be omitted for encrypted response modes without another key distribution mechanism"
+            }
+        }
     }
 
     val isDcql: Boolean
-        get() = presentationMechanism == PresentationMechanismEnum.DCQL
-
-    val isPresentationExchange
-        get() = presentationMechanism == PresentationMechanismEnum.PresentationExchange
+        get() = presentationRequest is CredentialPresentationRequest.DCQLRequest
 
     val isAnyDirectPost: Boolean
-        get() = (responseMode == OpenIdConstants.ResponseMode.DirectPost) ||
-                (responseMode == OpenIdConstants.ResponseMode.DirectPostJwt)
+        get() = (responseMode == ResponseMode.DirectPost) ||
+                (responseMode == ResponseMode.DirectPostJwt)
 
     val isAnyDcApi: Boolean
-        get() = responseMode == OpenIdConstants.ResponseMode.DcApi || responseMode == OpenIdConstants.ResponseMode.DcApiJwt
+        get() = responseMode == ResponseMode.DcApi || responseMode == ResponseMode.DcApiJwt
 
     val isSiop: Boolean
         get() = responseType.contains(OpenIdConstants.ID_TOKEN)
 
     fun buildScope(): String = listOf(SCOPE_OPENID, SCOPE_PROFILE).joinToString(" ")
-
-    fun toDCQLQuery(): DCQLQuery? = if (credentials.isEmpty()) null else DCQLQuery(
-        credentials = DCQLCredentialQueryList(
-            credentials.map<RequestOptionsCredential, DCQLCredentialQuery> { credential ->
-                val requestedAttributes = (credential.requestedAttributes?.map {
-                    it to true
-                } ?: listOf()) + (credential.requestedOptionalAttributes?.map {
-                    it to false
-                } ?: listOf())
-
-                when (credential.representation) {
-                    CredentialRepresentation.PLAIN_JWT -> DCQLJwtVcCredentialQuery(
-                        id = DCQLCredentialQueryIdentifier(credential.id),
-                        meta = DCQLJwtVcCredentialMetadataAndValidityConstraints(
-                            typeValues = nonEmptyListOf(
-                                listOfNotNull(credential.credentialScheme.vcType)
-                            )
-                        ),
-                        claims = requestedAttributes.takeIf {
-                            it.isNotEmpty() // requesting all claims if none are specified
-                        }?.map { (attribute, _) ->
-                            // TODO: how to properly handle non-required claims?
-                            DCQLJsonClaimsQuery(
-                                path = splitByDotToDcqlPath(attribute)
-                            )
-                        }?.toNonEmptyList()?.let {
-                            DCQLClaimsQueryList(it)
-                        }
-                    )
-
-                    CredentialRepresentation.SD_JWT -> DCQLSdJwtCredentialQuery(
-                        id = DCQLCredentialQueryIdentifier(credential.id),
-                        meta = DCQLSdJwtCredentialMetadataAndValidityConstraints(
-                            vctValues = listOf(credential.credentialScheme.sdJwtType!!)
-                        ),
-                        claims = requestedAttributes.takeIf {
-                            it.isNotEmpty() // requesting all claims if none are specified
-                        }?.map { (attribute, _) ->
-                            // TODO: how to properly handle non-required claims?
-                            DCQLJsonClaimsQuery(
-                                path = splitByDotToDcqlPath(attribute)
-                            )
-                        }?.toNonEmptyList()?.let {
-                            DCQLClaimsQueryList(it)
-                        }
-                    )
-
-                    CredentialRepresentation.ISO_MDOC -> DCQLIsoMdocCredentialQuery(
-                        id = DCQLCredentialQueryIdentifier(credential.id),
-                        meta = DCQLIsoMdocCredentialMetadataAndValidityConstraints(
-                            doctypeValue = credential.credentialScheme.isoDocType!!
-                        ),
-                        claims = requestedAttributes.takeIf {
-                            it.isNotEmpty() // requesting all claims if none are specified
-                        }?.map { (attribute, _) ->
-                            // TODO: how to properly handle non-required claims?
-                            DCQLIsoMdocClaimsQuery(
-                                namespace = credential.credentialScheme.isoNamespace!!,
-                                claimName = attribute,
-                                path = DCQLClaimsPathPointer(credential.credentialScheme.isoNamespace!!, attribute)
-                            )
-                        }?.toNonEmptyList()?.let {
-                            DCQLClaimsQueryList(it)
-                        }
-                    )
-                }
-            }.toNonEmptyList()
-        ),
-    )
-
-    private fun splitByDotToDcqlPath(attribute: String) = DCQLClaimsPathPointer(
-        attribute.split(".").map { DCQLClaimsPathPointerSegment.NameSegment(it) }.toNonEmptyList()
-    )
-
-    fun toPresentationDefinition(
-        containerJwt: FormatContainerJwt,
-        containerSdJwt: FormatContainerSdJwt,
-    ): PresentationDefinition = PresentationDefinition(
-        id = uuid4().toString(),
-        inputDescriptors = toInputDescriptor(containerJwt, containerSdJwt)
-    )
-
-    fun toInputDescriptor(
-        containerJwt: FormatContainerJwt,
-        containerSdJwt: FormatContainerSdJwt,
-    ): List<InputDescriptor> = credentials.map {
-        DifInputDescriptor(
-            id = it.buildId(),
-            format = it.toFormatHolder(containerJwt, containerSdJwt),
-            constraints = it.toConstraint(),
-        )
-    }
 }
-

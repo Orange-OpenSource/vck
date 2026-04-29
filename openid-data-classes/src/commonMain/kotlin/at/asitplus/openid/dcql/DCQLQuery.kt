@@ -16,7 +16,6 @@ import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.data.NonEmptyList
 import at.asitplus.data.NonEmptyList.Companion.nonEmptyListOf
-import at.asitplus.data.NonEmptyList.Companion.toNonEmptyList
 import at.asitplus.openid.CredentialFormatEnum
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -67,6 +66,15 @@ data class DCQLQuery(
      * not exist in the Wallet.If the Wallet cannot deliver all non-optional Credentials requested
      * by the Verifier according to these rules, it MUST NOT return any Credential(s).
      */
+    fun findCredentialQueryMatches(
+        availableCredentials: List<DCQLCredential>,
+    ) = DCQLQueryMatchingResult(credentials.associate { credentialQuery ->
+        credentialQuery.id to availableCredentials.map { credential ->
+            credentialQuery.match(credential)
+        }
+    })
+
+    @Deprecated("Replace in favor of findCredentialQueryMatches(DCQLCredential).")
     fun <Credential : Any> execute(
         availableCredentials: List<Credential>,
         credentialFormatExtractor: (Credential) -> CredentialFormatEnum,
@@ -76,142 +84,62 @@ data class DCQLQuery(
         credentialClaimStructureExtractor: (Credential) -> DCQLCredentialClaimStructure,
         satisfiesCryptographicHolderBinding: (Credential) -> Boolean,
         authorityKeyIdentifiers: (Credential) -> Collection<DCQLAuthorityKeyIdentifier>,
-    ): KmmResult<DCQLQueryResult<Credential>> = Procedures.executeQuery(
-        credentialQueries = credentials,
+    ) = DCQLQueryMatchingResult(
+        credentialMatchingResults = credentials.associate { query ->
+            query.id to availableCredentials.map {
+                query.executeCredentialQueryAgainstCredential(
+                    credential = it,
+                    credentialFormatExtractor = credentialFormatExtractor,
+                    mdocCredentialDoctypeExtractor = mdocCredentialDoctypeExtractor,
+                    sdJwtCredentialTypeExtractor = sdJwtCredentialTypeExtractor,
+                    jwtVcCredentialTypeExtractor = jwtVcCredentialTypeExtractor,
+                    credentialClaimStructureExtractor = credentialClaimStructureExtractor,
+                    satisfiesCryptographicHolderBinding = satisfiesCryptographicHolderBinding,
+                    authorityKeyIdentifiers = authorityKeyIdentifiers,
+                )
+            }
+        }
+    )
+
+    // TODO: use in verifier
+    fun <DCQLCredentialQueryResponse: Any> checkSubmissionRequirements(
+        dcqlQueryResponse: DCQLQueryResponse<DCQLCredentialQueryResponse>,
+        parseIsoMdocCredential: (DCQLCredentialQueryResponse) -> DCQLIsoMdocCredential,
+        parseSdJwtCredential: (DCQLCredentialQueryResponse) -> DCQLSdJwtCredential,
+        parseVcJwsCredential: (DCQLCredentialQueryResponse) -> DCQLVcJwsCredential,
+    ): KmmResult<Unit> = catching {
+        checkCredentialSetQueryRequirements(
+            credentialSubmissions = dcqlQueryResponse.submissions.keys,
+        ).getOrThrow()
+
+        dcqlQueryResponse.submissions.forEach { (id, submissions) ->
+            val credentialQuery = credentials.firstOrNull {
+                it.id == id
+            } ?: throw IllegalArgumentException("Credential has been submitted for non-existing credential query: $id")
+
+            credentialQuery.checkSubmissionRequirements(
+                credentialQueryResponses = submissions,
+                parseIsoMdocCredential = parseIsoMdocCredential,
+                parseSdJwtCredential = parseSdJwtCredential,
+                parseVcJwsCredential = parseVcJwsCredential,
+            )
+        }
+    }
+
+    fun checkCredentialSetQueryRequirements(
+        credentialSubmissions: Set<DCQLCredentialQueryIdentifier>,
+    ) = Procedures.checkCredentialSetQueryRequirements(
+        credentialSubmissions = credentialSubmissions,
         requestedCredentialSetQueries = requestedCredentialSetQueries,
-        availableCredentials = availableCredentials,
-        credentialFormatExtractor = credentialFormatExtractor,
-        mdocCredentialDoctypeExtractor = mdocCredentialDoctypeExtractor,
-        sdJwtCredentialTypeExtractor = sdJwtCredentialTypeExtractor,
-        jwtVcCredentialTypeExtractor = jwtVcCredentialTypeExtractor,
-        credentialClaimStructureExtractor = credentialClaimStructureExtractor,
-        satisfiesCryptographicHolderBinding = satisfiesCryptographicHolderBinding,
-        authorityKeyIdentifiers = authorityKeyIdentifiers,
     )
 
     object Procedures {
-        /**
-         *  6.3.1.2. Selecting Credentials
-         *
-         * The following rules apply for selecting Credentials via credentials and credential_sets:
-         * If credential_sets is not provided, the Verifier requests presentations for all Credentials
-         * in credentials to be returned.
-         *
-         * Otherwise, the Verifier requests presentations of Credentials to be returned satisfying
-         * all of the Credential Set Queries in the credential_sets array where the required attribute
-         * is true or omitted, and
-         * optionally, any of the other Credential Set Queries.To satisfy a Credential Set Query, the
-         * Wallet MUST return presentations of a set of Credentials that match to one of the options
-         * inside the Credential Set Query.Credentials not matching the respective constraints
-         * expressed within credentials MUST NOT be returned, i.e., they are treated as if they would
-         * not exist in the Wallet.If the Wallet cannot deliver all non-optional Credentials requested
-         * by the Verifier according to these rules, it MUST NOT return any Credential(s).
-         */
-        fun <Credential : Any> executeQuery(
-            credentialQueries: List<DCQLCredentialQuery>,
-            requestedCredentialSetQueries: List<DCQLCredentialSetQuery>,
-            availableCredentials: List<Credential>,
-            credentialFormatExtractor: (Credential) -> CredentialFormatEnum,
-            mdocCredentialDoctypeExtractor: (Credential) -> String,
-            sdJwtCredentialTypeExtractor: (Credential) -> String,
-            jwtVcCredentialTypeExtractor: (Credential) -> List<String>,
-            credentialClaimStructureExtractor: (Credential) -> DCQLCredentialClaimStructure,
-            satisfiesCryptographicHolderBinding: (Credential) -> Boolean,
-            authorityKeyIdentifiers: (Credential) -> Collection<DCQLAuthorityKeyIdentifier>,
-        ): KmmResult<DCQLQueryResult<Credential>> = catching {
-            val credentialQueryMatches = findCredentialQueryMatches(
-                credentialQueries = credentialQueries,
-                availableCredentials = availableCredentials,
-                credentialFormatExtractor = credentialFormatExtractor,
-                mdocCredentialDoctypeExtractor = mdocCredentialDoctypeExtractor,
-                sdJwtCredentialTypeExtractor = sdJwtCredentialTypeExtractor,
-                jwtVcCredentialTypeExtractor = jwtVcCredentialTypeExtractor,
-                credentialClaimStructureExtractor = credentialClaimStructureExtractor,
-                satisfiesCryptographicHolderBinding = satisfiesCryptographicHolderBinding,
-                authorityKeyIdentifiers = authorityKeyIdentifiers,
-            )
-
-            val satisfiableCredentialSetQueryOptions = findSatisfactoryCredentialSetQueryOptions(
-                credentialQueryMatches = credentialQueryMatches,
-                requestedCredentialSetQueries = requestedCredentialSetQueries,
-                credentialQueries
-            ).getOrElse {
-                throw IllegalArgumentException("Submission requirements cannot be satisfied.", it)
-            }
-
-            DCQLQueryResult(
-                credentialQueryMatches = credentialQueryMatches,
-                satisfiableCredentialSetQueries = satisfiableCredentialSetQueryOptions
-            )
-        }
-
-        fun <Credential : Any> findCredentialQueryMatches(
-            credentialQueries: List<DCQLCredentialQuery>,
-            availableCredentials: List<Credential>,
-            credentialFormatExtractor: (Credential) -> CredentialFormatEnum,
-            mdocCredentialDoctypeExtractor: (Credential) -> String,
-            sdJwtCredentialTypeExtractor: (Credential) -> String,
-            jwtVcCredentialTypeExtractor: (Credential) -> List<String>,
-            credentialClaimStructureExtractor: (Credential) -> DCQLCredentialClaimStructure,
-            satisfiesCryptographicHolderBinding: (Credential) -> Boolean,
-            authorityKeyIdentifiers: (Credential) -> Collection<DCQLAuthorityKeyIdentifier>,
-        ): Map<DCQLCredentialQueryIdentifier, List<DCQLCredentialSubmissionOption<Credential>>> {
-            return credentialQueries.associate { credentialQuery ->
-                credentialQuery.id to availableCredentials.mapNotNull { credential ->
-                    credentialQuery.executeCredentialQueryAgainstCredential(
-                        credential = credential,
-                        credentialFormatExtractor = credentialFormatExtractor,
-                        mdocCredentialDoctypeExtractor = mdocCredentialDoctypeExtractor,
-                        sdJwtCredentialTypeExtractor = sdJwtCredentialTypeExtractor,
-                        credentialClaimStructureExtractor = credentialClaimStructureExtractor,
-                        satisfiesCryptographicHolderBinding = satisfiesCryptographicHolderBinding,
-                        authorityKeyIdentifiers = authorityKeyIdentifiers,
-                        jwtVcCredentialTypeExtractor = jwtVcCredentialTypeExtractor,
-                    ).getOrNull()?.let {
-                        DCQLCredentialSubmissionOption(
-                            credential = credential,
-                            matchingResult = it
-                        )
-                    }
-                }
-            }
-        }
-
-        fun <Credential : Any> findSatisfactoryCredentialSetQueryOptions(
-            credentialQueryMatches: Map<DCQLCredentialQueryIdentifier, List<DCQLCredentialSubmissionOption<Credential>>>,
-            requestedCredentialSetQueries: List<DCQLCredentialSetQuery>,
-            credentialQueries: List<DCQLCredentialQuery>,
-        ): KmmResult<List<DCQLCredentialSetQuery>> = catching {
-            requestedCredentialSetQueries.mapNotNull { credentialSetQuery ->
-                catching<DCQLCredentialSetQuery?> {
-                    credentialSetQuery.copy(
-                        options = credentialSetQuery.options.filter { option ->
-                            option.all {
-                                credentialQueryMatches[it]?.isNotEmpty() == true
-                            }
-                        }.toNonEmptyList()
-                    )
-                }.getOrElse {
-                    if (credentialSetQuery.required) {
-                        val failedQuery = credentialQueries.find {
-                            it.id.string in credentialSetQuery.options.list.flatten().map { it.string }
-                        }
-                        throw IllegalArgumentException(
-                            "Required credential set query is not satisfiable: $credentialSetQuery and $failedQuery}",
-                            it
-                        )
-                    }
-                    null
-                }
-            }
-        }
-
-        fun isSatisfactoryCredentialSubmission(
+        fun checkCredentialSetQueryRequirements(
             credentialSubmissions: Set<DCQLCredentialQueryIdentifier>,
-            requestedCredentialSetQueries: List<DCQLCredentialSetQuery>,
-        ): Boolean = requestedCredentialSetQueries.all {
-            !it.required || it.options.any {
-                credentialSubmissions.containsAll(it)
+            requestedCredentialSetQueries: Collection<DCQLCredentialSetQuery>,
+        ): KmmResult<Unit> = catching {
+            requestedCredentialSetQueries.forEach {
+                it.checkSubmissionRequirements(credentialSubmissions).getOrThrow()
             }
         }
     }

@@ -17,14 +17,22 @@ import at.asitplus.signum.indispensable.josef.JwsSigned
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.Issuer
 import at.asitplus.wallet.lib.agent.KeyMaterial
+import at.asitplus.wallet.lib.agent.validation.StatusListTokenResolver
+import at.asitplus.wallet.lib.agent.validation.toTokenStatusResolver
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialScheme
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationListInfo
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListInfo
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
+import at.asitplus.wallet.lib.jws.VerifyJwsObject
 import at.asitplus.wallet.lib.oauth2.RequestInfo
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.*
 import io.github.aakira.napier.Napier
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
 
 /**
  * Server implementation to issue credentials using OID4VCI.
@@ -34,6 +42,8 @@ import io.github.aakira.napier.Napier
  * 1.0 from 2025-09-16.
  */
 class CredentialIssuer(
+    /** Used to verify the validity of a unit attestation */
+    private val statusListTokenResolver: StatusListTokenResolver? = null,
     /** Used to get the user data, and access tokens. */
     private val authorizationService: OAuth2AuthorizationServerAdapter,
     /** Used to actually issue the credential. */
@@ -62,6 +72,24 @@ class CredentialIssuer(
     private val proofValidator: ProofValidator = ProofValidator(
         publicContext = publicContext,
         requireKeyAttestation = requireKeyAttestation,
+        verifyAttestationProof = {
+            val tokenStatusValid = runCatching {
+                it.payload.status?.get(StatusListInfo.SerialNames.STATUS_LIST_INFO)?.let { statusList ->
+                    Json.decodeFromJsonElement<StatusListInfo>(statusList).let { statusListInfo ->
+                        if (statusListTokenResolver?.toTokenStatusResolver()
+                                ?.invoke(statusListInfo as RevocationListInfo)
+                                ?.getOrThrow() == TokenStatus.Invalid
+                        ) throw Throwable("TokenStatus invalid")
+                    }
+                }
+            }.isSuccess
+
+            val signatureValid = runCatching {
+                VerifyJwsObject().verifyJwsSignature(it, it.header.publicKey!!).isSuccess
+            }.getOrDefault(false)
+
+            return@ProofValidator (tokenStatusValid && signatureValid)
+        }
     ),
     /** Used to provide signed metadata in [signedMetadata]. */
     private val signMetadata: SignJwtFun<IssuerMetadata> = SignJwt(EphemeralKeyWithoutCert(), JwsHeaderCertOrJwk()),
@@ -157,43 +185,6 @@ class CredentialIssuer(
      */
     suspend fun nonceWithDpopNonce(): KmmResult<Nonce> = catching {
         Nonce(proofValidator.nonce(), authorizationService.getDpopNonce())
-    }
-
-    @Deprecated("Use [credential] with [WalletService.CredentialRequest] instead")
-    suspend fun credentialEncryptedRequest(
-        authorizationHeader: String,
-        input: String,
-        credentialDataProvider: CredentialDataProviderFun,
-        request: RequestInfo? = null,
-    ): KmmResult<CredentialResponseParameters> = catching {
-        credentialInternal(
-            authorizationHeader = authorizationHeader,
-            request = encryptionService.decrypt(input).getOrThrow(),
-            credentialDataProvider = credentialDataProvider,
-            requestInfo = request,
-            hasBeenEncrypted = true,
-        ).getOrThrow().toCredentialResponseParameters()
-    }
-
-    private fun CredentialResponse.toCredentialResponseParameters() = when (this) {
-        is CredentialResponse.Encrypted -> TODO()
-        is CredentialResponse.Plain -> response
-    }
-
-    @Deprecated("Use [credential] with [WalletService.CredentialRequest] instead")
-    suspend fun credential(
-        authorizationHeader: String,
-        params: CredentialRequestParameters,
-        credentialDataProvider: CredentialDataProviderFun,
-        request: RequestInfo? = null,
-    ): KmmResult<CredentialResponseParameters> = catching {
-        credentialInternal(
-            authorizationHeader = authorizationHeader,
-            request = params,
-            credentialDataProvider = credentialDataProvider,
-            requestInfo = request,
-            hasBeenEncrypted = false,
-        ).getOrThrow().toCredentialResponseParameters()
     }
 
     /**

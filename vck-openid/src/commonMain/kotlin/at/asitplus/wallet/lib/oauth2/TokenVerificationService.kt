@@ -252,7 +252,7 @@ class JwtTokenVerificationService(
  * This does only work for internal authorization servers, because we could not store the actual user data otherwise.
  */
 class BearerTokenVerificationService(
-    /** Loads the actual user data with [BearerTokenGenerationService.getValidatedAccessToken]. */
+    /** Loads the actual user data with [BearerTokenGenerationService.verifyAccessToken]. */
     internal val tokenGenerationService: BearerTokenGenerationService,
 ) : TokenVerificationService {
 
@@ -261,7 +261,10 @@ class BearerTokenVerificationService(
         httpRequest: RequestInfo?,
         validatedClientKey: JsonWebKey?,
     ): String {
-        throw InvalidToken("Refresh tokens are not supported by this verifier")
+        val validated = tokenGenerationService.verifyRefreshToken(refreshToken)
+            ?: throw InvalidToken("Refresh token not valid")
+
+        return validated.token
     }
 
     /** Not supported for Bearer tokens. */

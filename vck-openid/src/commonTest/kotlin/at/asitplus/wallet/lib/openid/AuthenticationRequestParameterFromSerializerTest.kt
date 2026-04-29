@@ -43,7 +43,9 @@ val AuthenticationRequestParameterFromSerializerTest by testSuite {
 
     representations.forEach { representation ->
         val reqOptions = OpenId4VpRequestOptions(
-            credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, representation))
+            presentationRequest = CredentialPresentationRequestBuilder(
+                credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, representation))
+            ).toPresentationExchangeRequest(),
         )
 
         "URL test $representation" {
@@ -76,7 +78,7 @@ val AuthenticationRequestParameterFromSerializerTest by testSuite {
         "DcApiUnsigned test $representation" {
             val authnRequest = DCAPIWalletRequest.OpenId4VpUnsigned(
                 request = verifierOid4vp.createAuthnRequest(requestOptions = reqOptions),
-                credentialId = "1",
+                credentialIds = listOf("1"),
                 callingPackageName = "com.example.app",
                 callingOrigin = "https://example.com"
             )
@@ -115,7 +117,7 @@ val AuthenticationRequestParameterFromSerializerTest by testSuite {
             val serializedRequest = jarRequest.request.shouldNotBeNull()
             val authnRequest = DCAPIWalletRequest.OpenId4VpSigned(
                 request = jarRequest,
-                credentialId = "1",
+                credentialIds = listOf("1"),
                 callingPackageName = "com.example.app",
                 callingOrigin = "https://example.com"
             )

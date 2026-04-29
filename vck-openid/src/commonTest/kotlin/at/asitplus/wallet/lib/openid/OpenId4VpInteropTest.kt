@@ -19,6 +19,7 @@ import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.agent.SdJwtDecoded
 import at.asitplus.wallet.lib.agent.ValidatorSdJwt
+import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.agent.toIanaName
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
@@ -34,6 +35,7 @@ import at.asitplus.wallet.lib.jws.VerifyJwsSignatureWithKey
 import at.asitplus.wallet.lib.oidvci.formUrlEncode
 import com.benasher44.uuid.uuid4
 import de.infix.testBalloon.framework.core.testSuite
+import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -115,15 +117,17 @@ val OpenId4VpInteropTest by testSuite {
             val requestUrl = "https://verifier.example.com/request/$requestNonce"
             val (requestUrlForWallet, requestObject) = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(
+                            RequestOptionsCredential(
+                                ConstantIndex.AtomicAttribute2023,
+                                ConstantIndex.CredentialRepresentation.SD_JWT,
+                                setOf(CLAIM_FAMILY_NAME, CLAIM_GIVEN_NAME)
+                            )
+                        )
+                    ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
                     responseUrl = "https://verifier.example.com/response/$responseNonce",
-                    credentials = setOf(
-                        RequestOptionsCredential(
-                            ConstantIndex.AtomicAttribute2023,
-                            ConstantIndex.CredentialRepresentation.SD_JWT,
-                            setOf(CLAIM_FAMILY_NAME, CLAIM_GIVEN_NAME)
-                        )
-                    )
                 ),
                 OpenId4VpVerifier.CreationOptions.SignedRequestByReference("haip://", requestUrl)
             ).getOrThrow()
@@ -214,8 +218,11 @@ val OpenId4VpInteropTest by testSuite {
                 }
             }
 
-            it.verifierOid4vp.validateAuthnResponse(response.params.formUrlEncode())
-                .shouldBeInstanceOf<AuthnResponseResult.SuccessSdJwt>()
+            it.verifierOid4vp.validateAuthnResponse(response.params.formUrlEncode()).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
+                .inputDescriptorResponseValidations.values.shouldBeSingleton().first().getOrThrow()
+                .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
         }
 
         "parse JAR sample from document" {

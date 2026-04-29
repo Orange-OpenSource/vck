@@ -1,5 +1,6 @@
 package at.asitplus.wallet.lib.agent
 
+import at.asitplus.KmmResult
 import at.asitplus.iso.DeviceResponse
 import at.asitplus.iso.Document
 import at.asitplus.iso.IssuerSigned
@@ -12,6 +13,7 @@ import at.asitplus.wallet.lib.agent.validation.CredentialFreshnessSummary
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.IsoDocumentParsed
 import at.asitplus.wallet.lib.data.SelectiveDisclosureItem
+import at.asitplus.wallet.lib.data.VcJwsVerificationResultWrapper
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.VerifiableCredentialSdJwt
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
@@ -35,7 +37,8 @@ interface Verifier {
         input: SdJwtSigned,
         challenge: String,
         transactionData: List<TransactionDataBase64Url>? = null,
-    ): VerifyPresentationResult
+        requireCryptographicHolderBinding: Boolean = true,
+    ): KmmResult<VerifyPresentationResult.SuccessSdJwt>
 
     /**
      * Verifies a presentation of some credentials in [ConstantIndex.CredentialRepresentation.PLAIN_JWT] from a holder,
@@ -44,7 +47,11 @@ interface Verifier {
     suspend fun verifyPresentationVcJwt(
         input: JwsSigned<VerifiablePresentationJws>,
         challenge: String,
-    ): VerifyPresentationResult
+    ): KmmResult<VerifyPresentationResult.Success>
+
+    suspend fun verifyUnsignedVcJws(
+        input: String
+    ): KmmResult<VerifyPresentationResult.SuccessUnsigned>
 
     /**
      * Verifies a presentation of some credentials in [ConstantIndex.CredentialRepresentation.ISO_MDOC] from a holder,
@@ -53,9 +60,13 @@ interface Verifier {
     suspend fun verifyPresentationIsoMdoc(
         input: DeviceResponse,
         verifyDocument: suspend (MobileSecurityObject, Document) -> Boolean,
-    ): VerifyPresentationResult
+    ): KmmResult<VerifyPresentationResult.SuccessIso>
 
     sealed class VerifyPresentationResult {
+        data class SuccessUnsigned(
+            val vc: VcJwsVerificationResultWrapper,
+        ) : VerifyPresentationResult()
+
         data class Success(
             val vp: VerifiablePresentationParsed,
         ) : VerifyPresentationResult()
@@ -66,17 +77,15 @@ interface Verifier {
             val reconstructedJsonObject: JsonObject,
             val disclosures: Collection<SelectiveDisclosureItem>,
             val freshnessSummary: CredentialFreshnessSummary.SdJwt,
-        ) : VerifyPresentationResult()
+        ) : VerifyPresentationResult() {
+            @Deprecated("Helper for replacing AuthnResponseResult with VerifyPresentationResult", ReplaceWith("reconstructedJsonObject"))
+            val reconstructed
+                get() = reconstructedJsonObject
+        }
 
         data class SuccessIso(
             val documents: List<IsoDocumentParsed>,
         ) : VerifyPresentationResult()
-
-        data class ValidationError(
-            val cause: Throwable,
-        ) : VerifyPresentationResult() {
-            constructor(message: String) : this(Throwable(message))
-        }
     }
 
     sealed class VerifyCredentialResult {
@@ -95,14 +104,7 @@ interface Verifier {
         data class SuccessIso(
             val issuerSigned: IssuerSigned,
         ) : VerifyCredentialResult()
-
-        data class ValidationError(
-            val cause: Throwable,
-        ) : VerifyCredentialResult() {
-            constructor(message: String) : this(Throwable(message))
-        }
     }
-
 }
 
 /**
@@ -120,4 +122,3 @@ fun CryptoPublicKey.matchesIdentifier(input: String): Boolean {
     return false
 }
 
-class VerificationError(cause: Throwable) : Throwable(cause)

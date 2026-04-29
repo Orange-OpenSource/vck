@@ -8,6 +8,7 @@ import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.HolderAgent
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
@@ -15,10 +16,12 @@ import at.asitplus.wallet.lib.data.rfc3986.toUri
 import com.benasher44.uuid.uuid4
 import de.infix.testBalloon.framework.core.testSuite
 import io.kotest.matchers.collections.shouldBeIn
+import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 
+@Suppress("unused")
 val OpenId4VpSdJwtProtocolTest by testSuite {
 
     withFixtureGenerator(suspend {
@@ -68,9 +71,11 @@ val OpenId4VpSdJwtProtocolTest by testSuite {
             val requestedClaim = AtomicAttribute2023.CLAIM_GIVEN_NAME
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
-                    setOf(
-                        RequestOptionsCredential(AtomicAttribute2023, SD_JWT, setOf(requestedClaim))
-                    )
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        setOf(
+                            RequestOptionsCredential(AtomicAttribute2023, SD_JWT, setOf(requestedClaim))
+                        )
+                    ).toDCQLRequest(),
                 ),
                 OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
@@ -80,10 +85,15 @@ val OpenId4VpSdJwtProtocolTest by testSuite {
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
                 .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
-            val result = it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
-            result.shouldBeInstanceOf<AuthnResponseResult.SuccessSdJwt>()
-            result.verifiableCredentialSdJwt.shouldNotBeNull()
-            result.reconstructed[requestedClaim].shouldNotBeNull()
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultDCQL>()
+                .credentialQueryResponseValidations.values
+                .shouldBeSingleton().first().shouldBeSingleton().first().getOrThrow()
+                .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
+                    verifiableCredentialSdJwt.shouldNotBeNull()
+                    reconstructedJsonObject[requestedClaim].shouldNotBeNull()
+                }
         }
 
         "Selective Disclosure with EU PID credential with mapped claim names" {
@@ -95,9 +105,11 @@ val OpenId4VpSdJwtProtocolTest by testSuite {
             )
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
-                    credentials = setOf(
-                        RequestOptionsCredential(EuPidScheme, SD_JWT, requestedClaims)
-                    )
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(
+                            RequestOptionsCredential(EuPidScheme, SD_JWT, requestedClaims)
+                        )
+                    ).toDCQLRequest(),
                 ),
                 OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
@@ -105,13 +117,19 @@ val OpenId4VpSdJwtProtocolTest by testSuite {
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
                 .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
-            val result = it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
-            result.shouldBeInstanceOf<AuthnResponseResult.SuccessSdJwt>()
-            result.verifiableCredentialSdJwt.shouldNotBeNull()
-            requestedClaims.forEach {
-                it.shouldBeIn(result.reconstructed.keys)
-                result.reconstructed[it].shouldNotBeNull()
-            }
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultDCQL>()
+                .credentialQueryResponseValidations.values
+                .shouldBeSingleton().first()
+                .shouldBeSingleton().first().getOrThrow().shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
+                    verifiableCredentialSdJwt.shouldNotBeNull()
+                    requestedClaims.forEach {
+                        it.shouldBeIn(reconstructedJsonObject.keys)
+                        reconstructedJsonObject[it].shouldNotBeNull()
+                    }
+                }
+
         }
     }
 }

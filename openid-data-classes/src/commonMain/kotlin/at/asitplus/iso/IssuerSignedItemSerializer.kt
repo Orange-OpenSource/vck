@@ -1,7 +1,11 @@
 package at.asitplus.iso
 
 import at.asitplus.catchingUnwrapped
-import io.github.aakira.napier.Napier
+import at.asitplus.iso.IssuerSignedItem.Companion.PROP_DIGEST_ID
+import at.asitplus.iso.IssuerSignedItem.Companion.PROP_ELEMENT_ID
+import at.asitplus.iso.IssuerSignedItem.Companion.PROP_ELEMENT_VALUE
+import at.asitplus.iso.IssuerSignedItem.Companion.PROP_RANDOM
+import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.KSerializer
@@ -16,15 +20,19 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.encoding.encodeStructure
+import net.orandja.obor.data.CborMap
+import net.orandja.obor.data.CborText
 
-open class IssuerSignedItemSerializer(private val namespace: String, private val elementIdentifier: String) :
-    KSerializer<IssuerSignedItem> {
+open class IssuerSignedItemSerializer(
+    private val namespace: String,
+    private val elementIdentifier: String
+) : KSerializer<IssuerSignedItem> {
 
     override val descriptor: SerialDescriptor = buildClassSerialDescriptor("IssuerSignedItem") {
-        element(IssuerSignedItem.PROP_DIGEST_ID, Long.serializer().descriptor)
-        element(IssuerSignedItem.PROP_RANDOM, ByteArraySerializer().descriptor)
-        element(IssuerSignedItem.PROP_ELEMENT_ID, String.serializer().descriptor)
-        element(IssuerSignedItem.PROP_ELEMENT_VALUE, String.serializer().descriptor)
+        element(PROP_DIGEST_ID, Long.serializer().descriptor)
+        element(PROP_RANDOM, ByteArraySerializer().descriptor)
+        element(PROP_ELEMENT_ID, String.serializer().descriptor)
+        element(PROP_ELEMENT_VALUE, String.serializer().descriptor)
     }
 
     override fun serialize(encoder: Encoder, value: IssuerSignedItem) {
@@ -39,16 +47,18 @@ open class IssuerSignedItemSerializer(private val namespace: String, private val
     private fun CompositeEncoder.encodeAnything(value: IssuerSignedItem, index: Int) {
         val elementValueSerializer = buildElementValueSerializer(namespace, value.elementValue, value.elementIdentifier)
         val descriptor = buildClassSerialDescriptor("IssuerSignedItem") {
-            element(IssuerSignedItem.PROP_DIGEST_ID, Long.serializer().descriptor)
-            element(IssuerSignedItem.PROP_RANDOM, ByteArraySerializer().descriptor)
-            element(IssuerSignedItem.PROP_ELEMENT_ID, String.serializer().descriptor)
-            element(IssuerSignedItem.PROP_ELEMENT_VALUE, elementValueSerializer.descriptor, value.elementValue.annotations())
+            element(PROP_DIGEST_ID, Long.serializer().descriptor)
+            element(PROP_RANDOM, ByteArraySerializer().descriptor)
+            element(PROP_ELEMENT_ID, String.serializer().descriptor)
+            element(PROP_ELEMENT_VALUE, elementValueSerializer.descriptor, value.elementValue.annotations())
         }
 
         when (val it = value.elementValue) {
             is String -> encodeStringElement(descriptor, index, it)
             is Int -> encodeIntElement(descriptor, index, it)
             is Long -> encodeLongElement(descriptor, index, it)
+            is Float -> encodeFloatElement(descriptor, index, it)
+            is Double -> encodeDoubleElement(descriptor, index, it)
             is LocalDate -> encodeSerializableElement(descriptor, index, LocalDate.serializer(), it)
             is Instant -> encodeSerializableElement(descriptor, index, InstantStringSerializer, it)
             is Boolean -> encodeBooleanElement(descriptor, index, it)
@@ -78,6 +88,8 @@ open class IssuerSignedItemSerializer(private val namespace: String, private val
         is String -> String.serializer()
         is Int -> Int.serializer()
         is Long -> Long.serializer()
+        is Float -> Float.serializer()
+        is Double -> Double.serializer()
         is LocalDate -> LocalDate.serializer()
         is Instant -> InstantStringSerializer
         is Boolean -> Boolean.serializer()
@@ -92,34 +104,42 @@ open class IssuerSignedItemSerializer(private val namespace: String, private val
     override fun deserialize(decoder: Decoder): IssuerSignedItem {
         var digestId = 0U
         var random: ByteArray? = null
-        var elementValue: Any? = null
+        var parsedElementId: String? = elementIdentifier.takeIf { it.isNotBlank() }
+        var parsedElementValue: Any? = null
         decoder.decodeStructure(descriptor) {
             while (true) {
                 val name = decodeStringElement(descriptor, 0)
                 // Don't call decodeElementIndex, as it would check for tags. this would break decodeAnything
                 val index = descriptor.getElementIndex(name)
                 when (name) {
-                    IssuerSignedItem.PROP_DIGEST_ID -> digestId = decodeLongElement(descriptor, index).toUInt()
-                    IssuerSignedItem.PROP_RANDOM -> random = decodeSerializableElement(descriptor, index, ByteArraySerializer())
-                    IssuerSignedItem.PROP_ELEMENT_ID -> if (elementIdentifier != decodeStringElement(descriptor, index))
-                        throw IllegalArgumentException("Element identifier mismatch")
+                    PROP_DIGEST_ID -> digestId = decodeLongElement(descriptor, index).toUInt()
+                    PROP_RANDOM -> random = decodeSerializableElement(descriptor, index, ByteArraySerializer())
+                    PROP_ELEMENT_ID -> {
+                        val elementIdInPayload = decodeStringElement(descriptor, index)
+                        if (parsedElementId != null && parsedElementId != elementIdInPayload)
+                            throw IllegalArgumentException("Element identifier mismatch")
+                        parsedElementId = elementIdInPayload
+                    }
 
-                    IssuerSignedItem.PROP_ELEMENT_VALUE -> elementValue = decodeAnything(index, elementIdentifier)
+                    PROP_ELEMENT_VALUE -> parsedElementValue = decodeAnything(index, parsedElementId)
                 }
-                if (random != null && elementValue != null) break
+                if (random != null && parsedElementValue != null) break
             }
         }
+
         return IssuerSignedItem(
             digestId = digestId,
             random = random!!,
-            elementIdentifier = elementIdentifier,
-            elementValue = elementValue!!,
+            elementIdentifier = parsedElementId
+                ?: throw IllegalArgumentException("Missing element identifier"),
+            elementValue = parsedElementValue
+                ?: throw IllegalArgumentException("Missing element value"),
         )
     }
 
     private fun CompositeDecoder.decodeAnything(index: Int, elementIdentifier: String?): Any {
         if (namespace.isBlank())
-            Napier.w("This decoder is not namespace-aware! Unspeakable things may happen…")
+            throw IllegalArgumentException("Can not decode $elementIdentifier without namespace")
 
         // Tags are not read out here but skipped because `decodeElementIndex` is never called, so we cannot
         // discriminate technically, this should be a good thing though, because otherwise we'd consume more from the
@@ -127,18 +147,65 @@ open class IssuerSignedItemSerializer(private val namespace: String, private val
         elementIdentifier?.let {
             CborCredentialSerializer.decode(descriptor, index, this, elementIdentifier, namespace)
                 ?.let { return it }
-                ?: Napier.v(
-                    "Falling back to defaults for namespace $namespace and elementIdentifier $elementIdentifier"
-                )
         }
 
         // These are the ones that map to different CBOR data types, the rest don't, so if it is not registered, we'll
         // lose type information. No others must be added here, as they could consume data from the underlying bytes
         catchingUnwrapped { return decodeStringElement(descriptor, index) }
+        catchingUnwrapped { return decodeBooleanElement(descriptor, index) }
         catchingUnwrapped { return decodeLongElement(descriptor, index) }
         catchingUnwrapped { return decodeDoubleElement(descriptor, index) }
-        catchingUnwrapped { return decodeBooleanElement(descriptor, index) }
 
-        throw IllegalArgumentException("Could not decode value at $index")
+        // Kotlinx Serialization can't really read "just the CBOR Bytes",
+        // so we can't really "try" to parse the next CBOR element as "anything",
+        // but we'll try anyway
+        // Any sensible credential implementation should have registered a custom CborCredentialSerializer
+        catchingUnwrapped {
+            return decodeGenericElementValue(decodeSerializableElement(descriptor, index, ByteArraySerializer()))
+        }
+
+        throw IllegalArgumentException("Could not decode value at $index for $elementIdentifier")
     }
+
+    internal fun deserializeFromOborMap(item: CborMap): IssuerSignedItem = item.toIssuerSignedItem()
+
+    private fun CborMap.toIssuerSignedItem(): IssuerSignedItem {
+        val digestId = coseCompliantSerializer.decodeFromByteArray(
+            ULong.serializer(),
+            first { (it.key as CborText).value == PROP_DIGEST_ID }.value.cbor
+        ).toUInt()
+        val random = coseCompliantSerializer.decodeFromByteArray(
+            ByteArraySerializer(),
+            first { (it.key as CborText).value == PROP_RANDOM }.value.cbor
+        )
+        val elementId = (first { (it.key as CborText).value == PROP_ELEMENT_ID }.value as CborText)
+            .value
+        if (elementIdentifier.isNotBlank() && elementIdentifier != elementId) {
+            throw IllegalArgumentException("Element identifier mismatch")
+        }
+
+        val elementValueContainer = first { (it.key as CborText).value == PROP_ELEMENT_VALUE }.value
+        val elementValue = CborCredentialSerializer.lookupSerializer(namespace, elementId)?.let {
+            runCatching {
+                coseCompliantSerializer.decodeFromByteArray(it, elementValueContainer.cbor)
+            }.getOrElse {
+                decodeGenericElementValue(elementValueContainer.cbor)
+            }
+        } ?: decodeGenericElementValue(elementValueContainer.cbor)
+
+        return IssuerSignedItem(digestId, random, elementId, elementValue)
+    }
+
+    private fun decodeGenericElementValue(bytes: ByteArray): Any {
+        runCatching { return coseCompliantSerializer.decodeFromByteArray(LocalDate.serializer(), bytes) }
+        runCatching { return coseCompliantSerializer.decodeFromByteArray(InstantStringSerializer, bytes) }
+        runCatching { return coseCompliantSerializer.decodeFromByteArray(String.serializer(), bytes) }
+        runCatching { return coseCompliantSerializer.decodeFromByteArray(Long.serializer(), bytes) }
+        runCatching { return coseCompliantSerializer.decodeFromByteArray(Float.serializer(), bytes) }
+        runCatching { return coseCompliantSerializer.decodeFromByteArray(Double.serializer(), bytes) }
+        runCatching { return coseCompliantSerializer.decodeFromByteArray(Boolean.serializer(), bytes) }
+        runCatching { return coseCompliantSerializer.decodeFromByteArray(ByteArraySerializer(), bytes) }
+        return bytes
+    }
+
 }

@@ -1,51 +1,39 @@
-name: Test Everything
+name: Test Manually (Matrix Entry)
+
 on:
   workflow_dispatch:
     inputs:
-      kotlin-version:
-        description: 'Override Kotlin version?'
+      matrix-path:
+        description: "Path to json which contains the test strategy matrix"
+        required: true
+        default: ".github/config/test-strategy-matrix.json"
+        type: string
+      runner-name:
+        description: "Runner as defined in matrix (e.g., iosRunner, appleOtherRunner, jvmRunner)"
+        required: true
+        default: "jvmRunner"
+        type: string
+      override-cache:
         required: false
-        default: ''
+        default: false
+        type: boolean
+      kotlin-version:
+        description: "Override Kotlin version?"
+        required: false
+        default: ""
         type: string
       testballoon-version:
-        description: 'Override TestBalloon version (full version string)?'
+        description: "Override TestBalloon version (full version string)?"
         required: false
-        default: ''
+        default: ""
         type: string
+
 jobs:
-  build:
-    runs-on: macos-latest
-    timeout-minutes: 300
-    env:
-      KOTLIN_VERSION_ENV: ${{ inputs.kotlin-version }}
-      TESTBALLOON_VERSION_OVERRIDE: ${{ inputs.testballoon-version }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-      - uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - name: Run tests
-        run: ./gradlew -Dkotlin.build.report.json.directory="$PWD/metrics" allTests -x iosX64Test --scan
-      - name: Test Report
-        uses: dorny/test-reporter@v2
-        env:
-          NODE_OPTIONS: --max-old-space-size=8192
-        if: success() || failure()
-        with:
-          name: All Tests
-          path: '**/build/test-results/**/TEST*.xml'
-          list-suites: failed
-          list-tests: failed
-          reporter: java-junit
-          use-actions-summary: true
-      - name: Upload metrics
-        if: success() || failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: metrics
-          path: metrics/*.json
-          if-no-files-found: ignore
+  test-manually:
+    uses: a-sit-plus/internal-workflows/.github/workflows/test-manually.yml@v2
+    with:
+      override-cache: ${{ inputs.override-cache }}
+      matrix-path: ${{ inputs.matrix-path }}
+      runner-name: ${{ inputs.runner-name }}
+      kotlin-version: ${{ inputs.kotlin-version }}
+      testballoon-version: ${{ inputs.testballoon-version }}

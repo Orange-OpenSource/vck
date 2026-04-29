@@ -5,9 +5,11 @@ import at.asitplus.openid.CredentialFormatEnum
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenRequestParameters
+import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
 import at.asitplus.testballoon.withFixtureGenerator
 import at.asitplus.wallet.eupid.EuPidScheme
+import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.IssuerAgent
@@ -22,11 +24,13 @@ import at.asitplus.wallet.lib.ktor.openid.TestUtils.respond
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.respondIncludingDpopNonce
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.toRequestInfo
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.verifySdJwtCredential
+import at.asitplus.wallet.lib.ktor.openid.toCredentialRenewalInfo
 import at.asitplus.wallet.lib.oauth2.ClientAuthenticationService
 import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
 import at.asitplus.wallet.lib.oauth2.TokenService
 import at.asitplus.wallet.lib.oidvci.BuildClientAttestationJwt
+import at.asitplus.wallet.lib.oidvci.BuildClientAttestationPoPJwt
 import at.asitplus.wallet.lib.oidvci.CredentialAuthorizationServiceStrategy
 import at.asitplus.wallet.lib.oidvci.CredentialIssuer
 import at.asitplus.wallet.lib.oidvci.WalletService
@@ -42,6 +46,7 @@ import io.ktor.client.engine.mock.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.util.*
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Tests [OpenId4VciClient] against [CredentialIssuer] with our own internal [SimpleAuthorizationService].
@@ -179,19 +184,42 @@ val OpenId4VciClientIntegratedDPoPTest by testSuite {
                 engine = mockEngine,
                 oid4vciService = WalletService(
                     clientId = clientId,
-                    keyMaterial = credentialKeyMaterial,
+                    loadUnitAttestationPop = { input ->
+                        catching {
+                            SignJwt<JsonWebToken>(
+                                credentialKeyMaterial
+                            ) { header, material ->
+                                header.copy(jsonWebKey = material.jsonWebKey)
+                            }.invoke(
+                                input.type,
+                                input.payload,
+                                JsonWebToken.serializer(),
+                            ).getOrThrow()
+                        }
+                    }
                 ),
                 oauth2Client = OAuth2KtorClient(
                     engine = mockEngine,
-                    loadClientAttestationJwt = {
-                        BuildClientAttestationJwt(
-                            SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
-                            clientId = clientId,
-                            issuer = "issuer",
-                            clientKey = clientAuthKeyMaterial.jsonWebKey
-                        ).serialize()
+                    loadInstanceAttestation = {
+                        catching {
+                            BuildClientAttestationJwt(
+                                SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
+                                clientId = clientId,
+                                issuer = "issuer",
+                                clientKey = clientAuthKeyMaterial.jsonWebKey
+                            )
+                        }
                     },
-                    signClientAttestationPop = SignJwt(clientAuthKeyMaterial, JwsHeaderNone()),
+                    loadInstanceAttestationPop = {
+                        catching {
+                            BuildClientAttestationPoPJwt(
+                                SignJwt(clientAuthKeyMaterial, JwsHeaderNone()),
+                                clientId = clientId,
+                                audience = publicContext,
+                                lifetime = 10.minutes,
+                            )
+                        }
+                    },
                     signDpop = SignJwt(dpopKeyMaterial, JwsHeaderCertOrJwk()),
                     dpopAlgorithm = dpopKeyMaterial.signatureAlgorithm.toJwsAlgorithm().getOrThrow(),
                     oAuth2Client = OAuth2Client(clientId = clientId),
@@ -201,7 +229,7 @@ val OpenId4VciClientIntegratedDPoPTest by testSuite {
         )
     } - {
         test("loadEuPidCredentialSdJwt") { context ->
-            var refreshTokenStore: RefreshTokenInfo? = null
+            var refreshTokenStore: CredentialRenewalInfo? = null
 
             val credentialIdentifierInfos = context.client.loadCredentialMetadata("http://localhost").getOrThrow()
             val selectedCredential = credentialIdentifierInfos

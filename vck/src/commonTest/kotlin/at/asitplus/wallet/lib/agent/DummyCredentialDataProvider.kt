@@ -1,5 +1,17 @@
 package at.asitplus.wallet.lib.agent
 
+/*
+ * Software Name : VC-K
+ * SPDX-FileCopyrightText: Copyright (c) A-SIT Plus GmbH
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modifications: Credential subject is now a JsonElement
+ * SPDX-FileCopyrightText: Copyright (c) Orange Business
+ *
+ * This software is distributed under the Apache License 2.0,
+ * see the "LICENSE" file for more details
+ */
+
 import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.iso.IssuerSignedItem
@@ -12,7 +24,10 @@ import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_DATE_
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_PORTRAIT
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
+import at.asitplus.wallet.lib.data.toJsonElement
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
+import io.github.aakira.napier.Napier
 import kotlinx.datetime.LocalDate
 import kotlin.random.Random
 import kotlin.time.Clock
@@ -26,7 +41,11 @@ object DummyCredentialDataProvider {
         subjectPublicKey: CryptoPublicKey,
         credentialScheme: ConstantIndex.CredentialScheme,
         representation: ConstantIndex.CredentialRepresentation,
+        revocationKind: RevocationList.Kind = RevocationList.Kind.STATUS_LIST,
     ): KmmResult<CredentialToBeIssued> = catching {
+        if (representation != ConstantIndex.CredentialRepresentation.ISO_MDOC && revocationKind != RevocationList.Kind.STATUS_LIST) {
+            Napier.w { "Revocation via IdentifierList only defined for ISO - Input ignored!" }
+        }
         val expiration = Clock.System.now() + defaultLifetime
         val claims = listOf(
             ClaimToBeIssued(CLAIM_GIVEN_NAME, "Susanne"),
@@ -46,7 +65,7 @@ object DummyCredentialDataProvider {
             )
 
             ConstantIndex.CredentialRepresentation.PLAIN_JWT -> CredentialToBeIssued.VcJwt(
-                subject = AtomicAttribute2023(subjectId, CLAIM_GIVEN_NAME, "Susanne"),
+                subject = AtomicAttribute2023(subjectId, CLAIM_GIVEN_NAME, "Susanne").toJsonElement(),
                 expiration = expiration,
                 scheme = credentialScheme,
                 subjectPublicKey = subjectPublicKey,
@@ -61,6 +80,7 @@ object DummyCredentialDataProvider {
                 scheme = credentialScheme,
                 subjectPublicKey = subjectPublicKey,
                 userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
+                revocationKind = revocationKind,
             )
         }
     }
@@ -72,7 +92,6 @@ object DummyCredentialDataProvider {
         claim: ClaimToBeIssued
     ): KmmResult<CredentialToBeIssued> = catching {
         val expiration = Clock.System.now() + defaultLifetime
-        val subjectId = subjectPublicKey.didEncoded
         when (representation) {
             ConstantIndex.CredentialRepresentation.SD_JWT -> CredentialToBeIssued.VcSd(
                 claims = listOf(claim),

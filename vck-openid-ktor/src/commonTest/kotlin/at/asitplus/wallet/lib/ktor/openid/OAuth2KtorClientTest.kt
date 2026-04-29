@@ -2,6 +2,7 @@ package at.asitplus.wallet.lib.ktor.openid
 
 import at.asitplus.catching
 import at.asitplus.openid.RequestParameters
+import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
@@ -14,6 +15,7 @@ import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.JwsHeaderNone
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.dummyUser
+import at.asitplus.wallet.lib.ktor.openid.TestUtils.respond
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.respondIncludingDpopNonce
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.respondOAuth2Error
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.toRequestInfo
@@ -22,17 +24,20 @@ import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
 import at.asitplus.wallet.lib.oauth2.TokenService
 import at.asitplus.wallet.lib.oidvci.BuildClientAttestationJwt
+import at.asitplus.wallet.lib.oidvci.BuildClientAttestationPoPJwt
 import at.asitplus.wallet.lib.oidvci.CredentialAuthorizationServiceStrategy
 import at.asitplus.wallet.lib.oidvci.decodeFromPostBody
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
 import de.infix.testBalloon.framework.core.testSuite
 import io.github.aakira.napier.Napier
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.util.*
+import kotlin.time.Duration.Companion.minutes
 
 val OAuth2KtorClientTest by testSuite {
 
@@ -53,6 +58,7 @@ val OAuth2KtorClientTest by testSuite {
         val clientAuthKeyMaterial = EphemeralKeyWithoutCert()
         val authorizationEndpointPath = "/authorize"
         val tokenEndpointPath = "/token"
+        val introspectionEndpointPath = "/introspect"
         val parEndpointPath = "/par"
         val publicContext = "https://issuer.example.com"
         val authorizationService = SimpleAuthorizationService(
@@ -103,6 +109,16 @@ val OAuth2KtorClientTest by testSuite {
                     )
                 }
 
+                request.url.fullPath.startsWith(introspectionEndpointPath) -> {
+                    val requestBody = request.body.toByteArray().decodeToString()
+                    val params: TokenIntrospectionRequest =
+                        requestBody.decodeFromPostBody<TokenIntrospectionRequest>()
+                    authorizationService.tokenIntrospection(params, request.toRequestInfo()).fold(
+                        onSuccess = { respond(it) },
+                        onFailure = { respondOAuth2Error(it) },
+                    )
+                }
+
                 else -> respondError(HttpStatusCode.NotFound)
                     .also { Napier.w("NOT MATCHED ${request.url.fullPath}") }
             }
@@ -115,15 +131,26 @@ val OAuth2KtorClientTest by testSuite {
             authorizationService = authorizationService,
             client = OAuth2KtorClient(
                 engine = mockEngine,
-                loadClientAttestationJwt = {
-                    BuildClientAttestationJwt(
-                        SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
-                        clientId = clientId,
-                        issuer = "issuer",
-                        clientKey = clientAuthKeyMaterial.jsonWebKey
-                    ).serialize()
+                loadInstanceAttestation = {
+                    catching {
+                        BuildClientAttestationJwt(
+                            SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
+                            clientId = clientId,
+                            issuer = "issuer",
+                            clientKey = clientAuthKeyMaterial.jsonWebKey
+                        )
+                    }
                 },
-                signClientAttestationPop = SignJwt(clientAuthKeyMaterial, JwsHeaderNone()),
+                loadInstanceAttestationPop = {
+                    catching {
+                        BuildClientAttestationPoPJwt(
+                            SignJwt(clientAuthKeyMaterial, JwsHeaderNone()),
+                            clientId = clientId,
+                            audience = publicContext,
+                            lifetime = 10.minutes,
+                        )
+                    }
+                },
                 signDpop = SignJwt(dpopKeyMaterial, JwsHeaderCertOrJwk()),
                 dpopAlgorithm = dpopKeyMaterial.signatureAlgorithm.toJwsAlgorithm().getOrThrow(),
                 oAuth2Client = OAuth2Client(clientId = clientId),
@@ -163,6 +190,37 @@ val OAuth2KtorClientTest by testSuite {
                     }
                 }
             }
+        }
+    }
+
+    test("token introspection handles jwt response") {
+        with(setup(strategy, setOf(JwsAlgorithm.Signature.ES256), requirePAR = false)) {
+            val authorizationResult = client.startAuthorization(
+                oauthMetadata = authorizationService.metadata(),
+                authorizationServer = authorizationService.publicContext,
+                scope = requestedScope,
+            ).getOrThrow()
+            val httpClient = HttpClient(mockEngine) { followRedirects = false }
+            val authCodeUrl = httpClient.get(authorizationResult.url).headers[HttpHeaders.Location].shouldNotBeNull()
+            val tokenResponse = client.requestTokenWithAuthCode(
+                oauthMetadata = authorizationService.metadata(),
+                url = authCodeUrl,
+                authorizationServer = authorizationService.publicContext,
+                state = authorizationResult.state,
+                scope = requestedScope,
+                authorizationDetails = setOf()
+            ).getOrThrow()
+
+            client.callTokenIntrospection(
+                oauthMetadata = authorizationService.metadata(),
+                request = TokenIntrospectionRequest(
+                    token = tokenResponse.params.accessToken,
+                    tokenTypeHint = tokenResponse.params.tokenType,
+                    responseFormat = TokenIntrospectionRequest.ResponseFormat.JWT,
+                ),
+                token = tokenResponse.params.accessToken,
+                popAudience = authorizationService.publicContext,
+            ).active shouldBe true
         }
     }
 }

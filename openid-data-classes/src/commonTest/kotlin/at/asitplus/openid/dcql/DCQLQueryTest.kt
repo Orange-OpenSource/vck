@@ -10,8 +10,6 @@ import at.asitplus.testballoon.withData
 import at.asitplus.testballoon.withDataSuites
 import com.benasher44.uuid.uuid4
 import de.infix.testBalloon.framework.core.testSuite
-import io.kotest.assertions.throwables.shouldNotThrowAny
-import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldHaveSize
@@ -72,9 +70,9 @@ val DCQLQueryTest by testSuite {
                     "vct_values": [ "https://credentials.example.com/identity_credential" ]
                   },
                   "claims": [
-                      {"path": ["last_name"]},
-                      {"path": ["first_name"]},
-                      {"path": ["address", "street_address"]}
+                    {"path": ["last_name"] },
+                    {"path": ["first_name"] },
+                    {"path": ["address", "street_address"] }
                   ]
                 }
               ]
@@ -132,9 +130,9 @@ val DCQLQueryTest by testSuite {
                         ),
                     ),
                 ) {
-                    shouldThrowAny {
-                        TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
-                    }
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(
+                        it,
+                    ) shouldBe false
                 }
             }
 
@@ -219,8 +217,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     )
                 ) {
-                    val result = TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
-                    result.satisfiableCredentialSetQueries shouldHaveSize 1
+                    val result = TestCredentialQueryAdapter(dcqlQuery).execute(it)
                     result.credentialQueryMatches shouldHaveSize 1
                     result.credentialQueryMatches.values.first() shouldHaveSize 1
                 }
@@ -238,12 +235,10 @@ val DCQLQueryTest by testSuite {
                       },
                       "claims": [
                         {
-                          "namespace": "org.iso.7367.1",
-                          "claim_name": "vehicle_holder"
+                          "${DCQLClaimsQuery.SerialNames.PATH}": ["org.iso.7367.1", "vehicle_holder"]
                         },
                         {
-                          "namespace": "org.iso.18013.5.1",
-                          "claim_name": "first_name"
+                          "${DCQLClaimsQuery.SerialNames.PATH}": ["org.iso.18013.5.1", "first_name"]
                         }
                       ]
                     }
@@ -305,9 +300,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     ),
                 ) {
-                    shouldThrowAny {
-                        TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
-                    }
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
@@ -388,8 +381,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     )
                 ) {
-                    val result = TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
-                    result.satisfiableCredentialSetQueries shouldHaveSize 1
+                    val result = TestCredentialQueryAdapter(dcqlQuery).execute(it)
                     result.credentialQueryMatches shouldHaveSize 1
                     result.credentialQueryMatches.values.first() shouldHaveSize 1
                 }
@@ -420,12 +412,10 @@ val DCQLQueryTest by testSuite {
                       },
                       "claims": [
                         {
-                          "namespace": "org.iso.7367.1",
-                          "claim_name": "vehicle_holder"
+                          "path": ["org.iso.7367.1", "vehicle_holder"]
                         },
                         {
-                          "namespace": "org.iso.18013.5.1",
-                          "claim_name": "first_name"
+                          "path": ["org.iso.18013.5.1", "first_name"]
                         }
                       ]
                     }
@@ -468,9 +458,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     ),
                 ) {
-                    shouldThrowAny {
-                        TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
-                    }
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
@@ -504,8 +492,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     )
                 ) {
-                    val result = TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
-                    result.satisfiableCredentialSetQueries shouldHaveSize 1
+                    val result = TestCredentialQueryAdapter(dcqlQuery).execute(it)
                     result.credentialQueryMatches shouldHaveSize 2
                     result.credentialQueryMatches.values.first() shouldHaveSize 1
                 }
@@ -661,9 +648,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     ),
                 ) {
-                    shouldThrowAny {
-                        TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
-                    }
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
@@ -695,7 +680,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     )
                 ) {
-                    TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe true
                 }
             }
         }
@@ -713,18 +698,15 @@ val DCQLQueryTest by testSuite {
                       "claims": [
                         {
                           "id": "given_name",
-                          "namespace": "org.iso.18013.5.1",
-                          "claim_name": "given_name"
+                          "path": ["org.iso.18013.5.1", "given_name"]
                         },
                         {
                           "id": "family_name",
-                          "namespace": "org.iso.18013.5.1",
-                          "claim_name": "family_name"
+                          "path": ["org.iso.18013.5.1", "family_name"]
                         },
                         {
                           "id": "portrait",
-                          "namespace": "org.iso.18013.5.1",
-                          "claim_name": "portrait"
+                          "path": ["org.iso.18013.5.1", "portrait"]
                         }
                       ]
                     },
@@ -737,13 +719,11 @@ val DCQLQueryTest by testSuite {
                       "claims": [
                         {
                           "id": "resident_address",
-                          "namespace": "org.iso.18013.5.1",
-                          "claim_name": "resident_address"
+                          "path": ["org.iso.18013.5.1", "resident_address"]
                         },
                         {
                           "id": "resident_country",
-                          "namespace": "org.iso.18013.5.1",
-                          "claim_name": "resident_country"
+                          "path": ["org.iso.18013.5.1", "resident_country"]
                         }
                       ]
                     },
@@ -756,18 +736,15 @@ val DCQLQueryTest by testSuite {
                       "claims": [
                         {
                           "id": "given_name",
-                          "namespace": "org.iso.23220.1",
-                          "claim_name": "given_name"
+                          "path": ["org.iso.23220.1", "given_name"]
                         },
                         {
                           "id": "family_name",
-                          "namespace": "org.iso.23220.1",
-                          "claim_name": "family_name"
+                          "path": ["org.iso.23220.1", "family_name"]
                         },
                         {
                           "id": "portrait",
-                          "namespace": "org.iso.23220.1",
-                          "claim_name": "portrait"
+                          "path": ["org.iso.23220.1", "portrait"]
                         }
                       ]
                     },
@@ -780,13 +757,11 @@ val DCQLQueryTest by testSuite {
                       "claims": [
                         {
                           "id": "resident_address",
-                          "namespace": "org.iso.23220.1",
-                          "claim_name": "resident_address"
+                          "path": ["org.iso.23220.1", "resident_address"]
                         },
                         {
                           "id": "resident_country",
-                          "namespace": "org.iso.23220.1",
-                          "claim_name": "resident_country"
+                          "path": ["org.iso.23220.1", "resident_country"]
                         }
                       ]
                     }
@@ -890,9 +865,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     ),
                 ) {
-                    shouldThrowAny {
-                        TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
-                    }
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
@@ -967,7 +940,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     )
                 ) {
-                    TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe true
                 }
             }
         }
@@ -1106,9 +1079,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     ),
                 ) {
-                    shouldThrowAny {
-                        TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
-                    }
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
@@ -1134,7 +1105,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     )
                 ) {
-                    TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe true
                 }
             }
         }
@@ -1288,9 +1259,7 @@ val DCQLQueryTest by testSuite {
                         ),
                     ),
                 ) {
-                    shouldThrowAny {
-                        TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
-                    }
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
@@ -1301,7 +1270,7 @@ val DCQLQueryTest by testSuite {
                         "valid2" to listOf(valid2),
                     )
                 ) {
-                    TestCredentialQueryAdapter(dcqlQuery).execute(it).getOrThrow()
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe true
                 }
             }
         }
@@ -1413,8 +1382,7 @@ val DCQLQueryTest by testSuite {
                           "format": "${CredentialFormatEnum.MSO_MDOC.text}",
                           "claims": [
                               {
-                                "${DCQLIsoMdocClaimsQuery.SerialNames.NAMESPACE}": "namespace",
-                                "${DCQLIsoMdocClaimsQuery.SerialNames.CLAIM_NAME}": "claimName",
+                                "${DCQLClaimsQuery.SerialNames.PATH}": ["namespace", "claimName"],
                                 "${DCQLClaimsQuery.SerialNames.VALUES}": ${testVector.first}
                               }
                           ],
@@ -1445,32 +1413,24 @@ val DCQLQueryTest by testSuite {
 
                 withData(testVector.second) {
                     val test = buildSdJwtValueCredential(it)
-                    shouldNotThrowAny {
-                        TestCredentialQueryAdapter(sdJwtDcqlQuery).execute(
-                            listOf(test)
-                        ).getOrThrow()
-                    }
+                    TestCredentialQueryAdapter(sdJwtDcqlQuery).isSatisfiable(
+                        listOf(test)
+                    ) shouldBe true
                 }
                 withData(testVector.second) {
-                    shouldNotThrowAny {
-                        TestCredentialQueryAdapter(mdocDcqlQuery).execute(
-                            listOf(buildMdocValueCredential(it))
-                        ).getOrThrow()
-                    }
+                    TestCredentialQueryAdapter(mdocDcqlQuery).isSatisfiable(
+                        listOf(buildMdocValueCredential(it))
+                    ) shouldBe true
                 }
                 withData(testVector.third) {
-                    shouldThrowAny {
-                        TestCredentialQueryAdapter(sdJwtDcqlQuery).execute(
-                            listOf(buildSdJwtValueCredential(it))
-                        ).getOrThrow()
-                    }
+                    TestCredentialQueryAdapter(sdJwtDcqlQuery).isSatisfiable(
+                        listOf(buildSdJwtValueCredential(it))
+                    ) shouldBe false
                 }
                 withData(testVector.third) {
-                    shouldThrowAny {
-                        TestCredentialQueryAdapter(mdocDcqlQuery).execute(
-                            listOf(buildMdocValueCredential(it))
-                        ).getOrThrow()
-                    }
+                    TestCredentialQueryAdapter(mdocDcqlQuery).isSatisfiable(
+                        listOf(buildMdocValueCredential(it))
+                    ) shouldBe false
                 }
             }
         }
@@ -1497,10 +1457,9 @@ val DCQLQueryTest by testSuite {
                         satisfiesCryptographicHolderBinding = it,
                     ),
                 )
-                val executionResult = TestCredentialQueryAdapter(sdJwtDcqlQuery).execute(
+                TestCredentialQueryAdapter(sdJwtDcqlQuery).isSatisfiable(
                     credentials
-                )
-                executionResult.isSuccess shouldBe it
+                ) shouldBe it
             }
         }
         "mdoc credential" - {
@@ -1524,10 +1483,9 @@ val DCQLQueryTest by testSuite {
                         satisfiesCryptographicHolderBinding = it
                     ),
                 )
-                val executionResult = TestCredentialQueryAdapter(mdocDcqlQuery).execute(
+                TestCredentialQueryAdapter(mdocDcqlQuery).isSatisfiable(
                     credentials
-                )
-                executionResult.isSuccess shouldBe it
+                ) shouldBe it
             }
         }
     }
@@ -1567,8 +1525,7 @@ val DCQLQueryTest by testSuite {
                         satisfiesCryptographicHolderBinding = true,
                     ),
                 )
-                val executionResult = TestCredentialQueryAdapter(sdJwtDcqlQuery).execute(credentials)
-                executionResult.isSuccess shouldBe it.isNotEmpty()
+                TestCredentialQueryAdapter(sdJwtDcqlQuery).isSatisfiable(credentials) shouldBe it.isNotEmpty()
             }
         }
         "authority key identifiers in mdoc credential" - {
@@ -1606,8 +1563,7 @@ val DCQLQueryTest by testSuite {
                         satisfiesCryptographicHolderBinding = true,
                     ),
                 )
-                val executionResult = TestCredentialQueryAdapter(mdocDcqlQuery).execute(credentials)
-                executionResult.isSuccess shouldBe it.isNotEmpty()
+                TestCredentialQueryAdapter(mdocDcqlQuery).isSatisfiable(credentials) shouldBe it.isNotEmpty()
             }
         }
     }

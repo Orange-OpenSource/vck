@@ -9,6 +9,7 @@ import at.asitplus.openid.IssuerMetadata
 import at.asitplus.openid.OAuth2AuthorizationServerMetadata
 import at.asitplus.openid.OpenIdConstants.WellKnownPaths
 import at.asitplus.openid.SupportedCredentialFormat
+import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
 import at.asitplus.wallet.lib.agent.Holder
 import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex
@@ -68,39 +69,48 @@ class OpenId4VciClient(
 ) {
 
     /**
-     * Loads credential metadata info from [host], parses it, returns list of [CredentialIdentifierInfo].
+     * Loads credential metadata info from [host], call parseCredentialMetadata to parse it,
+     * returns a list of [CredentialIdentifierInfo].
      */
     suspend fun loadCredentialMetadata(
         host: String,
     ): KmmResult<Collection<CredentialIdentifierInfo>> = catching {
         Napier.i("loadCredentialMetadata: $host")
         val issuerMetadata = loadIssuerMetadata(host).getOrThrow()
-        val supported = issuerMetadata.supportedCredentialConfigurations
-            ?: throw Exception("No supported credential configurations")
-        supported.map {
-            CredentialIdentifierInfo(
-                issuerMetadata = issuerMetadata,
-                credentialIdentifier = it.key,
-                supportedCredentialFormat = it.value
-            )
-        }.also {
+        parseCredentialMetadata(issuerMetadata).also {
             Napier.i("loadCredentialMetadata for $host returns $it")
-        }
+        }.getOrThrow()
     }
 
+    /**
+     * Parses IssuerMetadata and returns a list of [CredentialIdentifierInfo].
+     */
+    fun parseCredentialMetadata(issuerMetadata: IssuerMetadata): KmmResult<Collection<CredentialIdentifierInfo>> =
+        catching {
+            val supported = issuerMetadata.supportedCredentialConfigurations
+                ?: throw Exception("No supported credential configurations")
+            supported.map {
+                CredentialIdentifierInfo(
+                    issuerMetadata = issuerMetadata,
+                    credentialIdentifier = it.key,
+                    supportedCredentialFormat = it.value
+                )
+            }.also {
+                Napier.i("parseCredentialMetadata returns $it")
+            }
+        }
+
     private fun SupportedCredentialFormat.resolveCredentialScheme(): ConstantIndex.CredentialScheme? =
-        (credentialDefinition?.types?.firstNotNullOfOrNull {
+        sdJwtVcType?.let {
+            AttributeIndex.resolveSdJwtAttributeType(it)
+                ?: SdJwtFallbackCredentialScheme(sdJwtType = it)
+        } ?: docType?.let {
+            AttributeIndex.resolveIsoDoctype(it)
+                ?: IsoMdocFallbackCredentialScheme(isoDocType = it)
+        } ?: credentialDefinition?.types?.firstNotNullOfOrNull {
             AttributeIndex.resolveAttributeType(it)
                 ?: VcFallbackCredentialScheme(vcType = it)
         }
-            ?: sdJwtVcType?.let {
-                AttributeIndex.resolveSdJwtAttributeType(it)
-                    ?: SdJwtFallbackCredentialScheme(sdJwtType = it)
-            }
-            ?: docType?.let {
-                AttributeIndex.resolveIsoDoctype(it)
-                    ?: IsoMdocFallbackCredentialScheme(isoDocType = it)
-            })
 
     /**
      * Starts the issuing process at [credentialIssuerUrl].
@@ -115,6 +125,7 @@ class OpenId4VciClient(
     suspend fun startProvisioningWithAuthRequestReturningResult(
         credentialIssuerUrl: String,
         credentialIdentifierInfo: CredentialIdentifierInfo,
+        reissuingStoreEntryId: Long? = null
     ): KmmResult<CredentialIssuanceResult.OpenUrlForAuthnRequest> = catching {
         Napier.i("startProvisioningWithAuthRequest: $credentialIssuerUrl with $credentialIdentifierInfo")
         val issuerMetadata = credentialIdentifierInfo.issuerMetadata
@@ -137,7 +148,8 @@ class OpenId4VciClient(
                     state = it.state,
                     credential = credentialIdentifierInfo,
                     oauthMetadata = oauthMetadata,
-                    issuerMetadata = issuerMetadata
+                    issuerMetadata = issuerMetadata,
+                    reissuingStoreEntryId = reissuingStoreEntryId
                 )
             )
         }
@@ -198,7 +210,7 @@ class OpenId4VciClient(
      * but falls back to authorization details if needed.
      */
     suspend fun refreshCredentialReturningResult(
-        refreshTokenInfo: RefreshTokenInfo,
+        refreshTokenInfo: CredentialRenewalInfo,
     ): KmmResult<CredentialIssuanceResult.Success> = catching {
         with(refreshTokenInfo) {
             Napier.i("refreshCredential")
@@ -206,7 +218,8 @@ class OpenId4VciClient(
             val tokenResponse = oauth2Client.requestTokenWithRefreshToken(
                 oauthMetadata = oauthMetadata,
                 credentialIssuer = issuerMetadata.credentialIssuer,
-                refreshToken = refreshToken,
+                refreshToken = refreshToken
+                    ?: throw IllegalArgumentException("Refresh token is missing in RefreshTokenInfo"),
                 scope = credentialFormat.scope,
                 authorizationDetails = oid4vciService.buildAuthorizationDetails(
                     credentialIdentifier,
@@ -231,8 +244,23 @@ class OpenId4VciClient(
         }
     }
 
+    @Deprecated(
+        message = "Use refreshCredentialReturningResult(CredentialRenewalInfo)",
+        replaceWith = ReplaceWith(
+            "refreshCredentialReturningResult(refreshTokenInfo.toCredentialRenewalInfo())"
+        )
+    )
+    @Suppress("DEPRECATION")
+    suspend fun refreshCredentialReturningResult(
+        refreshTokenInfo: RefreshTokenInfo
+    ): KmmResult<CredentialIssuanceResult.Success> =
+        refreshCredentialReturningResult(
+            refreshTokenInfo.toCredentialRenewalInfo()
+        )
+
     /**
-     * Will use the [tokenResponse] to request a credential and store it with [storeCredential].
+     * Will use the [tokenResponse] to request a credential and store it with
+     * [at.asitplus.wallet.lib.agent.HolderAgent.storeCredential]
      */
     @Throws(Exception::class)
     private suspend fun postCredentialRequestAndStore(
@@ -275,15 +303,14 @@ class OpenId4VciClient(
         }
         return CredentialIssuanceResult.Success(
             storeCredentialInputs,
-            tokenResponse.params.refreshToken?.let {
-                RefreshTokenInfo(
-                    refreshToken = tokenResponse.params.refreshToken!!,
-                    issuerMetadata = issuerMetadata,
-                    oauthMetadata = oauthMetadata,
-                    credentialFormat = credentialFormat,
-                    credentialIdentifier = credentialIdentifier,
-                )
-            })
+            CredentialRenewalInfo(
+                refreshToken = tokenResponse.params.refreshToken,
+                issuerMetadata = issuerMetadata,
+                oauthMetadata = oauthMetadata,
+                credentialFormat = credentialFormat,
+                credentialIdentifier = credentialIdentifier,
+            )
+        )
     }
 
     private suspend fun fetchCredential(
@@ -332,17 +359,19 @@ class OpenId4VciClient(
      * @param credentialOffer as loaded and decoded from the QR Code
      * @param credentialIdentifierInfo as selected by the user from the issuer's metadata
      * @param transactionCode if required from Issuing service, i.e. transmitted out-of-band to the user
+     * @param authorizationServerMetadata oauthMetadata optionally transmitted via the DC API. Set to null for other flows as it will be fetched from the authorizationServer/credentialIssuer.
      */
     suspend fun loadCredentialWithOfferReturningResult(
         credentialOffer: CredentialOffer,
         credentialIdentifierInfo: CredentialIdentifierInfo,
         transactionCode: String? = null,
+        authorizationServerMetadata: OAuth2AuthorizationServerMetadata? = null
     ): KmmResult<CredentialIssuanceResult> = catching {
         Napier.i("loadCredentialWithOffer: $credentialOffer")
         val issuerMetadata = credentialIdentifierInfo.issuerMetadata
         val authorizationServer = issuerMetadata.authorizationServers?.firstOrNull()
             ?: credentialOffer.credentialIssuer
-        val oauthMetadata = loadOauthMetadata(authorizationServer).getOrThrow()
+        val oauthMetadata = authorizationServerMetadata ?: loadOauthMetadata(authorizationServer).getOrThrow()
         val state = uuid4().toString()
         val preAuthorizedCode = credentialOffer.grants?.preAuthorizedCode
         if (preAuthorizedCode != null) {
@@ -376,7 +405,8 @@ class OpenId4VciClient(
         } else {
             oauth2Client.startAuthorization(
                 oauthMetadata = oauthMetadata,
-                authorizationServer = credentialOffer.grants?.authorizationCode?.authorizationServer ?: authorizationServer,
+                authorizationServer = credentialOffer.grants?.authorizationCode?.authorizationServer
+                    ?: authorizationServer,
                 state = state,
                 issuerState = credentialOffer.grants?.authorizationCode?.issuerState,
                 authorizationDetails = oid4vciService.buildAuthorizationDetails(
@@ -439,6 +469,7 @@ data class ProvisioningContext(
     val credential: CredentialIdentifierInfo,
     val oauthMetadata: OAuth2AuthorizationServerMetadata,
     val issuerMetadata: IssuerMetadata,
+    val reissuingStoreEntryId: Long? = null,
 )
 
 /**
@@ -451,7 +482,7 @@ sealed interface CredentialIssuanceResult {
      */
     data class Success(
         val credentials: Collection<Holder.StoreCredentialInput>,
-        val refreshToken: RefreshTokenInfo? = null,
+        val refreshToken: CredentialRenewalInfo? = null,
     ) : CredentialIssuanceResult
 
     /**
@@ -476,8 +507,15 @@ data class CredentialIdentifierInfo(
 )
 
 /**
- * Holds all information needed to refresh a credential, pass it to [OpenId4VciClient.refreshCredential].
+ * Holds all information needed to refresh a credential, pass it to [OpenId4VciClient.refreshCredentialReturningResult].
  */
+@Deprecated(
+    message = "Moved to at.asitplus.wallet.lib.agent and renamed to CredentialRenewalInfo",
+    replaceWith = ReplaceWith(
+        "CredentialRenewalInfo",
+        "at.asitplus.wallet.lib.agent.CredentialRenewalInfo"
+    )
+)
 @Serializable
 data class RefreshTokenInfo(
     val refreshToken: String,
@@ -487,6 +525,15 @@ data class RefreshTokenInfo(
     val credentialIdentifier: String,
 )
 
+@Suppress("DEPRECATION")
+fun RefreshTokenInfo.toCredentialRenewalInfo() =
+    CredentialRenewalInfo(
+        refreshToken = refreshToken,
+        issuerMetadata = issuerMetadata,
+        oauthMetadata = oauthMetadata,
+        credentialFormat = credentialFormat,
+        credentialIdentifier = credentialIdentifier
+    )
 
 private suspend inline fun <R> IntermediateResult<R>.onSuccessCredential(
     block: String.(httpResponse: HttpResponse) -> R,

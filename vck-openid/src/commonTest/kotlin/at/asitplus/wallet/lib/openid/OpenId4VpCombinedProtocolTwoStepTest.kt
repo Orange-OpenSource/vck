@@ -1,8 +1,8 @@
 package at.asitplus.wallet.lib.openid
 
 import at.asitplus.openid.AuthenticationRequestParameters
-import at.asitplus.testballoon.invoke
 import at.asitplus.testballoon.withFixtureGenerator
+import at.asitplus.wallet.eupid.EuPidScheme
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
@@ -26,6 +26,7 @@ import com.benasher44.uuid.uuid4
 import de.infix.testBalloon.framework.core.testSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.matchers.collections.shouldBeSingleton
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -57,9 +58,11 @@ val OpenId4VpCombinedProtocolTwoStepTest by testSuite {
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
-                    credentials = setOf(
-                        RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
-                    )
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(
+                            RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
+                        )
+                    ).toPresentationExchangeRequest(),
                 )
             )
             val preparationState = it.holderOid4vp.startAuthorizationResponsePreparation(authnRequest.serialize())
@@ -69,8 +72,12 @@ val OpenId4VpCombinedProtocolTwoStepTest by testSuite {
                 .presentationDefinition
             val inputDescriptorId = presentationDefinition.inputDescriptors.first().id
 
-            it.holderAgent.matchInputDescriptorsAgainstCredentialStore(presentationDefinition.inputDescriptors)
-                .getOrThrow()[inputDescriptorId]
+            it.holderAgent.matchInputDescriptorsAgainstCredentialStoreV2(presentationDefinition.inputDescriptors)
+                .getOrThrow().also {
+                    it.queryMatchingResult.inputDescriptorMatchingResults.forEach {
+                        it.value.shouldHaveSize(3)
+                    }
+                }.inputDescriptorMatches[inputDescriptorId]
                 .shouldNotBeNull().apply {
                     this shouldHaveSize 2
                     keys.forEach {
@@ -86,9 +93,11 @@ val OpenId4VpCombinedProtocolTwoStepTest by testSuite {
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
-                    credentials = setOf(
-                        RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
-                    )
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(
+                            RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
+                        )
+                    ).toPresentationExchangeRequest(),
                 )
             )
 
@@ -100,9 +109,13 @@ val OpenId4VpCombinedProtocolTwoStepTest by testSuite {
             val presentationDefinition = presentationExchangeRequest.presentationDefinition
 
             val inputDescriptorId = presentationDefinition.inputDescriptors.first().id
-            val matches = it.holderAgent.matchInputDescriptorsAgainstCredentialStore(
+            val matches = it.holderAgent.matchInputDescriptorsAgainstCredentialStoreV2(
                 presentationDefinition.inputDescriptors
-            ).getOrThrow().also { it shouldHaveSize 1 }
+            ).getOrThrow().also {
+                it.queryMatchingResult.inputDescriptorMatchingResults.forEach {
+                    it.value.shouldHaveSize(3) // 2x iso, 1x stJwt
+                }
+            }.inputDescriptorMatches.also { it shouldHaveSize 1 }
 
             val inputDescriptorMatches = matches[inputDescriptorId].shouldNotBeNull()
                 .also { it shouldHaveSize 2 }
@@ -135,16 +148,18 @@ val OpenId4VpCombinedProtocolTwoStepTest by testSuite {
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
-                    credentials = setOf(
-                        RequestOptionsCredential(
-                            credentialScheme = AtomicAttribute2023,
-                            representation = ISO_MDOC,
-                            requestedOptionalAttributes = setOf(
-                                AtomicAttribute2023.CLAIM_FAMILY_NAME,
-                                AtomicAttribute2023.CLAIM_GIVEN_NAME
-                            )
-                        ),
-                    )
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(
+                            RequestOptionsCredential(
+                                credentialScheme = AtomicAttribute2023,
+                                representation = ISO_MDOC,
+                                requestedOptionalAttributes = setOf(
+                                    AtomicAttribute2023.CLAIM_FAMILY_NAME,
+                                    AtomicAttribute2023.CLAIM_GIVEN_NAME
+                                )
+                            ),
+                        )
+                    ).toPresentationExchangeRequest(),
                 )
             )
 
@@ -156,9 +171,13 @@ val OpenId4VpCombinedProtocolTwoStepTest by testSuite {
             val presentationDefinition = presentationExchangeRequest.presentationDefinition
 
             val inputDescriptorId = presentationDefinition.inputDescriptors.first().id
-            val matches = it.holderAgent.matchInputDescriptorsAgainstCredentialStore(
+            val matches = it.holderAgent.matchInputDescriptorsAgainstCredentialStoreV2(
                 presentationDefinition.inputDescriptors
-            ).getOrThrow().also { it shouldHaveSize 1 }
+            ).getOrThrow().also {
+                it.queryMatchingResult.inputDescriptorMatchingResults.forEach {
+                    it.value.shouldHaveSize(1)
+                }
+            }.inputDescriptorMatches.also { it shouldHaveSize 1 }
 
             matches[inputDescriptorId].shouldNotBeNull().entries
                 .shouldBeSingleton().first().apply {
@@ -193,9 +212,11 @@ val OpenId4VpCombinedProtocolTwoStepTest by testSuite {
             val sdJwtMatches = run {
                 val authnRequestSdJwt = it.verifierOid4vp.createAuthnRequest(
                     requestOptions = OpenId4VpRequestOptions(
-                        credentials = setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, SD_JWT)
-                        )
+                        presentationRequest = CredentialPresentationRequestBuilder(
+                            credentials = setOf(
+                                RequestOptionsCredential(AtomicAttribute2023, SD_JWT)
+                            )
+                        ).toPresentationExchangeRequest(),
                     )
                 )
 
@@ -206,9 +227,13 @@ val OpenId4VpCombinedProtocolTwoStepTest by testSuite {
                     .shouldBeInstanceOf<PresentationExchangeRequest>()
                     .presentationDefinition
 
-                it.holderAgent.matchInputDescriptorsAgainstCredentialStore(
+                it.holderAgent.matchInputDescriptorsAgainstCredentialStoreV2(
                     presentationDefinitionSdJwt.inputDescriptors,
                 ).getOrThrow().also {
+                    it.queryMatchingResult.inputDescriptorMatchingResults.forEach {
+                        it.value.shouldHaveSize(3)
+                    }
+                }.inputDescriptorMatches.also {
                     it.shouldHaveSize(1)
                     it.entries.first().value.let {
                         it.shouldHaveSize(1)
@@ -222,9 +247,11 @@ val OpenId4VpCombinedProtocolTwoStepTest by testSuite {
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
-                    credentials = setOf(
-                        RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
-                    )
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        credentials = setOf(
+                            RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
+                        )
+                    ).toPresentationExchangeRequest(),
                 )
             )
 
@@ -237,9 +264,13 @@ val OpenId4VpCombinedProtocolTwoStepTest by testSuite {
                 .presentationDefinition
             val inputDescriptorId = presentationDefinition.inputDescriptors.first().id
 
-            val matches = it.holderAgent.matchInputDescriptorsAgainstCredentialStore(
+            val matches = it.holderAgent.matchInputDescriptorsAgainstCredentialStoreV2(
                 presentationDefinition.inputDescriptors,
             ).getOrThrow().also {
+                it.queryMatchingResult.inputDescriptorMatchingResults.forEach {
+                    it.value.shouldHaveSize(3)
+                }
+            }.inputDescriptorMatches.also {
                 it shouldHaveSize 1
             }
 

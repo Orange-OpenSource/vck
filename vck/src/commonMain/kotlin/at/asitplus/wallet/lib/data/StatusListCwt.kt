@@ -6,7 +6,9 @@ import at.asitplus.signum.indispensable.cosef.CoseSigned
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignature
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureFun
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.IdentifierList
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationListInfo
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusList
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListTokenPayload
 import kotlinx.serialization.decodeFromByteArray
 import kotlin.time.Instant
@@ -22,8 +24,8 @@ data class StatusListCwt(
     /**
      * Validate the Status List Token:
      *
-     * Validate the Status List Token by following the rules defined in section 7.2 of [RFC7519]
-     * for JWTs and section 7.2 of [RFC8392] for CWTs
+     * Validate the Status List Token by following the rules defined in section 7.2 of
+     * [RFC8392](https://datatracker.ietf.org/doc/html/rfc8392) for CWTs
      *
      * Check for the existence of the required claims as defined in Section 5.1 and Section 5.2
      * depending on token type.
@@ -48,18 +50,26 @@ data class StatusListCwt(
         verifyCoseSignature: VerifyCoseSignatureFun<ByteArray>,
         statusListToken: StatusListCwt
     ): KmmResult<StatusListTokenPayload> = catching {
-        val coseStatus = statusListToken.value
-        verifyCoseSignature(coseStatus, byteArrayOf(), null).getOrElse {
-            throw IllegalStateException("Invalid Signature.", it)
-        }
-        val type = coseStatus.protectedHeader.type?.lowercase()
-            ?: throw IllegalArgumentException("Invalid type header")
-        if (type != MediaTypes.Application.STATUSLIST_CWT.lowercase()) {
-            throw IllegalArgumentException("Invalid type header: $type")
+        val coseStatus = statusListToken.value.also {
+            verifyCoseSignature(it, byteArrayOf(), null).getOrElse {
+                throw IllegalStateException("Invalid Signature.", it)
+            }
         }
         coseCompliantSerializer.decodeFromByteArray<StatusListTokenPayload>(
             coseStatus.payload
                 ?: throw IllegalStateException("Status list token payload not found.")
-        )
+        ).also { payload ->
+            val correctMediaType = when (payload.revocationList) {
+                is StatusList -> MediaTypes.Application.STATUSLIST_CWT.lowercase()
+                is IdentifierList -> MediaTypes.Application.IDENTIFIERLIST_CWT.lowercase()
+            }
+
+            val type = coseStatus.protectedHeader.type?.lowercase()
+                ?: throw IllegalArgumentException("Invalid type header")
+
+            if (type != correctMediaType) {
+                throw IllegalArgumentException("Invalid type header: $type")
+            }
+        }
     }
 }

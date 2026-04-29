@@ -7,8 +7,10 @@ import at.asitplus.openid.OAuth2AuthorizationServerMetadata
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenRequestParameters
+import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
 import at.asitplus.wallet.eupid.EuPidScheme
+import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.IssuerAgent
@@ -34,6 +36,7 @@ import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
 import at.asitplus.wallet.lib.oauth2.TokenService
 import at.asitplus.wallet.lib.oidvci.BuildClientAttestationJwt
+import at.asitplus.wallet.lib.oidvci.BuildClientAttestationPoPJwt
 import at.asitplus.wallet.lib.oidvci.CredentialAuthorizationServiceStrategy
 import at.asitplus.wallet.lib.oidvci.CredentialIssuer
 import at.asitplus.wallet.lib.oidvci.IssuerEncryptionService
@@ -50,6 +53,7 @@ import io.ktor.client.engine.mock.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.util.*
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Tests [OpenId4VciClient] against [CredentialIssuer] with our own internal [SimpleAuthorizationService].
@@ -190,19 +194,42 @@ val OpenId4VciClientWithEncryptionTest by testSuite {
                 engine = mockEngine,
                 oid4vciService = WalletService(
                     clientId = clientId,
-                    keyMaterial = credentialKeyMaterial,
+                    loadUnitAttestationPop = { input ->
+                        catching {
+                            SignJwt<JsonWebToken>(
+                                credentialKeyMaterial
+                            ) { header, material ->
+                                header.copy(jsonWebKey = material.jsonWebKey)
+                            }.invoke(
+                                input.type,
+                                input.payload,
+                                JsonWebToken.serializer(),
+                            ).getOrThrow()
+                        }
+                    }
                 ),
                 oauth2Client = OAuth2KtorClient(
                     engine = mockEngine,
-                    loadClientAttestationJwt = {
-                        BuildClientAttestationJwt(
-                            SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
-                            clientId = clientId,
-                            issuer = "issuer",
-                            clientKey = clientAuthKeyMaterial.jsonWebKey
-                        ).serialize()
+                    loadInstanceAttestation = {
+                        catching {
+                            BuildClientAttestationJwt(
+                                SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
+                                clientId = clientId,
+                                issuer = "issuer",
+                                clientKey = clientAuthKeyMaterial.jsonWebKey
+                            )
+                        }
                     },
-                    signClientAttestationPop = SignJwt(clientAuthKeyMaterial, JwsHeaderNone()),
+                    loadInstanceAttestationPop = {
+                        catching {
+                            BuildClientAttestationPoPJwt(
+                                SignJwt(clientAuthKeyMaterial, JwsHeaderNone()),
+                                clientId = clientId,
+                                audience = publicContext,
+                                lifetime = 10.minutes,
+                            )
+                        }
+                    },
                     signDpop = SignJwt(dpopKeyMaterial, JwsHeaderCertOrJwk()),
                     dpopAlgorithm = dpopKeyMaterial.signatureAlgorithm.toJwsAlgorithm().getOrThrow(),
                     oAuth2Client = OAuth2Client(clientId = clientId),
@@ -216,7 +243,7 @@ val OpenId4VciClientWithEncryptionTest by testSuite {
         val expectedFamilyName = uuid4().toString()
         val expectedAttributeName = EuPidScheme.Attributes.FAMILY_NAME
         with(setup(EuPidScheme, SD_JWT, mapOf(expectedAttributeName to expectedFamilyName))) {
-            var refreshTokenStore: RefreshTokenInfo? = null
+            var refreshTokenStore: CredentialRenewalInfo? = null
 
             // Load credential identifier infos from Issuing service
             val credentialIdentifierInfos = client.loadCredentialMetadata("http://localhost").getOrThrow()
@@ -248,7 +275,7 @@ val OpenId4VciClientWithEncryptionTest by testSuite {
         val expectedAttributeValue = uuid4().toString()
         val expectedAttributeName = EuPidScheme.Attributes.GIVEN_NAME
         with(setup(EuPidScheme, ISO_MDOC, mapOf(expectedAttributeName to expectedAttributeValue))) {
-            var refreshTokenStore: RefreshTokenInfo? = null
+            var refreshTokenStore: CredentialRenewalInfo? = null
 
             // Load credential identifier infos from Issuing service
             val credentialIdentifierInfos = client.loadCredentialMetadata("http://localhost").getOrThrow()
@@ -256,9 +283,10 @@ val OpenId4VciClientWithEncryptionTest by testSuite {
             val selectedCredential = credentialIdentifierInfos
                 .first { it.supportedCredentialFormat.format == CredentialFormatEnum.MSO_MDOC }
 
-            val offer = authorizationService.credentialOfferWithPreAuthnForUser(
-                dummyUser(),
-                credentialIssuer.metadata.credentialIssuer
+            val offer = authorizationService.offerWithPreAuthnForUserForSchemes(
+                user = dummyUser(),
+                credentialIssuer = credentialIssuer.metadata.credentialIssuer,
+                schemes = setOf(EuPidScheme to ISO_MDOC),
             )
             client.loadCredentialWithOfferReturningResult(offer, selectedCredential, null).getOrThrow().also {
                 it.shouldBeInstanceOf<CredentialIssuanceResult.Success>().also {

@@ -1,5 +1,19 @@
 package at.asitplus.wallet.lib.agent
 
+/*
+ * Software Name : VC-K
+ * SPDX-FileCopyrightText: Copyright (c) A-SIT Plus GmbH
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modifications: According to the W3C Verifiable Credential Data Model 1.1 https://www.w3.org/TR/vc-data-model-1.1/#jwt-encoding,
+ * "iss MUST represent the issuer property of a verifiable credential or the holder property of a verifiable presentation."
+ * So in this case the issuer should be the wallet holder, represented by it's DID.
+ * SPDX-FileCopyrightText: Copyright (c) Orange Business
+ *
+ * This software is distributed under the Apache License 2.0,
+ * see the "LICENSE" file for more details
+ */
+
 import at.asitplus.dif.DifInputDescriptor
 import at.asitplus.dif.PresentationDefinition
 import at.asitplus.testballoon.invoke
@@ -21,6 +35,7 @@ import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.randomCwtOrJwtResolver
 import com.benasher44.uuid.uuid4
 import de.infix.testBalloon.framework.core.testSuite
+import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldHaveSize
@@ -58,8 +73,8 @@ val ValidatorVpTest by testSuite {
             )
         )
         val holder = HolderAgent(
-            holderKeyMaterial,
-            holderCredentialStore,
+            keyMaterial = holderKeyMaterial,
+            subjectCredentialStore = holderCredentialStore,
             validatorVcJws = validator,
         ).also {
             it.storeCredential(
@@ -97,9 +112,8 @@ val ValidatorVpTest by testSuite {
             ).getOrNull().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
 
             val vp = presentationParameters.presentationResults.first()
-                .shouldBeInstanceOf<CreatePresentationResult.Signed>()
-            it.verifier.verifyPresentationVcJwt(vp.jwsSigned, it.challenge)
-                .shouldBeInstanceOf<VerifyPresentationResult.Success>()
+                .shouldBeInstanceOf<CreatePresentationResult.VpJws>()
+            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull(), it.challenge).getOrThrow()
         }
 
         "Presentation of VC from different holder is detected" {
@@ -121,10 +135,9 @@ val ValidatorVpTest by testSuite {
             val vp = it.verifiablePresentationFactory.createVcPresentation(
                 holderVc,
                 PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId)
-            ).shouldBeInstanceOf<CreatePresentationResult.Signed>()
+            ).shouldBeInstanceOf<CreatePresentationResult.VpJws>()
 
-            it.verifier.verifyPresentationVcJwt(vp.jwsSigned, it.challenge).also {
-                it.shouldBeInstanceOf<VerifyPresentationResult.Success>()
+            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull(), it.challenge).getOrThrow().also {
                 it.vp.freshVerifiableCredentials.shouldBeEmpty()
                 it.vp.notVerifiablyFreshVerifiableCredentials.shouldBeEmpty()
                 it.vp.invalidVerifiableCredentials.shouldBe(holderVc.map { it.vcSerialized })
@@ -138,9 +151,10 @@ val ValidatorVpTest by testSuite {
             ).getOrNull().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
 
             val vp = presentationParameters.presentationResults.firstOrNull()
-                .shouldBeInstanceOf<CreatePresentationResult.Signed>()
-            it.verifier.verifyPresentationVcJwt(vp.jwsSigned, it.challenge)
-                .shouldBeInstanceOf<VerifyPresentationResult.ValidationError>()
+                .shouldBeInstanceOf<CreatePresentationResult.VpJws>()
+            shouldThrowAny {
+                it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull(), it.challenge).getOrThrow()
+            }
         }
 
         "wrong audience in VP leads to error" {
@@ -150,9 +164,10 @@ val ValidatorVpTest by testSuite {
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
 
             val vp = presentationParameters.presentationResults.first()
-                .shouldBeInstanceOf<CreatePresentationResult.Signed>()
-            it.verifier.verifyPresentationVcJwt(vp.jwsSigned, it.challenge)
-                .shouldBeInstanceOf<VerifyPresentationResult.ValidationError>()
+                .shouldBeInstanceOf<CreatePresentationResult.VpJws>()
+            shouldThrowAny {
+                it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull(), it.challenge).getOrThrow()
+            }
         }
 
         "valid parsed presentation should separate revoked and valid credentials" {
@@ -162,7 +177,7 @@ val ValidatorVpTest by testSuite {
             ).getOrNull().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
 
             val vp = presentationResults.presentationResults.first()
-                .shouldBeInstanceOf<CreatePresentationResult.Signed>()
+                .shouldBeInstanceOf<CreatePresentationResult.VpJws>()
             it.holderCredentialStore.getCredentials().getOrThrow()
                 .filterIsInstance<SubjectCredentialStore.StoreEntry.Vc>()
                 .map { it.vc }
@@ -174,7 +189,7 @@ val ValidatorVpTest by testSuite {
                     ) shouldBe true
                 }
 
-            it.verifier.verifyPresentationVcJwt(vp.jwsSigned, it.challenge).also {
+            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull(), it.challenge).getOrThrow().also {
                 it.shouldBeInstanceOf<VerifyPresentationResult.Success>()
                 it.vp.freshVerifiableCredentials.shouldBeEmpty()
             }
@@ -204,7 +219,7 @@ val ValidatorVpTest by testSuite {
                 VerifiablePresentationJws.serializer()
             ).getOrThrow()
 
-            it.verifier.verifyPresentationVcJwt(vpJws, it.challenge)
+            it.verifier.verifyPresentationVcJwt(vpJws, it.challenge).getOrThrow()
                 .shouldBeInstanceOf<VerifyPresentationResult.Success>()
         }
 
@@ -230,7 +245,7 @@ val ValidatorVpTest by testSuite {
                 VerifiablePresentationJws.serializer()
             ).getOrThrow()
 
-            it.verifier.verifyPresentationVcJwt(vpJws, it.challenge)
+            it.verifier.verifyPresentationVcJwt(vpJws, it.challenge).getOrThrow()
                 .shouldBeInstanceOf<VerifyPresentationResult.Success>()
         }
 
@@ -241,7 +256,7 @@ val ValidatorVpTest by testSuite {
             val vpSerialized = VerifiablePresentationJws(
                 vp = vp,
                 challenge = it.challenge,
-                issuer = credentials.first().vc.vc.credentialSubject.id,
+                issuer = it.holder.keyMaterial.publicKey.didEncoded,
                 audience = it.verifierId,
                 jwtId = "wrong_jwtId",
             )
@@ -251,8 +266,9 @@ val ValidatorVpTest by testSuite {
                 VerifiablePresentationJws.serializer()
             ).getOrThrow()
 
-            it.verifier.verifyPresentationVcJwt(vpJws, it.challenge)
-                .shouldBeInstanceOf<VerifyPresentationResult.ValidationError>()
+            shouldThrowAny {
+                it.verifier.verifyPresentationVcJwt(vpJws, it.challenge).getOrThrow()
+            }
         }
 
         "Wrong type in VP is not valid" {
@@ -266,7 +282,7 @@ val ValidatorVpTest by testSuite {
 
             val vpSerialized = vp.toJws(
                 challenge = it.challenge,
-                issuerId = credentials.first().vc.vc.credentialSubject.id,
+                issuerId = it.holder.keyMaterial.publicKey.didEncoded,
                 audienceId = it.verifierId,
             )
             val vpJws = it.holderSignVp(
@@ -275,8 +291,9 @@ val ValidatorVpTest by testSuite {
                 VerifiablePresentationJws.serializer()
             ).getOrThrow()
 
-            it.verifier.verifyPresentationVcJwt(vpJws, it.challenge)
-                .shouldBeInstanceOf<VerifyPresentationResult.ValidationError>()
+            shouldThrowAny {
+                it.verifier.verifyPresentationVcJwt(vpJws, it.challenge).getOrThrow()
+            }
         }
     }
 }
