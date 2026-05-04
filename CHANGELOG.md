@@ -1,7 +1,7 @@
 # Changelog
 
 Release 6.0.0 (unreleased):
- - tbd
+ - Add: ETSI data classes for list of trusted entities, [ETSI TS 119 602](https://www.etsi.org/deliver/etsi_ts/119600_119699/119602/01.01.01_60/ts_119602v010101p.pdf)
 
 Release 5.12.0:
  - W3C JWT VC:
