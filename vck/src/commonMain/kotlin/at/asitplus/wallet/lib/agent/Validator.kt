@@ -12,13 +12,15 @@ import at.asitplus.wallet.lib.agent.validation.toTokenStatusValidator
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.VerifiableCredentialSdJwt
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus
+import kotlin.jvm.JvmOverloads
 
 /**
  * Parses and validates Verifiable Credentials and Verifiable Presentations.
  * Does verify the cryptographic authenticity of the data.
  * Does verify the revocation status of the data (when a status information is encoded in the credential).
  */
-class Validator(
+class Validator
+@JvmOverloads constructor(
     /** Clients may use [TokenStatusResolverImpl]. */
     private val tokenStatusResolver: TokenStatusResolver = TokenStatusResolverNoop,
     private val acceptedTokenStatuses: Set<TokenStatus> = setOf(TokenStatus.Valid),

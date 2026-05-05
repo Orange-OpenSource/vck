@@ -3,6 +3,7 @@ package at.asitplus.wallet.lib
 import com.benasher44.uuid.uuid4
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -36,7 +37,8 @@ interface NonceService {
  * Holds valid random values in memory, with all entries having a lifetime of [lifetime],
  * protected with a [Mutex], to ensure a basic form of thread-safety.
  */
-class DefaultNonceService(
+class DefaultNonceService
+@JvmOverloads constructor(
     val lifetime: Duration = 10.minutes,
     val clock: Clock = Clock.System,
     /** Will check for expired entries when list reaches [sizeToCheckForExpiration] entries */

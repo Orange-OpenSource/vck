@@ -8,12 +8,14 @@ import at.asitplus.wallet.lib.oauth2.AuthorizationServiceStrategy
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidAuthorizationDetails
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
+import kotlin.jvm.JvmOverloads
 
 
 /**
  * Provide authentication and authorization for credential issuance.
  */
-class CredentialAuthorizationServiceStrategy(
+class CredentialAuthorizationServiceStrategy
+@JvmOverloads constructor(
     /** List of supported schemes. */
     private val credentialSchemes: Set<ConstantIndex.CredentialScheme>,
     /** Maps from/to strings in metadata from/to credential schemes. */

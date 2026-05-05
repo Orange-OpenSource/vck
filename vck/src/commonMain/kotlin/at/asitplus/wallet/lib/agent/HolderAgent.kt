@@ -33,12 +33,14 @@ import io.github.aakira.napier.Napier
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.joinAll
+import kotlin.jvm.JvmOverloads
 
 /**
  * An agent that only implements [Holder], i.e. it can receive credentials from other agents
  * and present credentials to other agents.
  */
-class HolderAgent(
+class HolderAgent
+@JvmOverloads constructor(
     override val keyMaterial: KeyMaterial,
     private val subjectCredentialStore: SubjectCredentialStore = InMemorySubjectCredentialStore(),
     private val validator: Validator = Validator(),

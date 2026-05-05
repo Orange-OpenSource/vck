@@ -31,6 +31,7 @@ import at.asitplus.wallet.lib.jws.SignJwtFun
 import io.github.aakira.napier.Napier
 import kotlinx.serialization.builtins.ByteArraySerializer
 import kotlinx.serialization.encodeToByteArray
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
@@ -39,7 +40,8 @@ import kotlin.time.Instant
 /**
  * An agent that implements [StatusListIssuer], i.e. it manages status of credentials and status lists.
  */
-class StatusListAgent(
+class StatusListAgent
+@JvmOverloads constructor(
     /** Should either be [PublishedKeyMaterial] or contain a certificate, so clients can look up the key. */
     private val keyMaterial: KeyMaterial = EphemeralKeyWithSelfSignedCert(),
     private val issuerCredentialStore: ReferencedTokenStore = InMemoryIssuerCredentialStore(),

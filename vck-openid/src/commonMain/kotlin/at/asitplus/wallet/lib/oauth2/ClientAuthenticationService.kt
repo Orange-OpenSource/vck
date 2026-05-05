@@ -13,6 +13,7 @@ import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidClient
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidGrant
 import io.github.aakira.napier.Napier
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.jvm.JvmOverloads
 
 
 /**
@@ -21,7 +22,8 @@ import kotlin.coroutines.cancellation.CancellationException
  * Implemented from
  * [OAuth 2.0 Attestation-Based Client Authentication](https://www.ietf.org/archive/id/draft-ietf-oauth-attestation-based-client-auth-05.html)
  */
-class ClientAuthenticationService(
+class ClientAuthenticationService
+@JvmOverloads constructor(
     /** Enforce client authentication as defined in OpenID4VC HAIP, i.e. with wallet attestations */
     private val enforceClientAuthentication: Boolean = false,
     /** Used to verify client attestation JWTs */

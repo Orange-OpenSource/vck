@@ -31,6 +31,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.Serializable
+import kotlin.jvm.JvmOverloads
 
 
 /**
@@ -44,7 +45,8 @@ import kotlinx.serialization.Serializable
  *  * [OAuth 2.0 Attestation-Based Client Authentication](https://www.ietf.org/archive/id/draft-ietf-oauth-attestation-based-client-auth-04.html)
  *  * [OAuth 2.0 Pushed Authorization Requests](https://datatracker.ietf.org/doc/html/rfc9126)
  */
-class OpenId4VciClient(
+class OpenId4VciClient
+@JvmOverloads constructor(
     /** ktor engine to use to make requests to issuing service. */
     engine: HttpClientEngine,
     /**

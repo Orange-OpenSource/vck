@@ -54,9 +54,11 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 
-class VerifiablePresentationFactory(
+class VerifiablePresentationFactory
+@JvmOverloads constructor(
     private val keyMaterial: KeyMaterial,
     private val signVerifiablePresentation: SignJwtFun<VerifiablePresentationJws> =
         SignJwt(keyMaterial, JwsHeaderCertOrJwk()),

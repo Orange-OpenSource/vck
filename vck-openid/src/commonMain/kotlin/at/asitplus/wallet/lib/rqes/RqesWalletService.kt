@@ -25,6 +25,7 @@ import at.asitplus.signum.indispensable.pki.X509Certificate
 import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.rqes.RqesWalletService.SigningCredential
 import com.benasher44.uuid.uuid4
+import kotlin.jvm.JvmOverloads
 
 /**
  * Wallet service that implements generation of all data classes necessary
@@ -36,7 +37,8 @@ import com.benasher44.uuid.uuid4
  * OpenID4VP specification
  * `signDoc` is out of testing scope for now but may be added later
  */
-class RqesWalletService(
+class RqesWalletService
+@JvmOverloads constructor(
     private val clientId: String = "https://wallet.a-sit.at/app",
     private val redirectUrl: String = "$clientId/callback",
     private val oauth2Client: OAuth2Client = OAuth2Client(

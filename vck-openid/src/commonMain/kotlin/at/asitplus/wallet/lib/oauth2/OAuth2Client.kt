@@ -28,13 +28,15 @@ import at.asitplus.wallet.lib.utils.DefaultMapStore
 import at.asitplus.wallet.lib.utils.MapStore
 import at.asitplus.wallet.lib.oidvci.WalletService
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
+import kotlin.jvm.JvmOverloads
 
 /**
  * Simple OAuth 2.0 client to authorize the client against an OAuth 2.0 Authorization Server and request tokens.
  *
  * Can be used in OID4VCI flows, e.g. [WalletService].
  */
-class OAuth2Client(
+class OAuth2Client
+@JvmOverloads constructor(
     /**
      * Used to create [AuthenticationRequestParameters], [TokenRequestParameters] and
      * [at.asitplus.openid.CredentialRequestProofContainer], typically a URI.

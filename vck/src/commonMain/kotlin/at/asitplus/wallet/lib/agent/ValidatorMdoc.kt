@@ -28,8 +28,10 @@ import io.matthewnelson.encoding.base64.Base64
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlinx.serialization.builtins.ByteArraySerializer
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.jvm.JvmOverloads
 
-class ValidatorMdoc(
+class ValidatorMdoc
+@JvmOverloads constructor(
     private val verifySignature: VerifySignatureFun = VerifySignature(),
     private val verifyCoseSignatureWithKey: VerifyCoseSignatureWithKeyFun<MobileSecurityObject> =
         VerifyCoseSignatureWithKey(verifySignature),

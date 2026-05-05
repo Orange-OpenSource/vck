@@ -52,6 +52,7 @@ import io.matthewnelson.encoding.base64.Base64
 import io.matthewnelson.encoding.core.Decoder.Companion.decodeToByteArray
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
@@ -63,7 +64,8 @@ import kotlin.time.Duration.Companion.days
  * [OpenID for Verifiable Credential Issuance](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
  * 1.0 from 2025-09-16.
  */
-class WalletService(
+class WalletService
+@JvmOverloads constructor(
     /** Used as the issuer in credential proofs. Must match the `client_id` of the OAuth client. */
     val clientId: String = "https://wallet.a-sit.at/app",
     /** Used to prove possession of the key material for [CredentialRequestProofContainer], i.e., the holder key. */

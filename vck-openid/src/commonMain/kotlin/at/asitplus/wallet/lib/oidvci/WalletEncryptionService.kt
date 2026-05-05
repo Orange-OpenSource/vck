@@ -23,6 +23,7 @@ import at.asitplus.wallet.lib.jws.EncryptJwe
 import at.asitplus.wallet.lib.jws.EncryptJweFun
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidEncryptionParameters
 import io.github.aakira.napier.Napier
+import kotlin.jvm.JvmOverloads
 
 /**
  * Wallet implementation to handle credential request encryption and credential response decryption using OID4VCI.
@@ -31,7 +32,8 @@ import io.github.aakira.napier.Napier
  * [OpenID for Verifiable Credential Issuance](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
  * 1.0 from 2025-09-16.
  */
-class WalletEncryptionService(
+class WalletEncryptionService
+@JvmOverloads constructor(
     /** Whether to request credential response encryption from the issuer. */
     internal val requestResponseEncryption: Boolean = false,
     /** Whether to encrypt the credential request, if supported by the issuer.*/

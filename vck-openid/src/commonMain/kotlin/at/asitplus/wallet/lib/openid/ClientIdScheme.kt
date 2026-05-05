@@ -7,6 +7,7 @@ import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.JwsSigned
 import at.asitplus.signum.indispensable.pki.CertificateChain
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
+import kotlin.jvm.JvmOverloads
 
 /**
  * Represents the OpenID client identifier scheme used to validate verifier identity.
@@ -127,7 +128,8 @@ sealed class ClientIdScheme(
      *  Wallet in advance of the Authorization Request. The Verifier metadata is obtained using RFC7591 or through
      *  out-of-band mechanisms.
      */
-    class PreRegistered(
+    class PreRegistered
+    @JvmOverloads constructor(
         clientId: String,
         redirectUri: String,
         /** Optional parameter, to be used as `iss` for signed authorization requests */

@@ -7,8 +7,10 @@ import at.asitplus.wallet.lib.agent.validation.mdoc.MdocInputValidationSummary.I
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKey
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKeyFun
 import io.github.aakira.napier.Napier
+import kotlin.jvm.JvmOverloads
 
-class MdocInputValidator(
+class MdocInputValidator
+@JvmOverloads constructor(
     private val verifyCoseSignatureWithKey: VerifyCoseSignatureWithKeyFun<MobileSecurityObject> =
         VerifyCoseSignatureWithKey(),
 ) {

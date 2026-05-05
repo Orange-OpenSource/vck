@@ -33,6 +33,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.serialization.json.JsonObject
+import kotlin.jvm.JvmOverloads
 
 /**
  * Uses an external OAuth 2.0 Authorization Server with a [at.asitplus.wallet.lib.oidvci.CredentialIssuer],
@@ -40,7 +41,8 @@ import kotlinx.serialization.json.JsonObject
  * (after performing token exchange with the Wallet's access token to get a fresh one).
  * Make sure to configure [oauth2Client] to use the correct [OAuth2KtorClient.loadClientAttestationJwt].
  */
-class RemoteOAuth2AuthorizationServerAdapter(
+class RemoteOAuth2AuthorizationServerAdapter
+@JvmOverloads constructor(
     /** Base URL of the remote Authorization Server. */
     override val publicContext: String,
     /** ktor engine to make requests to the verifier. */

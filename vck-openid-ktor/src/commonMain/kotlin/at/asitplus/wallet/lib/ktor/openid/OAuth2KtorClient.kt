@@ -50,7 +50,9 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.util.*
 import io.ktor.utils.io.*
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration
 
 /**
  * Implements the client side of OAuth2
@@ -61,7 +63,8 @@ import kotlin.time.Duration.Companion.minutes
  *  * [OAuth 2.0 Attestation-Based Client Authentication](https://www.ietf.org/archive/id/draft-ietf-oauth-attestation-based-client-auth-04.html)
  *  * [OAuth 2.0 Pushed Authorization Requests](https://datatracker.ietf.org/doc/html/rfc9126)
  */
-class OAuth2KtorClient(
+class OAuth2KtorClient
+@JvmOverloads constructor(
     /** ktor engine to use to make requests to issuing service. */
     engine: HttpClientEngine,
     /**

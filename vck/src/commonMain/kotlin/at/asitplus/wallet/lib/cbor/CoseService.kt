@@ -22,6 +22,7 @@ import io.matthewnelson.encoding.base16.Base16
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.encodeToByteArray
+import kotlin.jvm.JvmOverloads
 
 /** How to identify the key material in a [CoseHeader] */
 fun interface CoseHeaderIdentifierFun<T> {
@@ -109,7 +110,8 @@ fun interface SignCoseFun<P> {
  * Signs a COSE payload with [KeyMaterial] while applying header modifiers.
  * Use when creating COSE signatures for credentials or device responses.
  */
-class SignCose<P : Any>(
+class SignCose<P : Any>
+@JvmOverloads constructor(
     val keyMaterial: KeyMaterial,
     val protectedHeaderModifier: CoseHeaderIdentifierFun<KeyMaterial>? = null,
     val unprotectedHeaderModifier: CoseHeaderIdentifierFun<KeyMaterial>? = null,
@@ -150,7 +152,8 @@ fun interface MacCoseFun<P> {
  * Creates a COSE MAC for a payload using a symmetric [CoseKey].
  * Use when integrity protection (without signatures) is required.
  */
-class MacCose<P : Any>(
+class MacCose<P : Any>
+@JvmOverloads constructor(
     val keyMaterial: CoseKey,
     val protectedHeaderModifier: CoseHeaderIdentifierFun<CoseKey>? = null,
     val unprotectedHeaderModifier: CoseHeaderIdentifierFun<CoseKey>? = null,
@@ -190,7 +193,8 @@ fun interface SignCoseDetachedFun<P> {
 /**
  * Create a [CoseSigned] with detached payload,
  * setting protected and unprotected headers, and applying [CoseHeaderIdentifierFun]. */
-class SignCoseDetached<P : Any>(
+class SignCoseDetached<P : Any>
+@JvmOverloads constructor(
     val keyMaterial: KeyMaterial,
     val protectedHeaderModifier: CoseHeaderIdentifierFun<KeyMaterial>? = null,
     val unprotectedHeaderModifier: CoseHeaderIdentifierFun<KeyMaterial>? = null,
@@ -231,7 +235,8 @@ fun interface MacCoseDetachedFun<P> {
  * Creates a COSE MAC with a detached payload using a symmetric [CoseKey].
  * Use when the payload is transmitted separately from the MAC object.
  */
-class MacCoseDetached<P : Any>(
+class MacCoseDetached<P : Any>
+@JvmOverloads constructor(
     val keyMaterial: CoseKey,
     val protectedHeaderModifier: CoseHeaderIdentifierFun<CoseKey>? = null,
     val unprotectedHeaderModifier: CoseHeaderIdentifierFun<CoseKey>? = null,
@@ -320,7 +325,8 @@ fun interface VerifyCoseSignatureFun<P> {
  * Verifies COSE signatures using keys from headers or a lookup callback.
  * Use when validating signed COSE objects in verifier flows.
  */
-class VerifyCoseSignature<P : Any>(
+class VerifyCoseSignature<P : Any>
+@JvmOverloads constructor(
     val verifyCoseSignature: VerifyCoseSignatureWithKeyFun<P> = VerifyCoseSignatureWithKey<P>(),
     /** Need to implement if valid keys for CoseSigned are transported somehow out-of-band, e.g. provided by a trust store */
     val publicKeyLookup: PublicCoseKeyLookup = PublicCoseKeyLookup { null },
@@ -355,7 +361,8 @@ fun interface VerifyCoseSignatureWithKeyFun<P> {
  * Verifies a COSE signature using a provided [CoseKey].
  * Use when the signer key is known or resolved out of band.
  */
-class VerifyCoseSignatureWithKey<P : Any>(
+class VerifyCoseSignatureWithKey<P : Any>
+@JvmOverloads constructor(
     val verifySignature: VerifySignatureFun = VerifySignature(),
 ) : VerifyCoseSignatureWithKeyFun<P> {
     override suspend operator fun invoke(
@@ -393,7 +400,8 @@ fun interface VerifyCoseMacWithKeyFun<P> {
  * Verifies a COSE MAC using a provided symmetric [CoseKey].
  * Use when validating integrity-protected COSE MAC objects.
  */
-class VerifyCoseMacWithKey<P : Any>(
+class VerifyCoseMacWithKey<P : Any>
+@JvmOverloads constructor(
     val verifyMac: VerifyMacFun = VerifyMac(),
 ) : VerifyCoseMacWithKeyFun<P> {
     override suspend fun invoke(

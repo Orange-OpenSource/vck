@@ -45,6 +45,7 @@ import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.vckJsonSerializer
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 import kotlin.jvm.JvmInline
+import kotlin.jvm.JvmOverloads
 
 @JvmInline
 value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
@@ -237,7 +238,8 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
  *    KeyIdentifier ::= OCTET STRING
  * ```
  */
-class AuthorityKeyIdentifier(
+class AuthorityKeyIdentifier
+@JvmOverloads constructor(
     val keyIdentifier: ByteArray? = null,
     val authorityCertIssuer: Asn1Element? = null,
     val certificateSerial: ByteArray? = null,

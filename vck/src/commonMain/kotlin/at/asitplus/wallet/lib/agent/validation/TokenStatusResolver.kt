@@ -21,6 +21,7 @@ import at.asitplus.wallet.lib.extensions.toView
 import at.asitplus.wallet.lib.jws.VerifyJwsObject
 import at.asitplus.wallet.lib.jws.VerifyJwsObjectFun
 import io.ktor.util.encodeBase64
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 
 /**
@@ -30,7 +31,8 @@ fun interface TokenStatusResolver {
     suspend operator fun invoke(revocationListInfo: RevocationListInfo): KmmResult<TokenStatus>
 }
 
-class TokenStatusResolverImpl(
+class TokenStatusResolverImpl
+@JvmOverloads constructor(
     private val resolveStatusListToken: StatusListTokenResolver,
     private val clock: Clock = Clock.System,
     private val zlibService: ZlibService = DefaultZlibService(),

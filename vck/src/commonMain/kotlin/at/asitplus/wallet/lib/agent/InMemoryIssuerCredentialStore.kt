@@ -12,9 +12,11 @@ import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatusBitSize
 import com.benasher44.uuid.uuid4
 import kotlinx.coroutines.sync.Mutex
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Instant
 
-class InMemoryIssuerCredentialStore(
+class InMemoryIssuerCredentialStore
+@JvmOverloads constructor(
     val tokenStatusBitSize: TokenStatusBitSize = TokenStatusBitSize.ONE,
 ) : IssuerCredentialStore, ReferencedTokenStore {
     private val indexMutex = Mutex()

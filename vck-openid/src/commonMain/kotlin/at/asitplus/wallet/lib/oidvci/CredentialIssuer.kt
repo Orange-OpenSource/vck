@@ -33,6 +33,7 @@ import at.asitplus.wallet.lib.oidvci.OAuth2Exception.*
 import io.github.aakira.napier.Napier
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlin.jvm.JvmOverloads
 
 /**
  * Server implementation to issue credentials using OID4VCI.
@@ -41,7 +42,8 @@ import kotlinx.serialization.json.decodeFromJsonElement
  * [OpenID for Verifiable Credential Issuance](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
  * 1.0 from 2025-09-16.
  */
-class CredentialIssuer(
+class CredentialIssuer
+@JvmOverloads constructor(
     /** Used to verify the validity of a unit attestation */
     private val statusListTokenResolver: StatusListTokenResolver? = null,
     /** Used to get the user data, and access tokens. */

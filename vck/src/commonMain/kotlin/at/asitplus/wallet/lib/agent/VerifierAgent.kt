@@ -10,12 +10,14 @@ import at.asitplus.wallet.lib.agent.Verifier.VerifyPresentationResult
 import at.asitplus.wallet.lib.data.VcJwsVerificationResultWrapper
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.jws.SdJwtSigned
+import kotlin.jvm.JvmOverloads
 
 
 /**
  * An agent that only implements [Verifier], i.e. it can only verify credentials of other agents.
  */
-class VerifierAgent(
+class VerifierAgent
+@JvmOverloads constructor(
     /**
      * The identifier of this verifier, that is expected to be the audience of verifiable presentations.
      * It may be a cryptographic identifier of the key, but can be anything, e.g. a URL.

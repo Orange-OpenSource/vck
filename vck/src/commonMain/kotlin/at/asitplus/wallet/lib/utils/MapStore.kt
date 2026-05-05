@@ -2,6 +2,7 @@ package at.asitplus.wallet.lib.utils
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -38,7 +39,8 @@ interface MapStore<T, U> {
  * Beware that array types are neither supported as the key type `T` nor the value type `U`,
  * as this would mess up equality checks (and should not be needed anyway).
  */
-class DefaultMapStore<T, U>(
+class DefaultMapStore<T, U>
+@JvmOverloads constructor(
     val lifetime: Duration = 10.minutes,
     val clock: Clock = Clock.System,
     /** Will check for expired entries when map reaches [sizeToCheckForExpiration] entries */
