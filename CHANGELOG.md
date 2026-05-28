@@ -5,6 +5,10 @@ Release 6.0.0 (unreleased):
  - Deprecations:
    - Remove code deprecated in 5.12.0, e.g. `CredentialSubject` as base class for JWT VC
    - Deprecate `vckJsonSerializer`, should be replaced with `joseCompliantSerializer` (Signum)
+ - SD-JWT:
+   - BREAKING CHANGE: Removed dot-notation shorthand for nested claims in `ClaimToBeIssued`. Claims with dots in their names (e.g. `address.region`) are now issued as flat claims with a literal dot in the key. Use a `Collection<ClaimToBeIssued>` in `value` to create nested structures.
+- OpenID for Verifiable Presentations:
+   - Add `attributePaths` and `optionalAttributePaths` to `RequestOptionsCredential` for requesting literal claim names containing dots with `DCQLClaimsPathPointer`, while keeping the deprecated string attributes as nested dot-notation shorthand. ISO mdoc requests also accept explicit namespace/name paths and prefix single claim names with the credential scheme namespace.
  - Add: SD-JWT VC Type Metadata ([draft-ietf-oauth-sd-jwt-vc-16](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/):
    - `SdJwtTypeMetadataDocument`: stores and verifies raw document bytes for W3C SRI integrity checks (integrity is computed over the original response bytes, not re-serialized JSON)
    - `KtorSdJwtTypeMetadataDocumentRetriever`: HTTP retrieval with two-tier caching (static/indefinite for integrity-pinned documents; Cache-Control–based TTL otherwise); integrity-pinned lookups bypass the dynamic cache and vice versa; integrity and `vct` are validated before a fetched document enters the static cache
