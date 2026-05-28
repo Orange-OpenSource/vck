@@ -6,6 +6,10 @@ Release 5.13.0 (unreleased):
    - Deprecate `vckJsonSerializer`, should be replaced with `joseCompliantSerializer` (Signum)
  - Dependencies:
    - Update to [Signum 3.22.0](https://github.com/a-sit-plus/signum/releases/tag/3.22.0)
+ - SD-JWT:
+   - BREAKING CHANGE: Removed dot-notation shorthand for nested claims in `ClaimToBeIssued`. Claims with dots in their names (e.g. `address.region`) are now issued as flat claims with a literal dot in the key. Use a `Collection<ClaimToBeIssued>` in `value` to create nested structures.
+ - OpenID for Verifiable Presentations:
+   - Add `attributePaths` and `optionalAttributePaths` to `RequestOptionsCredential` for requesting literal claim names containing dots with `DCQLClaimsPathPointer`, while keeping the deprecated string attributes as nested dot-notation shorthand. ISO mdoc requests also accept explicit namespace/name paths and prefix single claim names with the credential scheme namespace.
 
 Release 5.12.0:
  - W3C JWT VC:
