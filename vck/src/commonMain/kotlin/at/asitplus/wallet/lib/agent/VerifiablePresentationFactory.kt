@@ -33,8 +33,8 @@ import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult.ClaimsQueryResu
 import at.asitplus.openid.truncateToSeconds
 import at.asitplus.signum.indispensable.Digest
 import at.asitplus.signum.indispensable.cosef.io.ByteStringWrapper
-import at.asitplus.signum.indispensable.josef.JwsSigned
-import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
+import at.asitplus.signum.indispensable.josef.JwsCompact
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.agent.SubjectCredentialStore.StoreEntry
 import at.asitplus.wallet.lib.data.KeyBindingJws
 import at.asitplus.wallet.lib.data.SdJwtConstants.NAME_SD
@@ -239,7 +239,7 @@ class VerifiablePresentationFactory(
         val keyBinding = createKeyBindingJws(request, SdJwtSigned.sdHashInput(validSdJwtCredential, disclosures))
         val issuerSignedJwsSerialized = validSdJwtCredential.vcSerialized.substringBefore("~")
         val issuerSignedJws =
-            JwsSigned.deserialize(JsonElement.serializer(), issuerSignedJwsSerialized, joseCompliantSerializer)
+            catching { JwsCompact(issuerSignedJwsSerialized) }
                 .getOrElse { throw PresentationException(it) }
         val sdJwt = SdJwtSigned.presented(issuerSignedJws, disclosures, keyBinding)
         return CreatePresentationResult.SdJwt(sdJwt.serialize(), sdJwt)
@@ -260,13 +260,8 @@ class VerifiablePresentationFactory(
             disclosure.asHashedDisclosure(digest)?.let { it to disclosure }
         }.toMap()
         val issuerSignedJwsSerialized = vcSerialized.substringBefore("~")
-        val payload = JwsSigned.deserialize(JsonElement.serializer(), issuerSignedJwsSerialized,
-            joseCompliantSerializer
-        )
+        val payload = JwsCompact(issuerSignedJwsSerialized).getPayload<JsonObject>()
             .getOrElse { throw PresentationException(it) }
-            .payload as? JsonObject
-            ?: throw PresentationException("SD-JWT payload is not a JSON object")
-
         return requestedClaims.flatMapTo(mutableSetOf()) { claim ->
             payload.loadDisclosuresForPath(claim.segments, disclosuresByDigest)
         }
@@ -371,7 +366,7 @@ class VerifiablePresentationFactory(
     private suspend fun createKeyBindingJws(
         request: PresentationRequestParameters,
         hashInput: String,
-    ): JwsSigned<KeyBindingJws> = signKeyBinding(
+    ): JwsCompactTyped<KeyBindingJws> = signKeyBinding(
         JwsContentTypeConstants.KB_JWT,
         KeyBindingJws(
             issuedAt = Clock.System.now().truncateToSeconds(),
@@ -406,6 +401,6 @@ class VerifiablePresentationFactory(
         ).getOrElse {
             throw PresentationException(it)
         }) {
-        CreatePresentationResult.VpJws(serialize(), this)
+        CreatePresentationResult.VpJws(toString(), this)
     }
 }

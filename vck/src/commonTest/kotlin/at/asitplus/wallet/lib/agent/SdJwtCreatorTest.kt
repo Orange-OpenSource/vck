@@ -235,7 +235,7 @@ val SdJwtCreatorTest by testSuite {
             serializer = JsonObject.serializer()
         ).getOrThrow()
 
-        val serialized = SdJwtSigned.issued(jws, disclosures.toList()).serialize()
+        val serialized = SdJwtSigned.issued(jws.jws, disclosures.toList()).serialize()
         val parsed = SdJwtSigned.parseCatching(serialized).getOrThrow()
         val reconstructed = SdJwtDecoded(parsed).reconstructedJsonObject.shouldNotBeNull()
 
@@ -251,7 +251,7 @@ private suspend fun Pair<JsonObject, Collection<String>>.signDecodeReconstruct()
             JwsContentTypeConstants.SD_JWT,
             payload = first,
             serializer = JsonObject.serializer()
-        ).getOrThrow(), second.toList()
+        ).getOrThrow().jws, second.toList()
     )
 ).reconstructedJsonObject.shouldNotBeNull()
 

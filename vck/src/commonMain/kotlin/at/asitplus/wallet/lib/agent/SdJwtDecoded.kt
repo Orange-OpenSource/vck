@@ -19,7 +19,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
@@ -28,7 +27,8 @@ import kotlinx.serialization.json.jsonPrimitive
  *
  * See [Selective Disclosure for JSON Web Tokens](https://www.rfc-editor.org/rfc/rfc9901.html)
  */
-class SdJwtDecoded(sdJwtSigned: SdJwtSigned) {
+class SdJwtDecoded @Throws(IllegalArgumentException::class)
+constructor(sdJwtSigned: SdJwtSigned) {
 
     private val disclosures: Collection<String> = sdJwtSigned.rawDisclosures
     private val _validDisclosures = mutableMapOf<String, SelectiveDisclosureItem>()
@@ -43,9 +43,9 @@ class SdJwtDecoded(sdJwtSigned: SdJwtSigned) {
     val reconstructedJsonObject: JsonObject?
 
     init {
-        val digest = sdJwtSigned.jws.payload.jsonObject[SdJwtConstants.SD_ALG]?.jsonPrimitive?.content.toDigest()
-            ?: Digest.SHA256
-        reconstructedJsonObject = sdJwtSigned.getPayloadAsJsonObject().getOrNull()?.reconstructValues(digest)
+        val payload = sdJwtSigned.jws.getPayload<JsonObject>().getOrThrow()
+        val digest = payload[SdJwtConstants.SD_ALG]?.jsonPrimitive?.content.toDigest() ?: Digest.SHA256
+        reconstructedJsonObject = payload.reconstructValues(digest)
         validDisclosures = _validDisclosures.toMap()
     }
 
