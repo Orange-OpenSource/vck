@@ -6,6 +6,8 @@ import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.OpenIdConstants.ClientIdScheme
 import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
+import at.asitplus.signum.indispensable.josef.JwsCompact
+import at.asitplus.signum.indispensable.josef.JwsGeneral
 import at.asitplus.signum.indispensable.pki.X509Certificate
 import at.asitplus.signum.indispensable.pki.leaf
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
@@ -57,7 +59,21 @@ internal class AuthorizationRequestValidator(
             is RequestParametersFrom.DcApiSigned<*> -> {
                 if (this.parameters.clientId == null)
                     throw InvalidRequest("client_id must be set for DC API signed request")
-                this.parameters.verifyExpectedOrigin(this.dcApiRequest.callingOrigin)
+                if (this.parameters.expectedOrigins != null &&
+                    !this.parameters.verifyExpectedOrigin(this.dcApiRequest.callingOrigin)
+                ) throw InvalidRequest(
+                    "callingOrigin '${this.dcApiRequest.callingOrigin}' does not match expected_origins"
+                )
+            }
+
+            is RequestParametersFrom.DcApiMultiSigned<*> -> {
+                if (this.parameters.clientId == null)
+                    throw InvalidRequest("client_id must be set for DC API multisigned request")
+                if (this.parameters.expectedOrigins != null &&
+                    !this.parameters.verifyExpectedOrigin(this.dcApiRequest.callingOrigin)
+                ) throw InvalidRequest(
+                    "callingOrigin '${this.dcApiRequest.callingOrigin}' does not match expected_origins"
+                )
             }
 
             is RequestParametersFrom.DcApiUnsigned<*> -> {
@@ -70,7 +86,7 @@ internal class AuthorizationRequestValidator(
     }
 
     private fun RequestParametersFrom<AuthenticationRequestParameters>.isFromRequestObject(): Boolean =
-        this is RequestParametersFrom.Json || this is RequestParametersFrom.JwsSigned
+        this is RequestParametersFrom.Json || this is RequestParametersFrom.Jws
 
     @Throws(OAuth2Exception::class)
     private fun AuthenticationRequestParameters.verifyRedirectUrl() {
@@ -86,19 +102,26 @@ internal class AuthorizationRequestValidator(
 
     @Throws(OAuth2Exception::class)
     private fun RequestParametersFrom<AuthenticationRequestParameters>.verifyClientIdSchemeX509() {
-        val clientIdScheme = parameters.clientIdSchemeExtracted
-        val responseModeIsDirectPost = parameters.responseMode.isAnyDirectPost()
-        val responseModeIsDcApi = parameters.responseMode.isAnyDcApi()
-        if (this !is RequestParametersFrom.RequestParametersSigned<AuthenticationRequestParameters>
-            || jwsSigned.jwsHeader.certificateChain.isNullOrEmpty()
-        ) {
-            throw InvalidRequest("x5c is null, and metadata is not set")
-        }
+        val signedRequest = this as? RequestParametersFrom.RequestParametersSigned<AuthenticationRequestParameters>
+            ?: throw InvalidRequest("x509 client_id_scheme requires a signed request object")
 
-        val leaf = jwsSigned.jwsHeader.certificateChain!!.leaf
-        when (clientIdScheme) {
-            ClientIdScheme.X509SanDns -> verifyX509SanDns(leaf, responseModeIsDirectPost, responseModeIsDcApi)
-            ClientIdScheme.X509Hash -> verifyX509SanHash(leaf)
+        val certChain = when (val jws = signedRequest.jws) {
+            is JwsCompact -> jws.jwsHeader.certificateChain
+            is JwsGeneral -> jws.signatureElements.firstOrNull()?.jwsHeader?.certificateChain
+            else -> null
+        }
+        val leaf = certChain
+            ?.takeIf { it.isNotEmpty() }
+            ?.leaf
+            ?: throw InvalidRequest("x509 client_id_scheme requires an x5c certificate chain in the JOSE header")
+
+        when (val clientIdScheme = parameters.clientIdSchemeExtracted) {
+            ClientIdScheme.X509SanDns -> signedRequest.verifyX509SanDns(
+                leaf = leaf,
+                responseModeIsDirectPost = parameters.responseMode.isAnyDirectPost(),
+                responseModeIsDcApi = parameters.responseMode.isAnyDcApi(),
+            )
+            ClientIdScheme.X509Hash -> signedRequest.verifyX509SanHash(leaf)
             // checked before calling this method
             else -> throw InvalidRequest("Unexpected clientIdScheme $clientIdScheme")
         }

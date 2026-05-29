@@ -59,8 +59,8 @@ class RequestParser(
      */
     suspend fun parseRequestParameters(
         input: DCAPIWalletRequest.OpenId4Vp,
-    ): KmmResult<RequestParametersFrom<*>> = catching {
-        input.parseAsDcApiRequest()?.extractRequest() ?: throw InvalidRequest("parse error: $input")
+    ): KmmResult<RequestParametersFrom<AuthenticationRequestParameters>> = catching {
+        input.parseAsDcApiRequest() ?: throw InvalidRequest("parse error: $input")
     }
 
     private suspend fun String.parseParameters(): RequestParametersFrom<out RequestParameters> =
@@ -91,21 +91,31 @@ class RequestParser(
         RequestParametersFrom.Json(this, params, (parent as? RequestParametersFrom.Uri)?.url)
     }.getOrNull()
 
-    private fun DCAPIWalletRequest.OpenId4Vp.parseAsDcApiRequest(): RequestParametersFrom<*>? = catchingUnwrapped {
-        when (this) {
-            is DCAPIWalletRequest.OpenId4VpSigned -> {
-                val requestStr = (this.request as? JarRequestParameters)?.request
-                    ?: throw InvalidRequest("Did not find jar request parameters: $this")
-                val jwsSigned = JwsCompactTyped<RequestParameters>(requestStr)
-                RequestParametersFrom.DcApiSigned(this, jwsSigned.payload, jwsSigned.jws)
-            }
+    private fun DCAPIWalletRequest.OpenId4Vp.parseAsDcApiRequest(): RequestParametersFrom<AuthenticationRequestParameters>? =
+        catchingUnwrapped {
+            when (this) {
+                is DCAPIWalletRequest.OpenId4VpSigned -> RequestParametersFrom.DcApiSigned(
+                    this,
+                    this.request.request.payload,
+                    this.request.request.jws,
+                    false
+                )
 
-            is DCAPIWalletRequest.OpenId4VpUnsigned -> {
-                val jsonString = joseCompliantSerializer.encodeToString(this.request)
-                RequestParametersFrom.DcApiUnsigned(this, this.request, jsonString)
+                is DCAPIWalletRequest.OpenId4VpUnsigned ->
+                    RequestParametersFrom.DcApiUnsigned(
+                        this,
+                        this.request.request,
+                        joseCompliantSerializer.encodeToString(this.request.request)
+                    )
+
+                is DCAPIWalletRequest.OpenId4VpMultiSigned -> RequestParametersFrom.DcApiMultiSigned(
+                    this,
+                    this.request.request.payload,
+                    this.request.request.jws,
+                    false
+                )
             }
-        }
-    }.getOrNull()
+        }.getOrNull()
 
     suspend fun extractRequest(
         parameters: JarRequestParameters,
@@ -135,8 +145,8 @@ class RequestParser(
     ): RequestParametersFrom<*>? =
         catching { JwsCompactTyped<RequestParameters>(this) }
             .getOrNull()?.let { jws ->
-                RequestParametersFrom.JwsSigned(
-                    jwsSigned = jws.jws,
+                RequestParametersFrom.Jws(
+                    jws = jws.jws,
                     parameters = jws.payload,
                     verified = requestObjectJwsVerifier.invoke(jws),
                     parent = (parent as? RequestParametersFrom.Uri)?.url

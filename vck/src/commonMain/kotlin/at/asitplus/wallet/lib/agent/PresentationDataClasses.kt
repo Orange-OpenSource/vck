@@ -100,7 +100,6 @@ sealed interface PresentationResponseParameters {
     }
 
     companion object {
-        @Suppress("DEPRECATION")
         private fun CreatePresentationResult.toJsonPrimitive() = when (val presentationResult = this) {
             is CreatePresentationResult.VpJws -> JsonPrimitive(presentationResult.serialized)
             is CreatePresentationResult.VcJws -> JsonPrimitive(presentationResult.serialized)
