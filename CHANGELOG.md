@@ -1,6 +1,6 @@
 # Changelog
 
-Release 5.13.0 (unreleased):
+Release 5.13.0:
  - Deprecations:
    - Remove code deprecated in 5.12.0, e.g. `CredentialSubject` as base class for JWT VC
    - Deprecate `vckJsonSerializer`, should be replaced with `joseCompliantSerializer` (Signum)
