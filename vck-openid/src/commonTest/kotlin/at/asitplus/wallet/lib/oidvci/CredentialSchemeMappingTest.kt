@@ -27,7 +27,7 @@ val CredentialSchemeMappingTest by matrixSuite {
     }
 
     test("AtomicAttribute in ISO mDoc") {
-        val expectedKey = AtomicAttribute2023.isoNamespace
+        val expectedKey = AtomicAttribute2023.isoDocType
         mapper.toCredentialIdentifier(AtomicAttribute2023, ISO_MDOC) shouldBe expectedKey
         mapper.map(AtomicAttribute2023).shouldContainKey(expectedKey)
         mapper.decodeFromCredentialIdentifier(expectedKey) shouldBe Pair(AtomicAttribute2023, ISO_MDOC)

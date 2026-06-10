@@ -16,10 +16,10 @@ import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.openid.dcql.DCQLClaimsPathPointerSegment
 import at.asitplus.openid.dcql.DCQLCredentialQuery
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
-import at.asitplus.wallet.lib.data.ConstantIndex.supportsSdJwt
-import at.asitplus.wallet.lib.data.ConstantIndex.supportsVcJwt
 import at.asitplus.wallet.lib.data.CredentialRepresentation
 import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import com.benasher44.uuid.uuid4
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -182,7 +182,7 @@ data class RequestOptionsCredential(
         firstOrNull()?.let { it == '_' || it in 'A'..'Z' || it in 'a'..'z' } == true &&
                 drop(1).all { it == '_' || it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' }
 
-    private fun CredentialScheme.toVcConstraint() = if (supportsVcJwt)
+    private fun CredentialScheme.toVcConstraint() = if (this is VcJwtCredentialScheme)
         ConstraintField(
             path = listOf("$.type"),
             filter = ConstraintFilter(
@@ -191,12 +191,12 @@ data class RequestOptionsCredential(
             )
         ) else null
 
-    private fun CredentialScheme.toSdJwtConstraint() = if (supportsSdJwt)
+    private fun CredentialScheme.toSdJwtConstraint() = if (this is SdJwtCredentialScheme)
         ConstraintField(
             path = listOf("$.vct"),
             filter = ConstraintFilter(
                 type = "string",
-                const = JsonPrimitive(sdJwtType!!)
+                const = JsonPrimitive(sdJwtType)
             )
         ) else null
 }

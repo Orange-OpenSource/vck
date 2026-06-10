@@ -5,7 +5,7 @@ import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MD
 data class IsoMdocFallbackCredentialScheme(
     override val isoDocType: String,
     override val isoNamespace: String = isoDocType,
-) : CredentialScheme {
+) : IsoMdocCredentialScheme {
     companion object : CredentialScheme {
         override val schemaUri: String = "https://wallet.a-sit.at/schemas/1.0.0/unknown_iso.json"
     }

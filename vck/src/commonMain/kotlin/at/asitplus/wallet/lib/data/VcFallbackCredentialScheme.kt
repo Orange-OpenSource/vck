@@ -4,7 +4,7 @@ import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_
 
 data class VcFallbackCredentialScheme(
     override val vcType: String,
-) : CredentialScheme {
+) : VcJwtCredentialScheme {
     companion object : CredentialScheme {
         override val schemaUri: String = "https://wallet.a-sit.at/schemas/1.0.0/unknown_vc.json"
     }
