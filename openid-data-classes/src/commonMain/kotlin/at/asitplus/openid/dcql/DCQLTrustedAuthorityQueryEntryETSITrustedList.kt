@@ -4,7 +4,6 @@ import at.asitplus.data.NonEmptyList
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 
 @Serializable
 data class DCQLTrustedAuthorityQueryEntryETSITrustedList(

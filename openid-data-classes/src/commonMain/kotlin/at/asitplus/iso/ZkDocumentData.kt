@@ -1,12 +1,12 @@
 package at.asitplus.iso
 
+import kotlinx.datetime.LocalDate
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.cbor.ByteString
 import kotlinx.serialization.cbor.CborLabel
 import kotlinx.serialization.cbor.ValueTags
-import kotlinx.datetime.LocalDate
 
 /**
  * Part of the ISO/IEC 18013-5:2026 standard: ZKP Mdoc response (10.3.4)

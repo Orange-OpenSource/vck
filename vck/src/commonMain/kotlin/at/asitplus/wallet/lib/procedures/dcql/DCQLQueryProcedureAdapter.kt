@@ -181,7 +181,7 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
         authorityKeyIdentifiers = issuerSigned.issuerAuth.unprotectedHeader?.certificateChain?.flatMap {
             X509Certificate.decodeFromByteArray(it)?.getAuthorityKeyIdentifier() ?: listOf()
         } ?: listOf(),
-        documentType = scheme!!.isoDocType!!
+        documentType = scheme.isoDocType!!
     )
 
     private fun SubjectCredentialStore.StoreEntry.SdJwt.toDCQLCredential() = DCQLSdJwtCredential(
@@ -194,7 +194,7 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
         ).getOrThrow().jws.jwsHeader.certificateChain?.flatMap {
             it.getAuthorityKeyIdentifier()
         } ?: listOf(),
-        type = scheme!!.sdJwtType!!
+        type = scheme.sdJwtType!!
     )
 
     private fun SubjectCredentialStore.StoreEntry.Vc.toDCQLCredential() = DCQLVcJwsCredential(

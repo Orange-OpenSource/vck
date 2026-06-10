@@ -73,7 +73,7 @@ val ValidatorSdJwtTest by matrixSuite {
                     issuer = "https://issuer.example.com/",
                     expiration = expirationDate,
                     issuedAt = issuanceDate,
-                    verifiableCredentialType = credential.scheme.sdJwtType ?: credential.scheme.schemaUri,
+                    verifiableCredentialType = credential.scheme.sdJwtType,
                     selectiveDisclosureAlgorithm = credential.sdAlgorithm.toIanaName(),
                     confirmationClaim = if (!buildCnf) null else
                         ConfirmationClaim(jsonWebKey = credential.subjectPublicKey.toJsonWebKey())

@@ -27,7 +27,10 @@ import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialRepresentation
 import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
 import at.asitplus.wallet.lib.data.LocalDateOrInstant
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.toJsonElement
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import at.asitplus.wallet.mdl.DrivingPrivilege
@@ -69,7 +72,7 @@ object DummyCredentialDataProvider {
                 SD_JWT -> CredentialToBeIssued.VcSd(
                     claims = claims,
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as SdJwtCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                     sdAlgorithm = supportedSdAlgorithms.random()
@@ -78,7 +81,7 @@ object DummyCredentialDataProvider {
                 PLAIN_JWT -> CredentialToBeIssued.VcJwt(
                     subject = AtomicAttribute2023(subjectId, CLAIM_GIVEN_NAME, "Susanne").toJsonElement(),
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as VcJwtCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                 )
@@ -88,7 +91,7 @@ object DummyCredentialDataProvider {
                         issuerSignedItem(claim.name, claim.value, index.toUInt())
                     },
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as IsoMdocCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                 )
@@ -121,7 +124,7 @@ object DummyCredentialDataProvider {
             CredentialToBeIssued.Iso(
                 issuerSignedItems = issuerSignedItems,
                 expiration = expiration,
-                scheme = credentialScheme,
+                scheme = credentialScheme as IsoMdocCredentialScheme,
                 subjectPublicKey = subjectPublicKey,
                 userInfo = DummyUserProvider.user,
             )
@@ -149,7 +152,7 @@ object DummyCredentialDataProvider {
                         )
                     ),
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as VcJwtCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                 )
@@ -172,7 +175,7 @@ object DummyCredentialDataProvider {
                         issuerSignedItem(claim.name, claim.value, index.toUInt())
                     },
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as IsoMdocCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                 )
@@ -205,7 +208,7 @@ object DummyCredentialDataProvider {
                         )
                     },
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as SdJwtCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                     sdAlgorithm = supportedSdAlgorithms.random()

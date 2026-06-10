@@ -1,6 +1,6 @@
 package at.asitplus.openid
 
-import io.ktor.http.HttpMethod
+import io.ktor.http.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 

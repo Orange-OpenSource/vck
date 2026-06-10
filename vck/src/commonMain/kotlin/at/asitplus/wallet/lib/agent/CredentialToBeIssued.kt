@@ -17,6 +17,9 @@ import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.Digest
 import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
 import at.asitplus.wallet.lib.jws.JwsHeaderModifierFun
 import kotlinx.serialization.json.JsonElement
@@ -31,7 +34,7 @@ sealed class CredentialToBeIssued {
     data class VcJwt(
         val subject: JsonElement,
         override val expiration: Instant,
-        override val scheme: CredentialScheme,
+        override val scheme: VcJwtCredentialScheme,
         override val subjectPublicKey: CryptoPublicKey,
         override val userInfo: OidcUserInfoExtended,
     ) : CredentialToBeIssued()
@@ -39,7 +42,7 @@ sealed class CredentialToBeIssued {
     data class VcSd(
         val claims: Collection<ClaimToBeIssued>,
         override val expiration: Instant,
-        override val scheme: CredentialScheme,
+        override val scheme: SdJwtCredentialScheme,
         override val subjectPublicKey: CryptoPublicKey,
         override val userInfo: OidcUserInfoExtended,
         /** Implement to add type metadata field */
@@ -50,7 +53,7 @@ sealed class CredentialToBeIssued {
     data class Iso(
         val issuerSignedItems: List<IssuerSignedItem>,
         override val expiration: Instant,
-        override val scheme: CredentialScheme,
+        override val scheme: IsoMdocCredentialScheme,
         override val subjectPublicKey: CryptoPublicKey,
         override val userInfo: OidcUserInfoExtended,
         val revocationKind: RevocationList.Kind = RevocationList.Kind.STATUS_LIST

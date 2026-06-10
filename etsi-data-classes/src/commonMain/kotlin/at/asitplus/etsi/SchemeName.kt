@@ -1,6 +1,5 @@
 package at.asitplus.etsi
 
-import at.asitplus.etsi.PolicyOrLegalNotice
 import kotlinx.serialization.Serializable
 import kotlin.jvm.JvmInline
 

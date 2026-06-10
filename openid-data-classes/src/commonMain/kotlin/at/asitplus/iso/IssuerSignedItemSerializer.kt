@@ -6,7 +6,6 @@ import at.asitplus.iso.IssuerSignedItem.Companion.PROP_ELEMENT_ID
 import at.asitplus.iso.IssuerSignedItem.Companion.PROP_ELEMENT_VALUE
 import at.asitplus.iso.IssuerSignedItem.Companion.PROP_RANDOM
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
-import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ByteArraySerializer
@@ -22,6 +21,7 @@ import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.encoding.encodeStructure
 import net.orandja.obor.data.CborMap
 import net.orandja.obor.data.CborText
+import kotlin.time.Instant
 
 open class IssuerSignedItemSerializer(
     private val namespace: String,

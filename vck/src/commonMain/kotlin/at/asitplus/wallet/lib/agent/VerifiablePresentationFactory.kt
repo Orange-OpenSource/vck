@@ -185,7 +185,7 @@ class VerifiablePresentationFactory(
             }
         }
 
-        val docType = scheme?.isoDocType
+        val docType = scheme.isoDocType
             ?: issuerSigned.issuerAuth.payload?.docType
             ?: throw PresentationException("Scheme not known or not registered")
         val deviceNameSpaceBytes = ByteStringWrapper(DeviceNameSpaces(mapOf()))

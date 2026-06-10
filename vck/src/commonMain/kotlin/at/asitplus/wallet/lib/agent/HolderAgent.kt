@@ -313,15 +313,9 @@ class HolderAgent(
         fallbackFormatHolder = fallbackFormatHolder,
         credentialClaimStructure = CredentialToJsonConverter.toJsonElement(credential),
         credentialFormat = credential.credentialFormat,
-        credentialScheme = credential.schemeIdentifier(),
+        credentialScheme = credential.schemeIdentifier,
         pathAuthorizationValidator = pathAuthorizationValidator,
     )
-
-    private fun StoreEntry.schemeIdentifier(): String? = when (this) {
-        is StoreEntry.Vc -> scheme?.vcType
-        is StoreEntry.SdJwt -> scheme?.sdJwtType
-        is StoreEntry.Iso -> scheme?.isoDocType
-    }
 
     override suspend fun matchDCQLQueryAgainstCredentialStoreV2(
         dcqlQuery: DCQLQuery,

@@ -2,9 +2,8 @@ package at.asitplus.wallet.lib.jws
 
 import at.asitplus.signum.indispensable.ECCurve
 import at.asitplus.signum.indispensable.josef.JsonWebKey
-import at.asitplus.testballoon.matrix.*
-import at.asitplus.wallet.lib.ensureSize
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.lib.ensureSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldHaveMinLength

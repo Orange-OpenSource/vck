@@ -2,9 +2,9 @@ package at.asitplus.openid
 
 import at.asitplus.signum.indispensable.io.InstantLongSerializer
 import at.asitplus.signum.indispensable.josef.JsonWebKey
-import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 /**
  * OpenID Connect ID Token, usually signed as JWS in `id_token` in a URL

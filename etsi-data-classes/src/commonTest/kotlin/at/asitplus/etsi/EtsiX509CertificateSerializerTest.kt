@@ -1,9 +1,6 @@
 package at.asitplus.etsi
 
-import at.asitplus.signum.indispensable.io.X509CertificateBase64Serializer
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 val EtsiX509CertificateSerializerTest by matrixSuite {

@@ -30,7 +30,10 @@ import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_PORTRAIT
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
 import at.asitplus.wallet.lib.data.LocalDateOrInstant
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.toJsonElement
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import at.asitplus.wallet.lib.oidvci.CredentialDataProviderFun
@@ -109,21 +112,21 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
             )
 
             PLAIN_JWT -> CredentialToBeIssued.VcJwt(
-                AtomicAttribute2023(subjectId, GIVEN_NAME, givenName ?: "no value").toJsonElement(),
-                expiration,
-                ConstantIndex.AtomicAttribute2023,
-                subjectPublicKey,
-                DummyUserProvider.user,
+                subject = AtomicAttribute2023(subjectId, GIVEN_NAME, givenName ?: "no value").toJsonElement(),
+                expiration = expiration,
+                scheme = ConstantIndex.AtomicAttribute2023,
+                subjectPublicKey = subjectPublicKey,
+                userInfo = DummyUserProvider.user,
             )
 
             ISO_MDOC -> CredentialToBeIssued.Iso(
-                claims.mapIndexed { index, claim ->
+                issuerSignedItems = claims.mapIndexed { index, claim ->
                     issuerSignedItem(claim.name, claim.value, index.toUInt())
                 },
-                expiration,
-                ConstantIndex.AtomicAttribute2023,
-                subjectPublicKey,
-                DummyUserProvider.user,
+                expiration = expiration,
+                scheme = ConstantIndex.AtomicAttribute2023,
+                subjectPublicKey = subjectPublicKey,
+                userInfo = DummyUserProvider.user,
             )
         }
     }
@@ -147,7 +150,7 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
         return CredentialToBeIssued.Iso(
             issuerSignedItems,
             expiration,
-            MobileDrivingLicenceScheme,
+            MobileDrivingLicenceScheme as IsoMdocCredentialScheme,
             subjectPublicKey,
             DummyUserProvider.user,
         )
@@ -180,14 +183,14 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
             SD_JWT -> CredentialToBeIssued.VcSd(
                 claims = claims,
                 expiration = expiration,
-                scheme = EuPidScheme,
+                scheme = EuPidScheme as SdJwtCredentialScheme,
                 subjectPublicKey = subjectPublicKey,
                 userInfo = DummyUserProvider.user,
                 sdAlgorithm = supportedSdAlgorithms.random()
             )
 
             PLAIN_JWT -> CredentialToBeIssued.VcJwt(
-                Json.encodeToJsonElement(
+                subject = Json.encodeToJsonElement(
                     EuPidCredential.serializer(), EuPidCredential(
                         id = subjectId,
                         familyName = familyName,
@@ -199,20 +202,20 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
                         issuingAuthority = issuingCountry,
                     )
                 ),
-                expiration,
-                EuPidScheme,
-                subjectPublicKey,
-                DummyUserProvider.user,
+                expiration = expiration,
+                scheme = EuPidScheme as VcJwtCredentialScheme,
+                subjectPublicKey = subjectPublicKey,
+                userInfo = DummyUserProvider.user,
             )
 
             ISO_MDOC -> CredentialToBeIssued.Iso(
-                claims.mapIndexed { index, claim ->
+                issuerSignedItems = claims.mapIndexed { index, claim ->
                     issuerSignedItem(claim.name, claim.value, index.toUInt())
                 },
-                expiration,
-                EuPidScheme,
-                subjectPublicKey,
-                DummyUserProvider.user,
+                expiration = expiration,
+                scheme = EuPidScheme as IsoMdocCredentialScheme,
+                subjectPublicKey = subjectPublicKey,
+                userInfo = DummyUserProvider.user,
             )
         }
     }

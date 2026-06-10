@@ -63,6 +63,9 @@ import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialRepresentation
 import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.SignJwt
@@ -523,19 +526,19 @@ class WalletService(
         PLAIN_JWT -> Vc(
             signedVcJws = JwsCompactTyped<VerifiableCredentialJws>(this),
             vcJws = this,
-            scheme = credentialScheme
+            scheme = credentialScheme as VcJwtCredentialScheme
         )
 
         SD_JWT -> SdJwt(
             signedSdJwtVc = SdJwtSigned.parseCatching(this).getOrThrow(),
             vcSdJwt = this,
-            scheme = credentialScheme
+            scheme = credentialScheme as SdJwtCredentialScheme
         )
 
         ISO_MDOC -> catchingUnwrapped {
             Iso(
                 issuerSigned = coseCompliantSerializer.decodeFromByteArray<IssuerSigned>(decodeToByteArray(Base64())),
-                scheme = credentialScheme
+                scheme = credentialScheme as IsoMdocCredentialScheme
             )
         }.getOrElse { throw Exception("Invalid credential format: $this", it) }
     }

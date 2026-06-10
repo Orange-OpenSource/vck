@@ -5,7 +5,6 @@ import at.asitplus.signum.indispensable.io.TransformingSerializerTemplate
 import at.asitplus.wallet.lib.data.rfc3986.UniformResourceIdentifier
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.cbor.ByteString
 
 /**
  * Marker type for revocation artifact.

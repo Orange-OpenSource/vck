@@ -5,7 +5,6 @@ import at.asitplus.catching
 import at.asitplus.data.NonEmptyList
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlin.collections.containsAll
 
 /**
  *  6.2. Credential Set Query

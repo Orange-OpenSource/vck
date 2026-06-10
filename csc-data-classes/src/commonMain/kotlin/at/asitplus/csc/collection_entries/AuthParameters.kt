@@ -1,9 +1,9 @@
 package at.asitplus.csc.collection_entries
 
+import at.asitplus.csc.CredentialInfo
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
-import at.asitplus.csc.CredentialInfo
 
 /**
  * CSC-API v2.0.0.2

@@ -45,6 +45,7 @@ Release 6.0.0:
    - Move `CredentialRepresentation` out of `ConstantIndex`
    - Move `CredentialScheme` out of `ConstantIndex`
    - Introudce typed sub-interfaces of `CredentialScheme`: `VcJwtCredentialScheme`, `SdJwtCredentialScheme` and `IsoMdocCredentialScheme`
+   - That implies changes to `CredentialToBeIssued`, `IssuedCredential`, `StoreCredentialInput` and methods in `SubjectCredentialStore`
    - Add `UnknownCredentialScheme` so that the `scheme` property of several classes is never null
  - New modules:
    - `etsi-data-classes` implements list of trusted entities from [ETSI TS 119 602](https://www.etsi.org/deliver/etsi_ts/119600_119699/119602/01.01.01_60/ts_119602v010101p.pdf)

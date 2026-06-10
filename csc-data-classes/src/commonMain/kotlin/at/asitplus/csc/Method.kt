@@ -1,8 +1,8 @@
 package at.asitplus.csc
 
+import at.asitplus.csc.collection_entries.RqesDocumentDigestEntry.DocumentLocationMethod
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import at.asitplus.csc.collection_entries.RqesDocumentDigestEntry.DocumentLocationMethod
 
 /**
  * After D3.1: UC Specification WP3.

@@ -11,6 +11,7 @@ import at.asitplus.wallet.lib.agent.CredentialToBeIssued
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.CredentialRepresentation
 import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import kotlinx.datetime.LocalDate
 import kotlin.time.Clock
@@ -55,7 +56,7 @@ object DummyCredentialDataProvider {
                 )
             },
             expiration = expiration,
-            scheme = credentialScheme,
+            scheme = credentialScheme as SdJwtCredentialScheme,
             subjectPublicKey = subjectPublicKey,
             userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
             sdAlgorithm = supportedSdAlgorithms.random(),

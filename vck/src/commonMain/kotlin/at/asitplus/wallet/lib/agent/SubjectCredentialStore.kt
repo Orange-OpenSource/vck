@@ -10,15 +10,19 @@ import at.asitplus.openid.OAuth2AuthorizationServerMetadata
 import at.asitplus.openid.SupportedCredentialFormat
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
 import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
 import at.asitplus.wallet.lib.data.IsoMdocFallbackCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
 import at.asitplus.wallet.lib.data.SdJwtFallbackCredentialScheme
 import at.asitplus.wallet.lib.data.SelectiveDisclosureItem
 import at.asitplus.wallet.lib.data.UnknownCredentialScheme
 import at.asitplus.wallet.lib.data.VcDataModelConstants.VERIFIABLE_CREDENTIAL
 import at.asitplus.wallet.lib.data.VcFallbackCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.VerifiableCredential
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.VerifiableCredentialSdJwt
@@ -43,7 +47,7 @@ interface SubjectCredentialStore {
     suspend fun storeCredential(
         vc: VerifiableCredentialJws,
         vcSerialized: String,
-        scheme: CredentialScheme,
+        scheme: VcJwtCredentialScheme,
         renewalInfo: CredentialRenewalInfo? = null,
     ): StoreEntry
 
@@ -58,7 +62,7 @@ interface SubjectCredentialStore {
         vc: VerifiableCredentialSdJwt,
         vcSerialized: String,
         disclosures: Map<String, SelectiveDisclosureItem?>,
-        scheme: CredentialScheme,
+        scheme: SdJwtCredentialScheme,
         renewalInfo: CredentialRenewalInfo? = null,
     ): StoreEntry
 
@@ -70,7 +74,7 @@ interface SubjectCredentialStore {
      */
     suspend fun storeCredential(
         issuerSigned: IssuerSigned,
-        scheme: CredentialScheme,
+        scheme: IsoMdocCredentialScheme,
         renewalInfo: CredentialRenewalInfo? = null,
     ): StoreEntry
 
@@ -83,14 +87,14 @@ interface SubjectCredentialStore {
 
     @Serializable
     sealed interface StoreEntry {
+        @Deprecated("Use scheme instead")
         val schemaUri: String
         val scheme: CredentialScheme
-            get() = getFallbackScheme()
         val credentialFormat: CredentialFormatEnum
         val claimFormat: ClaimFormat
         val renewalInfo: CredentialRenewalInfo?
-
-        fun getFallbackScheme(): CredentialScheme
+        // has been added nullable to not break de-serializing existing store entries
+        val schemeIdentifier: String?
 
         @Serializable
         data class Vc(
@@ -98,14 +102,21 @@ interface SubjectCredentialStore {
             val vcSerialized: String,
             @SerialName("vc")
             val vc: VerifiableCredentialJws,
+            @Deprecated("Use scheme instead")
             @SerialName("schema-uri")
             override val schemaUri: String,
             @SerialName("credential-renewal-info")
             override val renewalInfo: CredentialRenewalInfo? = null,
+            /** See [VcJwtCredentialScheme.vcType] */
+            @SerialName("scheme-identifier")
+            override val schemeIdentifier: String? = null,
         ) : StoreEntry {
-            override fun getFallbackScheme(): CredentialScheme =
-                vc.vc.type.firstOrNull { it != VERIFIABLE_CREDENTIAL }
-                    ?.let { VcFallbackCredentialScheme(it) }
+            override val scheme: CredentialScheme
+                get() = schemeIdentifier?.let { AttributeIndex.resolveAttributeType(it) }
+                    ?: vc.vc.type.firstOrNull { it != VERIFIABLE_CREDENTIAL }
+                        ?.let { AttributeIndex.resolveAttributeType(it) }
+                    ?: vc.vc.type.firstOrNull { it != VERIFIABLE_CREDENTIAL }
+                        ?.let { VcFallbackCredentialScheme(it) }
                     ?: UnknownCredentialScheme(PLAIN_JWT)
 
             override val credentialFormat: CredentialFormatEnum = CredentialFormatEnum.JWT_VC
@@ -121,13 +132,19 @@ interface SubjectCredentialStore {
             /** Map of serialized disclosure item (as [String]) to parsed item (as [SelectiveDisclosureItem]) */
             @SerialName("disclosures")
             val disclosures: Map<String, SelectiveDisclosureItem?>,
+            @Deprecated("Use scheme instead")
             @SerialName("schema-uri")
             override val schemaUri: String,
             @SerialName("credential-renewal-info")
             override val renewalInfo: CredentialRenewalInfo? = null,
+            /** See [SdJwtCredentialScheme.sdJwtType] */
+            @SerialName("scheme-identifier")
+            override val schemeIdentifier: String? = null,
         ) : StoreEntry {
-            override fun getFallbackScheme(): CredentialScheme =
-                SdJwtFallbackCredentialScheme(sdJwt.verifiableCredentialType)
+            override val scheme: CredentialScheme
+                get() = schemeIdentifier?.let { AttributeIndex.resolveSdJwtAttributeType(it) }
+                    ?: AttributeIndex.resolveSdJwtAttributeType(sdJwt.verifiableCredentialType)
+                    ?: SdJwtFallbackCredentialScheme(sdJwt.verifiableCredentialType)
 
             override val credentialFormat: CredentialFormatEnum = CredentialFormatEnum.DC_SD_JWT
             override val claimFormat: ClaimFormat = ClaimFormat.SD_JWT
@@ -137,13 +154,19 @@ interface SubjectCredentialStore {
         data class Iso(
             @SerialName("issuer-signed")
             val issuerSigned: IssuerSigned,
+            @Deprecated("Use scheme instead")
             @SerialName("schema-uri")
             override val schemaUri: String,
             @SerialName("credential-renewal-info")
             override val renewalInfo: CredentialRenewalInfo? = null,
+            /** See [IsoMdocCredentialScheme.isoDocType] */
+            @SerialName("scheme-identifier")
+            override val schemeIdentifier: String? = null,
         ) : StoreEntry {
-            override fun getFallbackScheme(): CredentialScheme =
-                issuerSigned.issuerAuth.payload?.docType?.let { IsoMdocFallbackCredentialScheme(it) }
+            override val scheme: CredentialScheme
+                get() = schemeIdentifier?.let { AttributeIndex.resolveIsoDoctype(it) }
+                    ?: issuerSigned.issuerAuth.payload?.docType?.let { AttributeIndex.resolveIsoDoctype(it) }
+                    ?: issuerSigned.issuerAuth.payload?.docType?.let { IsoMdocFallbackCredentialScheme(it) }
                     ?: UnknownCredentialScheme(ISO_MDOC)
 
             override val credentialFormat: CredentialFormatEnum = CredentialFormatEnum.MSO_MDOC

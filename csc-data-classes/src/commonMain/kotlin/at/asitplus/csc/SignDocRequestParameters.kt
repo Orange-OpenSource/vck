@@ -2,8 +2,8 @@ package at.asitplus.csc
 
 import at.asitplus.csc.collection_entries.Document
 import at.asitplus.csc.collection_entries.DocumentDigest
-import at.asitplus.csc.enums.SignatureQualifier
 import at.asitplus.csc.enums.OperationMode
+import at.asitplus.csc.enums.SignatureQualifier
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 

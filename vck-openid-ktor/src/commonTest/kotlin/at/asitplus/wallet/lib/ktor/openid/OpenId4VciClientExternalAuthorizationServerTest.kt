@@ -26,6 +26,8 @@ import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialRepresentation
 import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
@@ -95,7 +97,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by matrixSuite {
                     SD_JWT -> VcSd(
                         attributes.map { ClaimToBeIssued(it.key, it.value) },
                         Clock.System.now(),
-                        it.credentialScheme,
+                        it.credentialScheme as SdJwtCredentialScheme,
                         it.subjectPublicKey,
                         OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
                         sdAlgorithm = supportedSdAlgorithms.random()
@@ -106,7 +108,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by matrixSuite {
                             IssuerSignedItem(digestId++, Random.nextBytes(32), it.key, it.value)
                         },
                         Clock.System.now(),
-                        it.credentialScheme,
+                        it.credentialScheme as IsoMdocCredentialScheme,
                         it.subjectPublicKey,
                         OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
                     )

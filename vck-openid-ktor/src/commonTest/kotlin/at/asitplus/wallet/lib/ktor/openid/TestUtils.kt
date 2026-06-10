@@ -24,7 +24,9 @@ import at.asitplus.wallet.lib.agent.ValidatorSdJwt
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialRepresentation
 import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
 import at.asitplus.wallet.lib.data.MediaTypes
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import at.asitplus.wallet.lib.oauth2.RequestInfo
@@ -90,7 +92,7 @@ object TestUtils {
                 SD_JWT -> CredentialToBeIssued.VcSd(
                     claims = attributes.map { ClaimToBeIssued(it.key, it.value) },
                     expiration = Clock.System.now(),
-                    scheme = it.credentialScheme,
+                    scheme = it.credentialScheme as SdJwtCredentialScheme,
                     subjectPublicKey = it.subjectPublicKey,
                     userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject"))
                         .getOrThrow(),
@@ -102,7 +104,7 @@ object TestUtils {
                         IssuerSignedItem(digestId++, Random.nextBytes(32), it.key, it.value)
                     },
                     Clock.System.now(),
-                    it.credentialScheme,
+                    it.credentialScheme as IsoMdocCredentialScheme,
                     it.subjectPublicKey,
                     OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
                     revocationKind = revocationKind,

@@ -25,7 +25,7 @@ object ConstantIndex {
     )
     interface CredentialScheme : at.asitplus.wallet.lib.data.CredentialScheme
 
-    object AtomicAttribute2023 : at.asitplus.wallet.lib.data.CredentialScheme {
+    object AtomicAttribute2023 : SdJwtCredentialScheme, IsoMdocCredentialScheme, VcJwtCredentialScheme {
         const val CLAIM_GIVEN_NAME = "given_name"
         const val CLAIM_FAMILY_NAME = "family_name"
         const val CLAIM_DATE_OF_BIRTH = "date_of_birth"
@@ -41,7 +41,7 @@ object ConstantIndex {
             CLAIM_DATE_OF_BIRTH,
             CLAIM_PORTRAIT
         )
-        override val supportedRepresentations: Collection<ConstantIndex.CredentialRepresentation>
+        override val supportedRepresentations: Collection<CredentialRepresentation>
             get() = listOf(ISO_MDOC, PLAIN_JWT, SD_JWT)
     }
 

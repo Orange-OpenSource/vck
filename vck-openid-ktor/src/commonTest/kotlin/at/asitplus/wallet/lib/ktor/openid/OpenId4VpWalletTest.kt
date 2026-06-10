@@ -44,7 +44,10 @@ import at.asitplus.wallet.lib.data.CredentialPresentation.DCQLPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
 import at.asitplus.wallet.lib.data.CredentialRepresentation
 import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
 import at.asitplus.wallet.lib.data.SelectiveDisclosureItem
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.data.toJsonElement
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
@@ -163,7 +166,7 @@ val OpenId4VpWalletTest by matrixSuite {
                 PLAIN_JWT -> CredentialToBeIssued.VcJwt(
                     subject = AtomicAttribute2023("sub", "name", "value", "text").toJsonElement(),
                     expiration = Clock.System.now().plus(1.minutes),
-                    scheme = scheme,
+                    scheme = scheme as VcJwtCredentialScheme,
                     subjectPublicKey = keyMaterial.publicKey,
                     userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
                 )
@@ -171,7 +174,7 @@ val OpenId4VpWalletTest by matrixSuite {
                 SD_JWT -> CredentialToBeIssued.VcSd(
                     claims = attributes.map { it.toClaimToBeIssued() },
                     expiration = Clock.System.now().plus(1.minutes),
-                    scheme = scheme,
+                    scheme = scheme as SdJwtCredentialScheme,
                     subjectPublicKey = keyMaterial.publicKey,
                     userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
                     sdAlgorithm = supportedSdAlgorithms.random()
@@ -180,7 +183,7 @@ val OpenId4VpWalletTest by matrixSuite {
                 ISO_MDOC -> CredentialToBeIssued.Iso(
                     issuerSignedItems = attributes.map { it.toIssuerSignedItem() },
                     expiration = Clock.System.now().plus(1.minutes),
-                    scheme = scheme,
+                    scheme = scheme as IsoMdocCredentialScheme,
                     subjectPublicKey = keyMaterial.publicKey,
                     userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
                 )

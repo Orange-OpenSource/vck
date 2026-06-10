@@ -123,12 +123,12 @@ class IssuerAgent(
             version = "1.0",
             digestAlgorithm = "SHA-256",
             valueDigests = mapOf(
-                credential.scheme.isoNamespace!! to ValueDigestList(credential.issuerSignedItems.map {
-                    ValueDigest.fromIssuerSignedItem(it, credential.scheme.isoNamespace!!)
+                credential.scheme.isoNamespace to ValueDigestList(credential.issuerSignedItems.map {
+                    ValueDigest.fromIssuerSignedItem(it, credential.scheme.isoNamespace)
                 })
             ),
             deviceKeyInfo = deviceKeyInfo,
-            docType = credential.scheme.isoDocType!!,
+            docType = credential.scheme.isoDocType,
             validityInfo = ValidityInfo(
                 signed = issuanceDate,
                 validFrom = issuanceDate,
@@ -137,7 +137,7 @@ class IssuerAgent(
             status = credentialStatus
         )
         val issuerSigned = IssuerSigned.fromIssuerSignedItems(
-            namespacedItems = mapOf(credential.scheme.isoNamespace!! to credential.issuerSignedItems),
+            namespacedItems = mapOf(credential.scheme.isoNamespace to credential.issuerSignedItems),
             issuerAuth = signMobileSecurityObject(
                 protectedHeader = null,
                 unprotectedHeader = null,
@@ -175,7 +175,7 @@ class IssuerAgent(
             expirationDate = expirationDate,
             credentialStatus = credentialStatus,
             credentialSubject = credential.subject,
-            credentialType = credential.scheme.vcType!!,
+            credentialType = credential.scheme.vcType,
         )
 
         val vcInJws = signIssuedVc(
@@ -217,7 +217,7 @@ class IssuerAgent(
             issuer = identifier.string,
             expiration = expirationDate,
             issuedAt = issuanceDate,
-            verifiableCredentialType = credential.scheme.sdJwtType ?: credential.scheme.schemaUri,
+            verifiableCredentialType = credential.scheme.sdJwtType,
             selectiveDisclosureAlgorithm = credential.sdAlgorithm.toIanaName(),
             confirmationClaim = cnf,
             statusElement = credentialStatus

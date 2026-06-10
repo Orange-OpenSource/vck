@@ -31,6 +31,8 @@ kotlin {
 
         commonMain {
             dependencies {
+                api(project(":vck"))
+                api(project(":openid-data-classes"))
                 api(project(":vck-openid"))
                 implementation(ktor("client-cio"))
                 implementation(ktor("client-logging"))
@@ -70,7 +72,9 @@ if ("true" != disableAppleTargets) exportXCFramework(
     "VckOpenIdKtorKmm",
     transitiveExports = true,
     static = false,
-    project(":vck-openid")
+    project(":vck-openid"),
+    project(":vck"),
+    project(":openid-data-classes")
 )
 
 val javadocJar = setupDokka(baseUrl = "https://github.com/a-sit-plus/vck/tree/main/")

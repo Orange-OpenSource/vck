@@ -1,4 +1,3 @@
-import at.asitplus.gradle.VcLibVersions
 import at.asitplus.gradle.envExtra
 import at.asitplus.gradle.exportXCFramework
 import at.asitplus.gradle.ktor

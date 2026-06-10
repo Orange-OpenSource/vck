@@ -5,11 +5,8 @@ import at.asitplus.csc.collection_entries.OAuthDocumentDigest
 import at.asitplus.csc.enums.SignatureQualifier
 import at.asitplus.signum.indispensable.asn1.ObjectIdentifier
 import at.asitplus.signum.indispensable.asn1.ObjectIdentifierStringSerializer
-import at.asitplus.signum.indispensable.contentEqualsIfArray
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
-import kotlinx.serialization.json.JsonElement
 
 @Serializable
 sealed class AuthorizationDetails

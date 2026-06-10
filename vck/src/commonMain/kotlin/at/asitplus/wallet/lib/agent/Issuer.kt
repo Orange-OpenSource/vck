@@ -7,6 +7,9 @@ import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.SignatureAlgorithm
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.VerifiableCredential
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.VerifiableCredentialSdJwt
@@ -35,7 +38,7 @@ interface Issuer : ReferencedTokenIssuer<CredentialToBeIssued, KmmResult<Issuer.
         data class VcJwt(
             val vc: VerifiableCredential,
             val signedVcJws: JwsCompactTyped<VerifiableCredentialJws>,
-            override val scheme: CredentialScheme,
+            override val scheme: VcJwtCredentialScheme,
             override val subjectPublicKey: CryptoPublicKey,
             override val userInfo: OidcUserInfoExtended,
         ) : IssuedCredential()
@@ -46,7 +49,7 @@ interface Issuer : ReferencedTokenIssuer<CredentialToBeIssued, KmmResult<Issuer.
         data class VcSdJwt(
             val sdJwtVc: VerifiableCredentialSdJwt,
             val signedSdJwtVc: SdJwtSigned,
-            override val scheme: CredentialScheme,
+            override val scheme: SdJwtCredentialScheme,
             override val subjectPublicKey: CryptoPublicKey,
             override val userInfo: OidcUserInfoExtended,
         ) : IssuedCredential()
@@ -56,7 +59,7 @@ interface Issuer : ReferencedTokenIssuer<CredentialToBeIssued, KmmResult<Issuer.
          */
         data class Iso(
             val issuerSigned: IssuerSigned,
-            override val scheme: CredentialScheme,
+            override val scheme: IsoMdocCredentialScheme,
             override val subjectPublicKey: CryptoPublicKey,
             override val userInfo: OidcUserInfoExtended,
         ) : IssuedCredential()

@@ -1,6 +1,6 @@
 package at.asitplus.wallet.lib.data.rfc3986
 
-import io.ktor.http.Url
+import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import kotlin.jvm.JvmInline
 
