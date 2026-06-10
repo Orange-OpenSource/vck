@@ -4,10 +4,14 @@ import at.asitplus.data.NonEmptyList.Companion.toNonEmptyList
 import at.asitplus.openid.ClaimDescription
 import at.asitplus.openid.DisplayProperties
 import at.asitplus.openid.OpenId4VciClaimsPathPointer
+import at.asitplus.openid.OpenId4VciClaimsPathPointerSegment
 import at.asitplus.openid.OpenId4VciClaimsPathPointerSegmentIndex
 import at.asitplus.openid.OpenId4VciClaimsPathPointerSegmentString
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.sdjwt.CredentialFormatEnum
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadata
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataClaimInformation
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataClaimInformationPathSegment
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataClaimInformationPathSegmentIndex
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataClaimInformationPathSegmentName
 
@@ -77,6 +81,7 @@ interface CredentialScheme {
      * from the requested schema to the internal attribute type used in [at.asitplus.wallet.lib.agent.Issuer]
      * when issuing credentials.
      */
+    // TODO Do we still need this? Or can we remove it? Is it the URL where the document has been downloaded?
     val schemaUri: String
 
     /**
@@ -216,45 +221,82 @@ interface VcJwtCredentialScheme : CredentialScheme {
         get() = listOf(PLAIN_JWT)
 }
 
-// To be replaced in an upcoming PR
-fun SdJwtTypeMetadata.toCredentialScheme() = object : CredentialScheme {
-    override val schemaUri: String
-        get() = "https://schema.example.com"
 
-    override val sdJwtType: String
-        get() = vct.string
+private fun SdJwtTypeMetadata.extractRepresentation() = when (vckExtensions?.format) {
+    CredentialFormatEnum.JWT_VC -> PLAIN_JWT
+    CredentialFormatEnum.DC_SD_JWT -> SD_JWT
+    CredentialFormatEnum.MSO_MDOC -> ISO_MDOC
+    else -> null
+} ?: SD_JWT
 
-    override val claimDescriptions: Set<ClaimDescription>
-        get() = claims?.map {
-            ClaimDescription(
-                path = OpenId4VciClaimsPathPointer(it.path.map {
-                    when (it) {
-                        is SdJwtTypeMetadataClaimInformationPathSegmentIndex -> OpenId4VciClaimsPathPointerSegmentIndex(
-                            it.ulong.also {
-                                if (it > UInt.MAX_VALUE) {
-                                    throw UnsupportedOperationException("This implementation only supports claims path pointer indices up to ${UInt.MAX_VALUE}, but got $it")
-                                }
-                            }.toUInt()
-                        )
 
-                        is SdJwtTypeMetadataClaimInformationPathSegmentName -> OpenId4VciClaimsPathPointerSegmentString(
-                            it.string
-                        )
+fun SdJwtTypeMetadata.toCredentialScheme() = when (extractRepresentation()) {
+    PLAIN_JWT -> ExtractedVcJwtCredentialScheme(
+        schemaUri = "TODO",
+        vcType = vckExtensions?.vcType ?: vct.string,
+        claimDescriptions = claims?.map { it.toClaimDescription() }?.toSet() ?: setOf()
+    )
 
-                        null -> null
-                    }
-                }.toNonEmptyList()),
-                mandatory = it.isMandatory,
-                display = it.display?.map {
-                    DisplayProperties(
-                        locale = it.locale.string,
-                        name = it.label,
-                        description = it.description,
-                    )
-                }?.toSet()
-            )
-        }?.toSet() ?: setOf()
+    SD_JWT -> ExtractedSdJwtCredentialScheme(
+        schemaUri = "TODO",
+        sdJwtType = vct.string,
+        claimDescriptions = claims?.map { it.toClaimDescription() }?.toSet() ?: setOf()
+    )
 
-    override val supportedRepresentations: Collection<CredentialRepresentation>
-        get() = listOf(SD_JWT)
+    ISO_MDOC -> ExtractedIsoMdocCredentialScheme(
+        schemaUri = "TODO",
+        isoDocType = vckExtensions?.isoDocType ?: vct.string,
+        isoNamespace = vckExtensions?.isoNamespace ?: vct.string,
+        claimDescriptions = claims?.map { it.toClaimDescription() }?.toSet() ?: setOf()
+    )
 }
+
+private fun SdJwtTypeMetadataClaimInformation.toClaimDescription(): ClaimDescription = ClaimDescription(
+    path = OpenId4VciClaimsPathPointer(path.map {
+        it.toSegment()
+    }.toNonEmptyList()),
+    mandatory = isMandatory,
+    display = display?.map {
+        DisplayProperties(
+            locale = it.locale.string,
+            name = it.label,
+            description = it.description,
+        )
+    }?.toSet()
+)
+
+private fun SdJwtTypeMetadataClaimInformationPathSegment?.toSegment(): OpenId4VciClaimsPathPointerSegment? =
+    when (this) {
+        is SdJwtTypeMetadataClaimInformationPathSegmentIndex ->
+            OpenId4VciClaimsPathPointerSegmentIndex(this.ulong.safeToUint())
+
+        is SdJwtTypeMetadataClaimInformationPathSegmentName ->
+            OpenId4VciClaimsPathPointerSegmentString(this.string)
+
+        null -> null
+    }
+
+private fun ULong.safeToUint(): UInt = also {
+    if (it > UInt.MAX_VALUE) {
+        throw UnsupportedOperationException("This implementation only supports claims path pointer indices up to ${UInt.MAX_VALUE}, but got $it")
+    }
+}.toUInt()
+
+data class ExtractedVcJwtCredentialScheme(
+    override val schemaUri: String,
+    override val vcType: String,
+    override val claimDescriptions: Set<ClaimDescription>
+) : VcJwtCredentialScheme
+
+data class ExtractedSdJwtCredentialScheme(
+    override val schemaUri: String,
+    override val sdJwtType: String,
+    override val claimDescriptions: Set<ClaimDescription>
+) : SdJwtCredentialScheme
+
+data class ExtractedIsoMdocCredentialScheme(
+    override val schemaUri: String,
+    override val isoDocType: String,
+    override val isoNamespace: String,
+    override val claimDescriptions: Set<ClaimDescription>
+) : IsoMdocCredentialScheme
