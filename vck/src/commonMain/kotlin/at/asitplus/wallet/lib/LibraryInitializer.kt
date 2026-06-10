@@ -5,6 +5,7 @@ package at.asitplus.wallet.lib
 import at.asitplus.iso.CborCredentialSerializer
 import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.CredentialMetadataRegistry
 import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.JsonCredentialSerializer
 import kotlinx.serialization.KSerializer
@@ -14,6 +15,12 @@ import kotlinx.serialization.json.JsonElement
  * Called by other libraries to register credential schemes with this library.
  */
 object LibraryInitializer {
+
+    fun registerCredentialMetadataRegistry(
+        credentialMetadataRegistry: CredentialMetadataRegistry
+    ) {
+        AttributeIndex.registerCredentialMetadataRegistry(credentialMetadataRegistry)
+    }
 
     /**
      * Register [credentialScheme] to be used with this library, e.g. in OpenID protocol implementations.

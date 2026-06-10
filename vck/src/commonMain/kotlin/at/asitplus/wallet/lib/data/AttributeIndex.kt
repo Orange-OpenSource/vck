@@ -8,6 +8,9 @@ import at.asitplus.wallet.lib.data.VcDataModelConstants.VERIFIABLE_PRESENTATION
 
 object AttributeIndex {
 
+    var credentialMetadataRegistrySet = setOf<CredentialMetadataRegistry>()
+        private set
+
     var schemeSet = setOf<CredentialScheme>()
         private set
 
@@ -17,6 +20,12 @@ object AttributeIndex {
 
     internal fun registerAttributeType(scheme: CredentialScheme) {
         schemeSet += scheme
+    }
+
+    internal fun registerCredentialMetadataRegistry(
+        credentialMetadataRegistry: CredentialMetadataRegistry
+    ) {
+        credentialMetadataRegistrySet += credentialMetadataRegistry
     }
 
     /**
@@ -72,9 +81,25 @@ object AttributeIndex {
         identifier: String,
         representation: ConstantIndex.CredentialRepresentation
     ): CredentialScheme = when (representation) {
-        PLAIN_JWT -> resolveAttributeType(identifier) ?: VcFallbackCredentialScheme(vcType = identifier)
-        SD_JWT -> resolveSdJwtAttributeType(identifier) ?: SdJwtFallbackCredentialScheme(sdJwtType = identifier)
-        ISO_MDOC -> resolveIsoDoctype(identifier) ?: IsoMdocFallbackCredentialScheme(isoDocType = identifier)
+        PLAIN_JWT -> resolveAttributeType(identifier)
+            ?: resolveAndRegister(identifier, representation)
+            ?: VcFallbackCredentialScheme(vcType = identifier)
+
+        SD_JWT -> resolveSdJwtAttributeType(identifier)
+            ?: resolveAndRegister(identifier, representation)
+            ?: SdJwtFallbackCredentialScheme(sdJwtType = identifier)
+
+        ISO_MDOC -> resolveIsoDoctype(identifier)
+            ?: resolveAndRegister(identifier, representation)
+            ?: IsoMdocFallbackCredentialScheme(isoDocType = identifier)
+    }
+
+    private suspend fun resolveAndRegister(
+        identifier: String,
+        representation: ConstantIndex.CredentialRepresentation
+    ): CredentialScheme? = credentialMetadataRegistrySet.firstNotNullOfOrNull {
+        it.findEntry(identifier, representation)?.toCredentialScheme()
+            ?.also { schemeSet += it }
     }
 
     /**
@@ -88,6 +113,7 @@ object AttributeIndex {
         .filterNot { it == VERIFIABLE_CREDENTIAL }
         .filterNot { it == VERIFIABLE_PRESENTATION }.run {
             firstNotNullOfOrNull { resolveAttributeType(it) }
+                ?: firstNotNullOfOrNull { resolveAndRegister(it, PLAIN_JWT) }
                 ?: firstOrNull()?.let { VcFallbackCredentialScheme(vcType = it) }
         } ?: UnknownCredentialScheme(PLAIN_JWT)
 
