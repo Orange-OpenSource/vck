@@ -28,7 +28,11 @@ object CredentialToJsonConverter {
 
     fun toJsonElement(credential: SubjectCredentialStore.StoreEntry): JsonElement = when (credential) {
         is SubjectCredentialStore.StoreEntry.Vc -> buildJsonObject {
-            put("type", JsonPrimitive(credential.scheme?.vcType))
+            if (credential.schemeIdentifier != null) {
+                put("type", JsonPrimitive(credential.schemeIdentifier))
+            } else {
+                put("type", credential.vc.vc.type.toJsonElement())
+            }
             val vcAsJsonElement = joseCompliantSerializer.encodeToJsonElement(credential.vc.vc.credentialSubject)
             vcAsJsonElement.jsonObject.entries.forEach {
                 put(it.key, it.value)
@@ -50,7 +54,7 @@ object CredentialToJsonConverter {
 
             buildJsonObject {
                 if (payloadVc?.get(SD_JWT_VC_TYPE) == null)
-                    put(SD_JWT_VC_TYPE, JsonPrimitive(credential.scheme?.sdJwtType))
+                    put(SD_JWT_VC_TYPE, JsonPrimitive(credential.sdJwt.verifiableCredentialType))
                 payloadVc?.forEach {
                     put(it.key, it.value)
                 }

@@ -11,8 +11,7 @@ import at.asitplus.openid.SupportedCredentialFormat
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.wallet.lib.data.AttributeIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
 import at.asitplus.wallet.lib.data.IsoMdocFallbackCredentialScheme
@@ -89,12 +88,16 @@ interface SubjectCredentialStore {
     sealed interface StoreEntry {
         @Deprecated("Use scheme instead")
         val schemaUri: String
+
+        @Deprecated("Use resolveScheme() instead to support fetching remote definitions")
         val scheme: CredentialScheme
         val credentialFormat: CredentialFormatEnum
         val claimFormat: ClaimFormat
         val renewalInfo: CredentialRenewalInfo?
+
         // has been added nullable to not break de-serializing existing store entries
         val schemeIdentifier: String?
+        suspend fun resolveScheme(): CredentialScheme
 
         @Serializable
         data class Vc(
@@ -111,6 +114,7 @@ interface SubjectCredentialStore {
             @SerialName("scheme-identifier")
             override val schemeIdentifier: String? = null,
         ) : StoreEntry {
+            @Deprecated("Use resolveScheme() instead to support fetching remote definitions")
             override val scheme: CredentialScheme
                 get() = schemeIdentifier?.let { AttributeIndex.resolveAttributeType(it) }
                     ?: vc.vc.type.firstOrNull { it != VERIFIABLE_CREDENTIAL }
@@ -118,6 +122,10 @@ interface SubjectCredentialStore {
                     ?: vc.vc.type.firstOrNull { it != VERIFIABLE_CREDENTIAL }
                         ?.let { VcFallbackCredentialScheme(it) }
                     ?: UnknownCredentialScheme(PLAIN_JWT)
+
+            override suspend fun resolveScheme(): CredentialScheme =
+                schemeIdentifier?.let { AttributeIndex.resolveIdentifier(it, PLAIN_JWT) }
+                    ?: AttributeIndex.resolveIdentifierPlainJwt(vc.vc.type)
 
             override val credentialFormat: CredentialFormatEnum = CredentialFormatEnum.JWT_VC
             override val claimFormat: ClaimFormat = ClaimFormat.JWT_VP
@@ -141,10 +149,15 @@ interface SubjectCredentialStore {
             @SerialName("scheme-identifier")
             override val schemeIdentifier: String? = null,
         ) : StoreEntry {
+            @Deprecated("Use resolveScheme() instead to support fetching remote definitions")
             override val scheme: CredentialScheme
                 get() = schemeIdentifier?.let { AttributeIndex.resolveSdJwtAttributeType(it) }
                     ?: AttributeIndex.resolveSdJwtAttributeType(sdJwt.verifiableCredentialType)
                     ?: SdJwtFallbackCredentialScheme(sdJwt.verifiableCredentialType)
+
+            override suspend fun resolveScheme(): CredentialScheme =
+                schemeIdentifier?.let { AttributeIndex.resolveIdentifier(it, SD_JWT) }
+                    ?: AttributeIndex.resolveIdentifier(sdJwt.verifiableCredentialType, SD_JWT)
 
             override val credentialFormat: CredentialFormatEnum = CredentialFormatEnum.DC_SD_JWT
             override val claimFormat: ClaimFormat = ClaimFormat.SD_JWT
@@ -163,10 +176,16 @@ interface SubjectCredentialStore {
             @SerialName("scheme-identifier")
             override val schemeIdentifier: String? = null,
         ) : StoreEntry {
+            @Deprecated("Use resolveScheme() instead to support fetching remote definitions")
             override val scheme: CredentialScheme
                 get() = schemeIdentifier?.let { AttributeIndex.resolveIsoDoctype(it) }
                     ?: issuerSigned.issuerAuth.payload?.docType?.let { AttributeIndex.resolveIsoDoctype(it) }
                     ?: issuerSigned.issuerAuth.payload?.docType?.let { IsoMdocFallbackCredentialScheme(it) }
+                    ?: UnknownCredentialScheme(ISO_MDOC)
+
+            override suspend fun resolveScheme(): CredentialScheme =
+                schemeIdentifier?.let { AttributeIndex.resolveIdentifier(it, ISO_MDOC) }
+                    ?: issuerSigned.issuerAuth.payload?.docType?.let { AttributeIndex.resolveIdentifier(it, ISO_MDOC) }
                     ?: UnknownCredentialScheme(ISO_MDOC)
 
             override val credentialFormat: CredentialFormatEnum = CredentialFormatEnum.MSO_MDOC

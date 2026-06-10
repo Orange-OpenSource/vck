@@ -47,7 +47,7 @@ import kotlin.jvm.JvmInline
 
 @JvmInline
 value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
-    fun select(
+    suspend fun select(
         credentials: List<SubjectCredentialStore.StoreEntry>
     ): DCQLQueryMatchingResult = dcqlQuery.findCredentialQueryMatches(
         availableCredentials = credentials.map {
@@ -163,13 +163,13 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
     )
 
 
-    private fun SubjectCredentialStore.StoreEntry.toDCQLCredential() = when (this) {
+    private suspend fun SubjectCredentialStore.StoreEntry.toDCQLCredential() = when (this) {
         is SubjectCredentialStore.StoreEntry.Iso -> toDCQLCredential()
         is SubjectCredentialStore.StoreEntry.SdJwt -> toDCQLCredential()
         is SubjectCredentialStore.StoreEntry.Vc -> toDCQLCredential()
     }
 
-    private fun SubjectCredentialStore.StoreEntry.Iso.toDCQLCredential() = DCQLIsoMdocCredential(
+    private suspend fun SubjectCredentialStore.StoreEntry.Iso.toDCQLCredential() = DCQLIsoMdocCredential(
         claimStructure = DCQLCredentialClaimStructure.IsoMdocStructure(
             issuerSigned.namespaces?.mapValues { entry ->
                 entry.value.entries.associate {
@@ -181,7 +181,7 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
         authorityKeyIdentifiers = issuerSigned.issuerAuth.unprotectedHeader?.certificateChain?.flatMap {
             X509Certificate.decodeFromByteArray(it)?.getAuthorityKeyIdentifier() ?: listOf()
         } ?: listOf(),
-        documentType = scheme.isoDocType!!
+        documentType = schemeIdentifier ?: issuerSigned.issuerAuth.payload?.docType ?: resolveScheme().isoDocType!!
     )
 
     private fun SubjectCredentialStore.StoreEntry.SdJwt.toDCQLCredential() = DCQLSdJwtCredential(
@@ -194,7 +194,7 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
         ).getOrThrow().jws.jwsHeader.certificateChain?.flatMap {
             it.getAuthorityKeyIdentifier()
         } ?: listOf(),
-        type = scheme.sdJwtType!!
+        type = sdJwt.verifiableCredentialType,
     )
 
     private fun SubjectCredentialStore.StoreEntry.Vc.toDCQLCredential() = DCQLVcJwsCredential(

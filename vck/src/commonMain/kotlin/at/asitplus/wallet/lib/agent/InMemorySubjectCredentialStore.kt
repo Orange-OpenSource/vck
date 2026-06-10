@@ -58,13 +58,7 @@ class InMemorySubjectCredentialStore : SubjectCredentialStore {
         credentialSchemes: Collection<CredentialScheme>?,
     ): KmmResult<List<SubjectCredentialStore.StoreEntry>> = catching {
         credentialSchemes?.let { schemes ->
-            credentials.filter {
-                when (it) {
-                    is SubjectCredentialStore.StoreEntry.Iso -> it.scheme in schemes
-                    is SubjectCredentialStore.StoreEntry.SdJwt -> it.scheme in schemes
-                    is SubjectCredentialStore.StoreEntry.Vc -> it.scheme in schemes
-                }
-            }.toList()
+            credentials.filter { it.resolveScheme() in schemes }.toList()
         } ?: credentials
     }
 }
