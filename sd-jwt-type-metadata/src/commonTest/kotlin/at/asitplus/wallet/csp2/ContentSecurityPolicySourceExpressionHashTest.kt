@@ -5,7 +5,6 @@ import at.asitplus.csp2.ContentSecurityPolicySourceExpressionHashAlgorithm
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
 
-@Suppress("unused")
 val ContentSecurityPolicySourceExpressionHashTest by matrixSuite {
     /**
      * just making sure that the enum names remain consistent with the specification

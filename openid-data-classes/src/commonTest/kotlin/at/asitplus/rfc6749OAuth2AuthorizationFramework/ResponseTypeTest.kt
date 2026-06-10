@@ -1,7 +1,6 @@
 package at.asitplus.rfc6749OAuth2AuthorizationFramework
 
 import at.asitplus.openid.OpenIdConstants
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
@@ -9,7 +8,6 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.Json
 
-@Suppress("unused")
 val ResponseTypeTest by matrixSuite {
     val commonTypes = listOf(
         OpenIdConstants.VP_TOKEN,

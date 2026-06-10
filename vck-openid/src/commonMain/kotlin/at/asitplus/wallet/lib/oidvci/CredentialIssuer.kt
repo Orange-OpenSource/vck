@@ -19,8 +19,8 @@ import at.asitplus.wallet.lib.agent.Issuer
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.validation.StatusListTokenResolver
 import at.asitplus.wallet.lib.agent.validation.toTokenStatusResolver
-import at.asitplus.wallet.lib.data.ConstantIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialScheme
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationListInfo
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListInfo
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus
@@ -300,7 +300,7 @@ class CredentialIssuer(
 
 
     private fun CredentialRequestParameters.extractCredentialRepresentation()
-            : Pair<CredentialScheme, ConstantIndex.CredentialRepresentation> =
+            : Pair<CredentialScheme, CredentialRepresentation> =
         credentialIdentifier?.let {
             credentialSchemeMapper.decodeFromCredentialIdentifier(it)
                 ?: throw UnknownCredentialIdentifier(it)
@@ -311,7 +311,7 @@ class CredentialIssuer(
 
     private fun extractFromCredentialConfigurationId(
         credentialConfigurationId: String,
-    ): Pair<CredentialScheme, ConstantIndex.CredentialRepresentation>? =
+    ): Pair<CredentialScheme, CredentialRepresentation>? =
         supportedCredentialConfigurations[credentialConfigurationId]?.let {
             credentialSchemeMapper.decodeFromCredentialIdentifier(credentialConfigurationId)
         }

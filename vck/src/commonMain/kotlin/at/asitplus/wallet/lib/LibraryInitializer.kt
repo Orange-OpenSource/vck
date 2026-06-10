@@ -5,6 +5,7 @@ package at.asitplus.wallet.lib
 import at.asitplus.iso.CborCredentialSerializer
 import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.JsonCredentialSerializer
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
@@ -17,6 +18,13 @@ object LibraryInitializer {
     /**
      * Register [credentialScheme] to be used with this library, e.g. in OpenID protocol implementations.
      */
+    fun registerExtensionLibrary(
+        credentialScheme: CredentialScheme,
+    ) {
+        AttributeIndex.registerAttributeType(credentialScheme)
+    }
+
+    @Deprecated("Use the other method with CredentialScheme not from ConstantIndex")
     fun registerExtensionLibrary(
         credentialScheme: ConstantIndex.CredentialScheme,
     ) {
@@ -54,13 +62,22 @@ object LibraryInitializer {
      * [at.asitplus.iso.IssuerSignedItemSerializer], with `elementIdentifier` as the key
      */
     fun registerExtensionLibrary(
-        credentialScheme: ConstantIndex.CredentialScheme,
+        credentialScheme: CredentialScheme,
         jsonValueEncoder: JsonValueEncoder,
         itemValueSerializerMap: ElementIdentifierToItemValueSerializerMap = emptyMap(),
     ) {
         registerExtensionLibrary(credentialScheme)
         JsonCredentialSerializer.register(jsonValueEncoder)
         credentialScheme.isoNamespace?.let { CborCredentialSerializer.register(itemValueSerializerMap, it) }
+    }
+
+    @Deprecated("Use the other method with CredentialScheme not from ConstantIndex")
+    fun registerExtensionLibrary(
+        credentialScheme: ConstantIndex.CredentialScheme,
+        jsonValueEncoder: JsonValueEncoder,
+        itemValueSerializerMap: ElementIdentifierToItemValueSerializerMap = emptyMap(),
+    ) {
+        registerExtensionLibrary(credentialScheme as CredentialScheme, jsonValueEncoder, itemValueSerializerMap)
     }
 
 }

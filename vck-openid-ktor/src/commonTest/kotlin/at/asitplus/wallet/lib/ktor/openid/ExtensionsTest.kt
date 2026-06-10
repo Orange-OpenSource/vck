@@ -2,9 +2,9 @@ package at.asitplus.wallet.lib.ktor.openid
 
 import at.asitplus.openid.OpenIdConstants.Errors.USE_DPOP_NONCE
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.oidvci.OAuth2Error
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.ktor.client.*

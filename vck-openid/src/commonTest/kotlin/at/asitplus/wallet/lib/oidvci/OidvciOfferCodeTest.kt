@@ -5,7 +5,8 @@ import at.asitplus.openid.AuthorizationDetails
 import at.asitplus.openid.CredentialOffer
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenResponseParameters
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
@@ -19,7 +20,6 @@ import at.asitplus.wallet.lib.openid.DummyOAuth2IssuerCredentialDataProvider
 import at.asitplus.wallet.lib.openid.DummyUserProvider
 import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -261,7 +261,6 @@ val OidvciOfferCodeTest by matrixSuite {
         }
 
         test("process with code after credential offer, but scope not covered offer fails") {
-            val credentialIdToRequest = it.mapper.toCredentialIdentifier(AtomicAttribute2023, PLAIN_JWT)
             val credentialOffer = it.authorizationService.offerWithAuthorizationCodeForSchemes(
                 credentialIssuer = it.issuer.publicContext,
                 schemes = setOf(AtomicAttribute2023 to PLAIN_JWT)
@@ -276,7 +275,6 @@ val OidvciOfferCodeTest by matrixSuite {
         }
 
         test("process with code after credential offer, but wrong authorization details should fail") {
-            val credentialIdToRequest = it.mapper.toCredentialIdentifier(AtomicAttribute2023, PLAIN_JWT)
             val credentialOffer = it.authorizationService.offerWithAuthorizationCodeForSchemes(
                 credentialIssuer = it.issuer.publicContext,
                 schemes = setOf(AtomicAttribute2023 to PLAIN_JWT)

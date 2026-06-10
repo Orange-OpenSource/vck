@@ -2,8 +2,8 @@ package at.asitplus.wallet.lib.oidvci
 
 import at.asitplus.openid.AuthorizationDetails
 import at.asitplus.openid.OpenIdAuthorizationDetails
-import at.asitplus.wallet.lib.data.ConstantIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.oauth2.AuthorizationServiceStrategy
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidAuthorizationDetails
 import kotlin.contracts.ExperimentalContracts
@@ -15,7 +15,7 @@ import kotlin.contracts.contract
  */
 class CredentialAuthorizationServiceStrategy(
     /** List of supported schemes. */
-    private val credentialSchemes: Set<ConstantIndex.CredentialScheme>,
+    private val credentialSchemes: Set<CredentialScheme>,
     /** Maps from/to strings in metadata from/to credential schemes. */
     private val mapper: CredentialSchemeMapper = DefaultCredentialSchemeMapper(),
 ) : AuthorizationServiceStrategy {
@@ -29,7 +29,7 @@ class CredentialAuthorizationServiceStrategy(
     override fun allCredentialIdentifier(): Set<String> = supportedCredentialSchemes.keys
 
     override fun toCredentialConfigurationIds(
-        credentials: Set<Pair<ConstantIndex.CredentialScheme, CredentialRepresentation>>,
+        credentials: Set<Pair<CredentialScheme, CredentialRepresentation>>,
     ): Set<String> = if (credentials.isEmpty()) {
         allCredentialIdentifier()
     } else {

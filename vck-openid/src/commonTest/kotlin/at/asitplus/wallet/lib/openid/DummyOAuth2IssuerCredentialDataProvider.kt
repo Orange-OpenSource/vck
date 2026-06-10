@@ -28,9 +28,8 @@ import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_DATE_
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_PORTRAIT
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.lib.data.CredentialRepresentation
 import at.asitplus.wallet.lib.data.LocalDateOrInstant
 import at.asitplus.wallet.lib.data.toJsonElement
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
@@ -78,7 +77,7 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
     private fun getAtomic(
         userInfo: OidcUserInfoExtended,
         subjectPublicKey: CryptoPublicKey,
-        representation: ConstantIndex.CredentialRepresentation,
+        representation: CredentialRepresentation,
     ): CredentialToBeIssued {
         val issuance = clock.now()
         val expiration = issuance + defaultLifetime
@@ -157,7 +156,7 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
     private fun getEuPid(
         userInfo: OidcUserInfoExtended,
         subjectPublicKey: CryptoPublicKey,
-        representation: ConstantIndex.CredentialRepresentation,
+        representation: CredentialRepresentation,
     ): CredentialToBeIssued {
         val issuance = clock.now()
         val expiration = issuance + defaultLifetime

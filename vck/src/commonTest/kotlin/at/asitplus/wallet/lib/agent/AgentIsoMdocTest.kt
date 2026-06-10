@@ -20,12 +20,14 @@ import at.asitplus.openid.dcql.DCQLIsoMdocCredentialQuery
 import at.asitplus.openid.dcql.DCQLQuery
 import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.cosef.CoseSigned
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.validation.TokenStatusResolverImpl
 import at.asitplus.wallet.lib.cbor.SignCose
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_DATE_OF_BIRTH
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.CredentialPresentation.PresentationExchangePresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.PresentationExchangeRequest
@@ -38,7 +40,6 @@ import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatusVal
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.randomCwtOrJwtResolver
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -240,7 +241,7 @@ private suspend fun createIsoMdocFixture(mode: IsoRevocationMode): IsoMdocFixtur
                 DummyCredentialDataProvider.getCredential(
                     subjectPublicKey = holderKeyMaterial.publicKey,
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                    representation = ISO_MDOC,
                     revocationKind = mode.revocationKind,
                 ).getOrThrow()
             ).getOrThrow().toStoreCredentialInput()
@@ -415,7 +416,7 @@ private suspend fun IssuerAgent.issueIdentifierListIsoMdoc(subjectPublicKey: Cry
     DummyCredentialDataProvider.getCredential(
         subjectPublicKey = subjectPublicKey,
         credentialScheme = ConstantIndex.AtomicAttribute2023,
-        representation = ConstantIndex.CredentialRepresentation.ISO_MDOC,
+        representation = ISO_MDOC,
         revocationKind = RevocationList.Kind.IDENTIFIER_LIST,
     ).getOrThrow()
 ).getOrThrow().shouldBeInstanceOf<Issuer.IssuedCredential.Iso>()

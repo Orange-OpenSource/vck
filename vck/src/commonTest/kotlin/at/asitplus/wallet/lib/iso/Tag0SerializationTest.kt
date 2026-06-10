@@ -2,7 +2,6 @@ package at.asitplus.wallet.lib.iso
 
 import at.asitplus.iso.ValidityInfo
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain

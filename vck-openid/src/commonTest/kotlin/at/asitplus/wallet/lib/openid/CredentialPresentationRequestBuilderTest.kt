@@ -9,10 +9,13 @@ import at.asitplus.openid.dcql.DCQLIsoMdocCredentialQuery
 import at.asitplus.openid.dcql.DCQLJsonClaimsQuery
 import at.asitplus.openid.dcql.DCQLSdJwtCredentialMetadataAndValidityConstraints
 import at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
-import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.lib.data.CredentialScheme
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -23,10 +26,10 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 val CredentialPresentationRequestBuilderTest by matrixSuite {
     test("invalid credential scheme for SD-JWT should not throw when creating query") {
         val credential = RequestOptionsCredential(
-            credentialScheme = object : ConstantIndex.CredentialScheme {
+            credentialScheme = object : CredentialScheme {
                 override val schemaUri: String = "https://example.com"
             },
-            representation = ConstantIndex.CredentialRepresentation.SD_JWT
+            representation = SD_JWT
         )
 
         CredentialPresentationRequestBuilder(
@@ -39,10 +42,10 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
 
     test("invalid credential scheme for ISO should not throw when creating query") {
         val credential = RequestOptionsCredential(
-            credentialScheme = object : ConstantIndex.CredentialScheme {
+            credentialScheme = object : CredentialScheme {
                 override val schemaUri: String = "https://example.com"
             },
-            representation = ConstantIndex.CredentialRepresentation.ISO_MDOC
+            representation = ISO_MDOC
         )
         CredentialPresentationRequestBuilder(setOf(credential)).apply {
             toDCQLRequest()
@@ -55,7 +58,7 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
             credentials = setOf(
                 RequestOptionsCredential(
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.SD_JWT,
+                    representation = SD_JWT,
                     requestedAttributes = setOf(ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME),
                     requestedOptionalAttributes = setOf(ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME),
                     id = "cred-1"
@@ -91,7 +94,7 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
             credentials = setOf(
                 RequestOptionsCredential(
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.SD_JWT,
+                    representation = SD_JWT,
                     attributePaths = setOf(DCQLClaimsPathPointer(dotClaimName)),
                     id = "cred-1"
                 )
@@ -114,7 +117,7 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
             credentials = setOf(
                 RequestOptionsCredential(
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.SD_JWT,
+                    representation = SD_JWT,
                     attributePaths = setOf(DCQLClaimsPathPointer("foo", "bar")),
                     id = "cred-1"
                 )
@@ -139,7 +142,7 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
             credentials = setOf(
                 RequestOptionsCredential(
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.SD_JWT,
+                    representation = SD_JWT,
                     requestedAttributes = setOf("foo.bar"),
                     id = "cred-1"
                 )
@@ -163,7 +166,7 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
             credentials = setOf(
                 RequestOptionsCredential(
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.SD_JWT,
+                    representation = SD_JWT,
                     attributePaths = setOf(DCQLClaimsPathPointer("foo.bar")),
                     id = "cred-1"
                 )
@@ -183,7 +186,7 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
             credentials = setOf(
                 RequestOptionsCredential(
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.SD_JWT,
+                    representation = SD_JWT,
                     attributePaths = setOf(DCQLClaimsPathPointer("given_name")),
                     id = "cred-1"
                 )
@@ -203,7 +206,7 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
             credentials = setOf(
                 RequestOptionsCredential(
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.SD_JWT,
+                    representation = SD_JWT,
                     attributePaths = setOf(DCQLClaimsPathPointer("foo", "bar")),
                     id = "cred-1"
                 )
@@ -224,7 +227,7 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
             credentials = setOf(
                 RequestOptionsCredential(
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.SD_JWT,
+                    representation = SD_JWT,
                     requestedAttributes = setOf("foo.bar"),
                     id = "cred-1"
                 )
@@ -245,7 +248,7 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
             credentials = setOf(
                 RequestOptionsCredential(
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                    representation = ISO_MDOC,
                     requestedAttributes = setOf(ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME),
                     id = "cred-1"
                 )
@@ -272,7 +275,7 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
             credentials = setOf(
                 RequestOptionsCredential(
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                    representation = ISO_MDOC,
                     attributePaths = setOf(DCQLClaimsPathPointer(namespace, claimName)),
                     id = "cred-1"
                 )
@@ -294,7 +297,7 @@ val CredentialPresentationRequestBuilderTest by matrixSuite {
             credentials = setOf(
                 RequestOptionsCredential(
                     credentialScheme = ConstantIndex.AtomicAttribute2023,
-                    representation = ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                    representation = ISO_MDOC,
                     attributePaths = setOf(DCQLClaimsPathPointer("custom.namespace", "custom_claim")),
                     id = "cred-1"
                 )

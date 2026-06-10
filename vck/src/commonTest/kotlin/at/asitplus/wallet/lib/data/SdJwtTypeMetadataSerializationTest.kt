@@ -2,9 +2,9 @@ package at.asitplus.wallet.lib.data
 
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.matrixSuite
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
-import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataClaimInformationPathSegmentName
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataClaimInformationPathSegment
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataClaimInformationPathSegmentName
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocument
 import at.asitplus.wallet.sdjwt.SelectiveDisclosureConstraints
 import at.asitplus.wallet.sdjwt.SvgTemplatePropertyColorScheme
@@ -229,7 +229,7 @@ val SdJwtTypeMetadataDocumentSerializationTest by matrixSuite {
             SdJwtTypeMetadataDocument.serializer(),
             input
         ).definition.toSdJwtTypeMetadata().toCredentialScheme().apply {
-            CredentialRepresentation.SD_JWT shouldBeIn supportedRepresentations
+            SD_JWT shouldBeIn supportedRepresentations
             sdJwtType shouldBe "urn:eudi:ehic:1"
             claimDescriptions shouldHaveSize 13
         }

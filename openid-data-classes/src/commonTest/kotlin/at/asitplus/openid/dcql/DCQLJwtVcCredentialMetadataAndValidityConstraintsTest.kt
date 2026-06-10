@@ -10,7 +10,6 @@ package at.asitplus.openid.dcql
  */
 
 import at.asitplus.data.NonEmptyList.Companion.nonEmptyListOf
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
@@ -22,7 +21,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 
-@Suppress("unused")
 val DCQLJwtVcCredentialMetadataAndValidityConstraintsTest by matrixSuite {
     "specification" - {
         "serial names" {

@@ -1,7 +1,7 @@
 package at.asitplus.wallet.lib.agent.validation
 
-import kotlin.time.Instant
 import kotlin.time.Duration
+import kotlin.time.Instant
 
 data class TimeScope(
     val now: Instant,

@@ -21,7 +21,9 @@ import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
 import at.asitplus.wallet.lib.agent.Holder
 import at.asitplus.wallet.lib.agent.ValidatorSdJwt
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.MediaTypes
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
@@ -74,8 +76,8 @@ object TestUtils {
     fun dummyUser(): OidcUserInfoExtended = OidcUserInfoExtended.deserialize("{\"sub\": \"foo\"}").getOrThrow()
 
     fun credentialDataProviderFun(
-        scheme: ConstantIndex.CredentialScheme,
-        representation: ConstantIndex.CredentialRepresentation,
+        scheme: CredentialScheme,
+        representation: CredentialRepresentation,
         attributes: Map<String, String>,
         revocationKind: RevocationList.Kind = RevocationList.Kind.STATUS_LIST,
     ): CredentialDataProviderFun = CredentialDataProviderFun {
@@ -84,8 +86,8 @@ object TestUtils {
             require(it.credentialRepresentation == representation)
             var digestId = 0u
             when (representation) {
-                ConstantIndex.CredentialRepresentation.PLAIN_JWT -> TODO()
-                ConstantIndex.CredentialRepresentation.SD_JWT -> CredentialToBeIssued.VcSd(
+                PLAIN_JWT -> TODO()
+                SD_JWT -> CredentialToBeIssued.VcSd(
                     claims = attributes.map { ClaimToBeIssued(it.key, it.value) },
                     expiration = Clock.System.now(),
                     scheme = it.credentialScheme,
@@ -95,7 +97,7 @@ object TestUtils {
                     sdAlgorithm = supportedSdAlgorithms.random()
                 )
 
-                ConstantIndex.CredentialRepresentation.ISO_MDOC -> CredentialToBeIssued.Iso(
+                ISO_MDOC -> CredentialToBeIssued.Iso(
                     attributes.map {
                         IssuerSignedItem(digestId++, Random.nextBytes(32), it.key, it.value)
                     },

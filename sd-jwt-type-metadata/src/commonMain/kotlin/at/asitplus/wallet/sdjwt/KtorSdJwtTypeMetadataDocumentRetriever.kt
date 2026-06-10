@@ -2,13 +2,11 @@ package at.asitplus.wallet.sdjwt
 
 import at.asitplus.rfc3986uri.Rfc3986UniformResourceIdentifier
 import at.asitplus.rfc3986uri.Rfc3986UriSchemeName
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.get
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.request.*
 import io.ktor.client.utils.CacheControl
-import io.ktor.http.Headers
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
+import io.ktor.http.*
 import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 import kotlin.time.Duration

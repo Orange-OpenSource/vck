@@ -4,8 +4,8 @@ import at.asitplus.KmmResult
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
-import at.asitplus.wallet.lib.data.ConstantIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialScheme
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 
 /**
  * Provides the actual data of the user as a credential that shall be issued
@@ -31,6 +31,6 @@ data class CredentialDataProviderInput(
     val userInfo: OidcUserInfoExtended,
     val subjectPublicKey: CryptoPublicKey,
     val credentialScheme: CredentialScheme,
-    val credentialRepresentation: ConstantIndex.CredentialRepresentation,
+    val credentialRepresentation: CredentialRepresentation,
 )
 

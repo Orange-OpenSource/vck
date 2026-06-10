@@ -12,7 +12,6 @@ package at.asitplus.openid.dcql
  * see the "LICENSE" file for more details
  */
 
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrowAny
@@ -23,7 +22,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 
-@Suppress("unused")
 val DCQLSdJwtCredentialMetadataAndValidityConstraintsTest by matrixSuite {
     "specification" - {
         "serial names" {

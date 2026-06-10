@@ -9,8 +9,8 @@ import at.asitplus.openid.CredentialFormatEnum
 import at.asitplus.openid.OidcUserInfo
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.openid.OpenIdConstants.ResponseMode
-import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.openid.RequestObjectParameters
+import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.openid.dcql.DCQLClaimsPathPointerSegment.NameSegment
 import at.asitplus.openid.dcql.DCQLClaimsQueryList
@@ -24,7 +24,8 @@ import at.asitplus.openid.dcql.DCQLIsoMdocCredentialMetadataAndValidityConstrain
 import at.asitplus.openid.dcql.DCQLIsoMdocCredentialQuery
 import at.asitplus.openid.dcql.DCQLQuery
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.eupid.EuPidScheme
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
 import at.asitplus.wallet.lib.RequestOptionsCredential
@@ -38,11 +39,11 @@ import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
-import at.asitplus.wallet.lib.data.ConstantIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialPresentation.DCQLPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.SelectiveDisclosureItem
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.data.toJsonElement
@@ -61,7 +62,6 @@ import at.asitplus.wallet.lib.openid.VpTokenValidationResultDCQL
 import at.asitplus.wallet.lib.openid.VpTokenValidationResultPresentationExchange
 import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.github.aakira.napier.Napier
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -99,8 +99,8 @@ val OpenId4VpWalletTest by matrixSuite {
             lateinit var mockEngine: HttpClientEngine
 
             suspend fun setup(
-                scheme: ConstantIndex.CredentialScheme,
-                representation: ConstantIndex.CredentialRepresentation,
+                scheme: CredentialScheme,
+                representation: CredentialRepresentation,
                 attributes: Map<String, String>,
                 responseMode: ResponseMode,
                 clientId: String,
@@ -143,8 +143,8 @@ val OpenId4VpWalletTest by matrixSuite {
             }
 
             suspend fun storeMockCredentials(
-                scheme: ConstantIndex.CredentialScheme,
-                representation: ConstantIndex.CredentialRepresentation,
+                scheme: CredentialScheme,
+                representation: CredentialRepresentation,
                 attributes: Map<String, Any>,
             ) = holderAgent.storeCredential(
                 IssuerAgent(
@@ -156,11 +156,11 @@ val OpenId4VpWalletTest by matrixSuite {
                 ).getOrThrow().toStoreCredentialInput()
             ).getOrThrow()
 
-            fun ConstantIndex.CredentialRepresentation.toCredentialToBeIssued(
-                scheme: ConstantIndex.CredentialScheme,
+            fun CredentialRepresentation.toCredentialToBeIssued(
+                scheme: CredentialScheme,
                 attributes: Map<String, Any>,
             ): CredentialToBeIssued = when (this) {
-                ConstantIndex.CredentialRepresentation.PLAIN_JWT -> CredentialToBeIssued.VcJwt(
+                PLAIN_JWT -> CredentialToBeIssued.VcJwt(
                     subject = AtomicAttribute2023("sub", "name", "value", "text").toJsonElement(),
                     expiration = Clock.System.now().plus(1.minutes),
                     scheme = scheme,

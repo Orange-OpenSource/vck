@@ -1,9 +1,9 @@
 package at.asitplus.wallet.lib.oidvci
 
 import at.asitplus.openid.CredentialFormatEnum
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.maps.shouldContainKey
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe

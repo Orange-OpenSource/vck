@@ -1,12 +1,10 @@
 package at.asitplus.rfc3986uri
 
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 
-@Suppress("unused")
 val Rfc3986AuthorityHostTest by matrixSuite {
     testSuite("case insensitivity") {
         mapOf(

@@ -1,7 +1,7 @@
 package at.asitplus.wallet.lib.data.rfc.tokenStatusList.agents
 
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.cosef.CoseSigned
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList.Kind.STATUS_LIST
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListTokenPayload

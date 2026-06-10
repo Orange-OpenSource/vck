@@ -1,9 +1,8 @@
 package at.asitplus.wallet.lib.agent
 
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
-import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.lib.jws.SdJwtSigned
 import io.kotest.matchers.maps.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe

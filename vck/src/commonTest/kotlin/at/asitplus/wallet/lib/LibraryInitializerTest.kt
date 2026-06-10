@@ -6,12 +6,14 @@ import at.asitplus.iso.IssuerSignedListSerializer
 import at.asitplus.signum.indispensable.cosef.io.ByteStringWrapper
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.AttributeIndex
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.JsonCredentialSerializer
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.encodeToJsonElement
@@ -24,12 +26,9 @@ private data class TestCredentialScheme(
     override val isoNamespace: String? = null,
     override val isoDocType: String? = null,
     override val claimNames: Collection<String> = emptyList(),
-    override val supportedRepresentations: Collection<ConstantIndex.CredentialRepresentation> = listOf(
-        ConstantIndex.CredentialRepresentation.PLAIN_JWT
-    ),
-) : ConstantIndex.CredentialScheme
+    override val supportedRepresentations: Collection<CredentialRepresentation> = listOf(PLAIN_JWT),
+) : CredentialScheme
 
-@Suppress("DEPRECATION")
 val LibraryInitializerTest by matrixSuite {
     "registerExtensionLibrary registers schemes without serializer modules" {
         val scheme = TestCredentialScheme(
@@ -53,7 +52,7 @@ val LibraryInitializerTest by matrixSuite {
             vcType = "IsoCredential-${uuid4()}",
             isoNamespace = isoNamespace,
             isoDocType = "doctype.${uuid4()}",
-            supportedRepresentations = listOf(ConstantIndex.CredentialRepresentation.ISO_MDOC),
+            supportedRepresentations = listOf(ISO_MDOC),
         )
 
         val jsonValueEncoder: JsonValueEncoder = { value ->

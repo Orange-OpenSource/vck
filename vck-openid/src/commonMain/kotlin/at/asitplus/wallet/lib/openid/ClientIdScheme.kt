@@ -1,10 +1,10 @@
 package at.asitplus.wallet.lib.openid
 
 import at.asitplus.iso.sha256
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.JsonWebToken
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.pki.CertificateChain
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 

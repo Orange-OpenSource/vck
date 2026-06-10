@@ -2,7 +2,7 @@ package at.asitplus.wallet.lib.agent
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.IdentifierList
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListView
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.agents.ReferencedTokenStore
@@ -24,7 +24,7 @@ class InMemoryIssuerCredentialStore(
         val statusListIndex: ULong,
         var status: TokenStatus,
         val expirationDate: Instant,
-        val scheme: ConstantIndex.CredentialScheme,
+        val scheme: CredentialScheme,
     )
 
     /** Maps timePeriod to credentials */

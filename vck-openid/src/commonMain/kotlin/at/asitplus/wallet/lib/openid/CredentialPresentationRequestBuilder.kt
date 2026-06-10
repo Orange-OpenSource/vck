@@ -30,8 +30,7 @@ import at.asitplus.openid.dcql.DCQLSdJwtCredentialMetadataAndValidityConstraints
 import at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery
 import at.asitplus.signum.indispensable.cosef.io.ByteStringWrapper
 import at.asitplus.wallet.lib.RequestOptionsCredential
-import at.asitplus.wallet.lib.data.ConstantIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
 import at.asitplus.wallet.lib.toIsoMdocClaimPath
 import com.benasher44.uuid.uuid4
@@ -60,17 +59,9 @@ data class CredentialPresentationRequestBuilder(
     )
 
     private fun RequestOptionsCredential.toFormatHolder() = when (this.representation) {
-        ConstantIndex.CredentialRepresentation.PLAIN_JWT -> FormatHolder(
-            jwtVp = FormatContainerJwt()
-        )
-
-        ConstantIndex.CredentialRepresentation.SD_JWT -> FormatHolder(
-            sdJwt = FormatContainerSdJwt()
-        )
-
-        ConstantIndex.CredentialRepresentation.ISO_MDOC -> FormatHolder(
-            msoMdoc = FormatContainerJwt()
-        )
+        PLAIN_JWT -> FormatHolder(jwtVp = FormatContainerJwt())
+        SD_JWT -> FormatHolder(sdJwt = FormatContainerSdJwt())
+        ISO_MDOC -> FormatHolder(msoMdoc = FormatContainerJwt())
     }
 
     fun toDCQLRequest(): CredentialPresentationRequest.DCQLRequest? {
@@ -88,12 +79,13 @@ data class CredentialPresentationRequestBuilder(
     }
 
     fun toIso180137AnnexCDeviceRequest() = credentials.map {
-        if (it.representation != CredentialRepresentation.ISO_MDOC) {
+        if (it.representation != ISO_MDOC) {
             throw UnsupportedOperationException("Wrong representation: Only ISO MDoc is supported")
         }
         val docType = it.credentialScheme.isoDocType ?: throw IllegalStateException("Missing doc type")
         val itemsRequestList = it.effectiveRequestedAttributePaths().map { reqAttr ->
-            val (namespace, claimName) = reqAttr.toIsoMdocClaimPath(it.credentialScheme).toIsoMdocNamespaceAndClaimName()
+            val (namespace, claimName) = reqAttr.toIsoMdocClaimPath(it.credentialScheme)
+                .toIsoMdocNamespaceAndClaimName()
             namespace to SingleItemsRequest(claimName, false)
         }.groupBy(
             keySelector = { (namespace, _) -> namespace },
@@ -107,9 +99,9 @@ data class CredentialPresentationRequestBuilder(
     }
 
     private fun RequestOptionsCredential.toQuery(): DCQLCredentialQuery? = when (representation) {
-        CredentialRepresentation.PLAIN_JWT -> toJwtVcQuery()
-        CredentialRepresentation.SD_JWT -> toSdJwtQuery()
-        CredentialRepresentation.ISO_MDOC -> toIsoMdocQuery()
+        PLAIN_JWT -> toJwtVcQuery()
+        SD_JWT -> toSdJwtQuery()
+        ISO_MDOC -> toIsoMdocQuery()
     }
 
     private fun RequestOptionsCredential.toJwtVcQuery() = credentialScheme.vcType?.let { vcType ->

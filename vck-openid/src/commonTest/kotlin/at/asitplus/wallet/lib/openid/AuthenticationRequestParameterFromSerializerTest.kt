@@ -7,15 +7,15 @@ import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.signum.indispensable.josef.JwsTyped
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.toJwsFlattened
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.HolderAgent
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
@@ -36,11 +36,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
     val verifierOid4vp = OpenId4VpVerifier(
         clientIdScheme = ClientIdScheme.PreRegistered(clientId, redirectUrl),
     )
-    val representations = listOf(
-        ConstantIndex.CredentialRepresentation.PLAIN_JWT,
-        ConstantIndex.CredentialRepresentation.SD_JWT,
-        ConstantIndex.CredentialRepresentation.ISO_MDOC
-    )
+    val representations = listOf(PLAIN_JWT, SD_JWT, ISO_MDOC)
 
     representations.forEach { representation ->
         val reqOptions = OpenId4VpRequestOptions(

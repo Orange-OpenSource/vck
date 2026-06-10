@@ -2,11 +2,11 @@ package at.asitplus.wallet.lib.data
 
 import at.asitplus.dif.ConstraintField
 import at.asitplus.dif.ConstraintFilter
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.dif.PresentationExchangeInputEvaluator
 import com.benasher44.uuid.bytes
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.matthewnelson.encoding.base16.Base16

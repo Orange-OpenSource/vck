@@ -2,11 +2,11 @@ package at.asitplus.wallet.lib.agent
 
 import at.asitplus.KmmResult
 import at.asitplus.iso.IssuerSigned
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.SignatureAlgorithm
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.VerifiableCredential
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.VerifiableCredentialSdJwt
@@ -25,7 +25,7 @@ interface Issuer : ReferencedTokenIssuer<CredentialToBeIssued, KmmResult<Issuer.
      * A credential issued by an [Issuer], in a specific format
      */
     sealed class IssuedCredential {
-        abstract val scheme: ConstantIndex.CredentialScheme
+        abstract val scheme: CredentialScheme
         abstract val subjectPublicKey: CryptoPublicKey
         abstract val userInfo: OidcUserInfoExtended
 
@@ -35,7 +35,7 @@ interface Issuer : ReferencedTokenIssuer<CredentialToBeIssued, KmmResult<Issuer.
         data class VcJwt(
             val vc: VerifiableCredential,
             val signedVcJws: JwsCompactTyped<VerifiableCredentialJws>,
-            override val scheme: ConstantIndex.CredentialScheme,
+            override val scheme: CredentialScheme,
             override val subjectPublicKey: CryptoPublicKey,
             override val userInfo: OidcUserInfoExtended,
         ) : IssuedCredential()
@@ -46,7 +46,7 @@ interface Issuer : ReferencedTokenIssuer<CredentialToBeIssued, KmmResult<Issuer.
         data class VcSdJwt(
             val sdJwtVc: VerifiableCredentialSdJwt,
             val signedSdJwtVc: SdJwtSigned,
-            override val scheme: ConstantIndex.CredentialScheme,
+            override val scheme: CredentialScheme,
             override val subjectPublicKey: CryptoPublicKey,
             override val userInfo: OidcUserInfoExtended,
         ) : IssuedCredential()
@@ -56,7 +56,7 @@ interface Issuer : ReferencedTokenIssuer<CredentialToBeIssued, KmmResult<Issuer.
          */
         data class Iso(
             val issuerSigned: IssuerSigned,
-            override val scheme: ConstantIndex.CredentialScheme,
+            override val scheme: CredentialScheme,
             override val subjectPublicKey: CryptoPublicKey,
             override val userInfo: OidcUserInfoExtended,
         ) : IssuedCredential()

@@ -10,11 +10,12 @@ import at.asitplus.openid.OpenIdConstants.BINDING_METHOD_JWK
 import at.asitplus.openid.OpenIdConstants.URN_TYPE_JWK_THUMBPRINT
 import at.asitplus.openid.SupportedCredentialFormat
 import at.asitplus.openid.VcJwtCredentialDefinition
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialScheme
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.ConstantIndex.supportsIso
 import at.asitplus.wallet.lib.data.ConstantIndex.supportsSdJwt
 import at.asitplus.wallet.lib.data.ConstantIndex.supportsVcJwt
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.VcDataModelConstants
 import com.benasher44.uuid.uuid4
 
@@ -35,9 +36,9 @@ class SameScopeCredentialSchemeMapper(
         scheme: CredentialScheme,
         rep: CredentialRepresentation
     ) = when (rep) {
-        CredentialRepresentation.PLAIN_JWT -> encodeToCredentialIdentifier(scheme.vcType!!, JWT_VC)
-        CredentialRepresentation.SD_JWT -> encodeToCredentialIdentifier(scheme.sdJwtType!!, DC_SD_JWT)
-        CredentialRepresentation.ISO_MDOC -> scheme.isoNamespace!!
+        PLAIN_JWT -> encodeToCredentialIdentifier(scheme.vcType!!, JWT_VC)
+        SD_JWT -> encodeToCredentialIdentifier(scheme.sdJwtType!!, DC_SD_JWT)
+        ISO_MDOC -> scheme.isoNamespace!!
     }
 
     @Suppress("DEPRECATION")

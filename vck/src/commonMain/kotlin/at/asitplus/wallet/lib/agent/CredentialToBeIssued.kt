@@ -16,7 +16,7 @@ import at.asitplus.iso.IssuerSignedItem
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.Digest
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
 import at.asitplus.wallet.lib.jws.JwsHeaderModifierFun
 import kotlinx.serialization.json.JsonElement
@@ -24,14 +24,14 @@ import kotlin.time.Instant
 
 sealed class CredentialToBeIssued {
     abstract val expiration: Instant
-    abstract val scheme: ConstantIndex.CredentialScheme
+    abstract val scheme: CredentialScheme
     abstract val subjectPublicKey: CryptoPublicKey
     abstract val userInfo: OidcUserInfoExtended
 
     data class VcJwt(
         val subject: JsonElement,
         override val expiration: Instant,
-        override val scheme: ConstantIndex.CredentialScheme,
+        override val scheme: CredentialScheme,
         override val subjectPublicKey: CryptoPublicKey,
         override val userInfo: OidcUserInfoExtended,
     ) : CredentialToBeIssued()
@@ -39,7 +39,7 @@ sealed class CredentialToBeIssued {
     data class VcSd(
         val claims: Collection<ClaimToBeIssued>,
         override val expiration: Instant,
-        override val scheme: ConstantIndex.CredentialScheme,
+        override val scheme: CredentialScheme,
         override val subjectPublicKey: CryptoPublicKey,
         override val userInfo: OidcUserInfoExtended,
         /** Implement to add type metadata field */
@@ -50,7 +50,7 @@ sealed class CredentialToBeIssued {
     data class Iso(
         val issuerSignedItems: List<IssuerSignedItem>,
         override val expiration: Instant,
-        override val scheme: ConstantIndex.CredentialScheme,
+        override val scheme: CredentialScheme,
         override val subjectPublicKey: CryptoPublicKey,
         override val userInfo: OidcUserInfoExtended,
         val revocationKind: RevocationList.Kind = RevocationList.Kind.STATUS_LIST

@@ -20,7 +20,8 @@ import at.asitplus.openid.dcql.DCQLIsoMdocCredentialQuery
 import at.asitplus.openid.dcql.DCQLJwtVcCredentialQuery
 import at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme.SdJwtAttributes
 import at.asitplus.wallet.lib.RequestOptionsCredential
@@ -39,10 +40,10 @@ import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.AssertionErrorBuilder.Companion.fail
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -58,7 +59,6 @@ import kotlinx.serialization.json.JsonObject
 
 private fun AuthenticationRequestParameters.serialize(): String = joseCompliantSerializer.encodeToString(this)
 
-@Suppress("unused")
 val OpenId4VpCombinedProtocolTest by matrixSuite {
 
     fixture {
@@ -427,7 +427,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 credentials = setOf(
                     RequestOptionsCredential(
                         ConstantIndex.AtomicAttribute2023,
-                        ConstantIndex.CredentialRepresentation.SD_JWT
+                        SD_JWT
                     )
                 ),
             ).toDCQLRequest().shouldNotBeNull().dcqlQuery
@@ -598,7 +598,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
 
 private suspend fun Holder.storeJwtCredential(
     holderKeyMaterial: KeyMaterial,
-    credentialScheme: ConstantIndex.CredentialScheme,
+    credentialScheme: CredentialScheme,
 ) {
     storeCredential(
         IssuerAgent(
@@ -617,7 +617,7 @@ private suspend fun Holder.storeJwtCredential(
 
 private suspend fun Holder.storeSdJwtCredential(
     holderKeyMaterial: KeyMaterial,
-    credentialScheme: ConstantIndex.CredentialScheme,
+    credentialScheme: CredentialScheme,
 ) {
     storeCredential(
         IssuerAgent(
@@ -635,7 +635,7 @@ private suspend fun Holder.storeSdJwtCredential(
 
 private suspend fun Holder.storeIsoCredential(
     holderKeyMaterial: KeyMaterial,
-    credentialScheme: ConstantIndex.CredentialScheme,
+    credentialScheme: CredentialScheme,
 ) = storeCredential(
     IssuerAgent(
         keyMaterial = EphemeralKeyWithSelfSignedCert(),

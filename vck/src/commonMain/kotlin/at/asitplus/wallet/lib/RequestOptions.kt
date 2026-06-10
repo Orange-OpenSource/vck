@@ -15,10 +15,11 @@ import at.asitplus.jsonpath.core.NormalizedJsonPathSegment.NameSegment
 import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.openid.dcql.DCQLClaimsPathPointerSegment
 import at.asitplus.openid.dcql.DCQLCredentialQuery
-import at.asitplus.wallet.lib.data.ConstantIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.ConstantIndex.supportsSdJwt
 import at.asitplus.wallet.lib.data.ConstantIndex.supportsVcJwt
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import com.benasher44.uuid.uuid4
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -31,9 +32,9 @@ interface RequestOptions {
 
 data class RequestOptionsCredential(
     /** Credential type to request, or `null` to make no restrictions. */
-    val credentialScheme: ConstantIndex.CredentialScheme,
-    /** Required representation, see [ConstantIndex.CredentialRepresentation]. */
-    val representation: CredentialRepresentation = CredentialRepresentation.PLAIN_JWT,
+    val credentialScheme: CredentialScheme,
+    /** Required representation, see [CredentialRepresentation]. */
+    val representation: CredentialRepresentation = PLAIN_JWT,
     /**
      * List of attributes that shall be requested explicitly (selective disclosure),
      * or `null` to make no restrictions.
@@ -82,7 +83,7 @@ data class RequestOptionsCredential(
     fun buildId() = if (isMdoc) credentialScheme.isoDocType!! else id
 
     private val isMdoc: Boolean
-        get() = credentialScheme.isoDocType != null && representation == CredentialRepresentation.ISO_MDOC
+        get() = credentialScheme.isoDocType != null && representation == ISO_MDOC
 
     /** To be used for Presentation Exchange in [DifInputDescriptor.constraints] */
     fun toConstraint() = Constraint(
@@ -99,16 +100,16 @@ data class RequestOptionsCredential(
         effectiveRequestedOptionalAttributePaths().createConstraints(credentialScheme, true)
 
     private fun toTypeConstraint() = when (representation) {
-        CredentialRepresentation.PLAIN_JWT -> credentialScheme.toVcConstraint()
-        CredentialRepresentation.SD_JWT -> credentialScheme.toSdJwtConstraint()
-        CredentialRepresentation.ISO_MDOC -> null
+        PLAIN_JWT -> credentialScheme.toVcConstraint()
+        SD_JWT -> credentialScheme.toSdJwtConstraint()
+        ISO_MDOC -> null
     }
 
     fun toFormatHolder(containerJwt: FormatContainerJwt, containerSdJwt: FormatContainerSdJwt) =
         when (representation) {
-            CredentialRepresentation.PLAIN_JWT -> FormatHolder(jwtVp = containerJwt)
-            CredentialRepresentation.SD_JWT -> FormatHolder(sdJwt = containerSdJwt)
-            CredentialRepresentation.ISO_MDOC -> FormatHolder(msoMdoc = containerJwt)
+            PLAIN_JWT -> FormatHolder(jwtVp = containerJwt)
+            SD_JWT -> FormatHolder(sdJwt = containerSdJwt)
+            ISO_MDOC -> FormatHolder(msoMdoc = containerJwt)
         }
 
     @Suppress("DEPRECATION")
@@ -127,14 +128,14 @@ data class RequestOptionsCredential(
     )
 
     private fun RequestedAttributePaths.createConstraints(
-        scheme: ConstantIndex.CredentialScheme?,
+        scheme: CredentialScheme?,
         optional: Boolean,
     ): Collection<ConstraintField> = map {
         if (isMdoc) it.toIsoMdocConstraintField(scheme, optional) else it.toJwtConstraintField(optional)
     }
 
     private fun DCQLClaimsPathPointer.toIsoMdocConstraintField(
-        scheme: ConstantIndex.CredentialScheme?,
+        scheme: CredentialScheme?,
         optional: Boolean,
     ) =
         ConstraintField(
@@ -181,7 +182,7 @@ data class RequestOptionsCredential(
         firstOrNull()?.let { it == '_' || it in 'A'..'Z' || it in 'a'..'z' } == true &&
                 drop(1).all { it == '_' || it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' }
 
-    private fun ConstantIndex.CredentialScheme.toVcConstraint() = if (supportsVcJwt)
+    private fun CredentialScheme.toVcConstraint() = if (supportsVcJwt)
         ConstraintField(
             path = listOf("$.type"),
             filter = ConstraintFilter(
@@ -190,7 +191,7 @@ data class RequestOptionsCredential(
             )
         ) else null
 
-    private fun ConstantIndex.CredentialScheme.toSdJwtConstraint() = if (supportsSdJwt)
+    private fun CredentialScheme.toSdJwtConstraint() = if (supportsSdJwt)
         ConstraintField(
             path = listOf("$.vct"),
             filter = ConstraintFilter(
@@ -201,7 +202,7 @@ data class RequestOptionsCredential(
 }
 
 fun DCQLClaimsPathPointer.toIsoMdocClaimPath(
-    scheme: ConstantIndex.CredentialScheme?,
+    scheme: CredentialScheme?,
 ): DCQLClaimsPathPointer {
     require(segments.all { it is DCQLClaimsPathPointerSegment.NameSegment }) {
         "ISO mdoc requested attribute paths must contain only name segments"

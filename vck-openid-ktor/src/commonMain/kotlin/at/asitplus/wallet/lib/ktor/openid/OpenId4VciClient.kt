@@ -20,7 +20,7 @@ import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
 import at.asitplus.wallet.lib.agent.Holder
 import at.asitplus.wallet.lib.data.AttributeIndex
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.IsoMdocFallbackCredentialScheme
 import at.asitplus.wallet.lib.data.MediaTypes
 import at.asitplus.wallet.lib.data.SdJwtFallbackCredentialScheme
@@ -110,7 +110,7 @@ class OpenId4VciClient(
             }
         }
 
-    private fun SupportedCredentialFormat.resolveCredentialScheme(): ConstantIndex.CredentialScheme? = when (this) {
+    private fun SupportedCredentialFormat.resolveCredentialScheme(): CredentialScheme? = when (this) {
         is SupportedCredentialFormatIsoMdoc -> AttributeIndex.resolveIsoDoctype(docType)
             ?: IsoMdocFallbackCredentialScheme(isoDocType = docType)
 
@@ -288,7 +288,7 @@ class OpenId4VciClient(
         issuerMetadata: IssuerMetadata,
         tokenResponse: TokenResponseWithDpopNonce,
         credentialFormat: SupportedCredentialFormat,
-        credentialScheme: ConstantIndex.CredentialScheme,
+        credentialScheme: CredentialScheme,
         oauthMetadata: OAuth2AuthorizationServerMetadata,
         credentialIdentifier: String,
         previouslyRequestedScope: String?,
@@ -339,7 +339,7 @@ class OpenId4VciClient(
         request: WalletService.CredentialRequest,
         tokenResponse: TokenResponseWithDpopNonce,
         format: SupportedCredentialFormat,
-        scheme: ConstantIndex.CredentialScheme,
+        scheme: CredentialScheme,
         dpopNonce: String?,
         retryCount: Int = 0,
     ): Collection<Holder.StoreCredentialInput> = oauth2Client.client.post(url) {

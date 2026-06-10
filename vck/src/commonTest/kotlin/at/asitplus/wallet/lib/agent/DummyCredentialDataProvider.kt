@@ -19,11 +19,13 @@ import at.asitplus.openid.OidcUserInfo
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
-import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_DATE_OF_BIRTH
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_PORTRAIT
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
 import at.asitplus.wallet.lib.data.toJsonElement
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
@@ -39,11 +41,11 @@ object DummyCredentialDataProvider {
 
     fun getCredential(
         subjectPublicKey: CryptoPublicKey,
-        credentialScheme: ConstantIndex.CredentialScheme,
-        representation: ConstantIndex.CredentialRepresentation,
+        credentialScheme: CredentialScheme,
+        representation: CredentialRepresentation,
         revocationKind: RevocationList.Kind = RevocationList.Kind.STATUS_LIST,
     ): KmmResult<CredentialToBeIssued> = catching {
-        if (representation != ConstantIndex.CredentialRepresentation.ISO_MDOC && revocationKind != RevocationList.Kind.STATUS_LIST) {
+        if (representation != ISO_MDOC && revocationKind != RevocationList.Kind.STATUS_LIST) {
             Napier.w { "Revocation via IdentifierList only defined for ISO - Input ignored!" }
         }
         val expiration = Clock.System.now() + defaultLifetime
@@ -55,7 +57,7 @@ object DummyCredentialDataProvider {
         )
         val subjectId = subjectPublicKey.didEncoded
         when (representation) {
-            ConstantIndex.CredentialRepresentation.SD_JWT -> CredentialToBeIssued.VcSd(
+            SD_JWT -> CredentialToBeIssued.VcSd(
                 claims = claims,
                 expiration = expiration,
                 scheme = credentialScheme,
@@ -64,7 +66,7 @@ object DummyCredentialDataProvider {
                 sdAlgorithm = supportedSdAlgorithms.random()
             )
 
-            ConstantIndex.CredentialRepresentation.PLAIN_JWT -> CredentialToBeIssued.VcJwt(
+            PLAIN_JWT -> CredentialToBeIssued.VcJwt(
                 subject = AtomicAttribute2023(subjectId, CLAIM_GIVEN_NAME, "Susanne").toJsonElement(),
                 expiration = expiration,
                 scheme = credentialScheme,
@@ -72,7 +74,7 @@ object DummyCredentialDataProvider {
                 userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
             )
 
-            ConstantIndex.CredentialRepresentation.ISO_MDOC -> CredentialToBeIssued.Iso(
+            ISO_MDOC -> CredentialToBeIssued.Iso(
                 issuerSignedItems = claims.mapIndexed { index, claim ->
                     issuerSignedItem(claim.name, claim.value, index.toUInt())
                 },
@@ -87,13 +89,13 @@ object DummyCredentialDataProvider {
 
     fun getCredentialForClaim(
         subjectPublicKey: CryptoPublicKey,
-        credentialScheme: ConstantIndex.CredentialScheme,
-        representation: ConstantIndex.CredentialRepresentation,
+        credentialScheme: CredentialScheme,
+        representation: CredentialRepresentation,
         claim: ClaimToBeIssued
     ): KmmResult<CredentialToBeIssued> = catching {
         val expiration = Clock.System.now() + defaultLifetime
         when (representation) {
-            ConstantIndex.CredentialRepresentation.SD_JWT -> CredentialToBeIssued.VcSd(
+            SD_JWT -> CredentialToBeIssued.VcSd(
                 claims = listOf(claim),
                 expiration = expiration,
                 scheme = credentialScheme,
@@ -102,9 +104,9 @@ object DummyCredentialDataProvider {
                 sdAlgorithm = supportedSdAlgorithms.random()
             )
 
-            ConstantIndex.CredentialRepresentation.PLAIN_JWT -> throw IllegalArgumentException("PLAIN_JWT")
+            PLAIN_JWT -> throw IllegalArgumentException("PLAIN_JWT")
 
-            ConstantIndex.CredentialRepresentation.ISO_MDOC -> CredentialToBeIssued.Iso(
+            ISO_MDOC -> CredentialToBeIssued.Iso(
                 issuerSignedItems = listOf(issuerSignedItem(claim.name, claim.value, 0U)),
                 expiration = expiration,
                 scheme = credentialScheme,

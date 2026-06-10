@@ -1,14 +1,10 @@
 package at.asitplus.rfc3986uri
 
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import io.ktor.http.Url
-import io.ktor.http.authority
 
-@Suppress("unused")
 val Rfc3986UniformResourceIdentifierTest by matrixSuite {
     testSuite("parsing success") {
         mapOf(

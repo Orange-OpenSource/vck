@@ -1,7 +1,7 @@
 package at.asitplus.wallet.lib.oidc
 
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.RequestParameters
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 
 /**
  * Implementations need to verify the passed [at.asitplus.signum.indispensable.josef.JwsCompactTyped] and return its result

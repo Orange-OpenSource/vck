@@ -5,12 +5,11 @@ import at.asitplus.iso.DeviceResponse
 import at.asitplus.iso.Document
 import at.asitplus.iso.IssuerSigned
 import at.asitplus.iso.MobileSecurityObject
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.TransactionDataBase64Url
 import at.asitplus.signum.indispensable.CryptoPublicKey
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.toJsonWebKey
 import at.asitplus.wallet.lib.agent.validation.CredentialFreshnessSummary
-import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.IsoDocumentParsed
 import at.asitplus.wallet.lib.data.SelectiveDisclosureItem
 import at.asitplus.wallet.lib.data.VcJwsVerificationResultWrapper
@@ -30,7 +29,8 @@ import kotlinx.serialization.json.JsonObject
 interface Verifier {
 
     /**
-     * Verifies a presentation of some credentials in [ConstantIndex.CredentialRepresentation.SD_JWT] from a holder,
+     * Verifies a presentation of some credentials in [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT]
+     * from a holder,
      * that shall include the [challenge] (sent by this verifier).
      */
     suspend fun verifyPresentationSdJwt(
@@ -41,7 +41,8 @@ interface Verifier {
     ): KmmResult<VerifyPresentationResult.SuccessSdJwt>
 
     /**
-     * Verifies a presentation of some credentials in [ConstantIndex.CredentialRepresentation.PLAIN_JWT] from a holder,
+     * Verifies a presentation of some credentials in [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT]
+     * from a holder,
      * that shall include the [challenge] (sent by this verifier).
      */
     suspend fun verifyPresentationVcJwt(
@@ -54,7 +55,8 @@ interface Verifier {
     ): KmmResult<VerifyPresentationResult.SuccessUnsigned>
 
     /**
-     * Verifies a presentation of some credentials in [ConstantIndex.CredentialRepresentation.ISO_MDOC] from a holder,
+     * Verifies a presentation of some credentials in [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC]
+     * from a holder,
      * with a challenge validated by the callback in [verifyDocument] (i.e. device authentication for OpenID4VP).
      */
     suspend fun verifyPresentationIsoMdoc(

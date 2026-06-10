@@ -1,9 +1,8 @@
 package at.asitplus.openid.dcql
 
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
-import at.asitplus.testballoon.matrix.*
-import com.benasher44.uuid.uuid4
 import at.asitplus.testballoon.matrix.matrixSuite
+import com.benasher44.uuid.uuid4
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -18,7 +17,6 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlin.random.Random
 
-@Suppress("unused")
 val DCQLIsoMdocClaimsQueryTest by matrixSuite {
     "specification" - {
         "serial names" {

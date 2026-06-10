@@ -9,19 +9,23 @@ import at.asitplus.iso.MobileSecurityObject
 import at.asitplus.jsonpath.core.NormalizedJsonPath
 import at.asitplus.jsonpath.core.NormalizedJsonPathSegment.NameSegment
 import at.asitplus.signum.indispensable.cosef.CoseSigned
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.cbor.SignCose
-import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialPresentation.PresentationExchangePresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.PresentationExchangeRequest
+import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatusValidationResult
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.randomCwtOrJwtResolver
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.engine.runBlocking
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldHaveSize
@@ -57,7 +61,7 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
                             DummyCredentialDataProvider.getCredentialForClaim(
                                 holderKeyMaterial.publicKey,
                                 AtomicAttribute2023,
-                                ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                                ISO_MDOC,
                                 ClaimToBeIssued(CLAIM_GIVEN_NAME, "Susanne"),
                             ).getOrThrow()
                         ).getOrThrow().toStoreCredentialInput()
@@ -67,7 +71,7 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
                             DummyCredentialDataProvider.getCredentialForClaim(
                                 holderKeyMaterial.publicKey,
                                 AtomicAttribute2025,
-                                ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                                ISO_MDOC,
                                 ClaimToBeIssued(CLAIM_FAMILY_NAME, "Meier"),
                             ).getOrThrow()
                         ).getOrThrow().toStoreCredentialInput()
@@ -171,7 +175,7 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
 }
 
 private fun inputDescriptor(
-    scheme: ConstantIndex.CredentialScheme,
+    scheme: CredentialScheme,
     claim: String
 ) = DifInputDescriptor(
     id = scheme.isoDocType!!,
@@ -184,7 +188,7 @@ private fun inputDescriptor(
     )
 )
 
-private fun path(scheme: ConstantIndex.CredentialScheme, claimName: String): List<String> = listOf(
+private fun path(scheme: CredentialScheme, claimName: String): List<String> = listOf(
     NormalizedJsonPath(
         NameSegment(scheme.isoNamespace!!),
         NameSegment(claimName),
@@ -206,7 +210,7 @@ private fun simpleSigner(
 private fun documentVerifier(): suspend (MobileSecurityObject, Document) -> Boolean = { _, _ -> true }
 
 
-object AtomicAttribute2025 : ConstantIndex.CredentialScheme {
+object AtomicAttribute2025 : CredentialScheme, IsoMdocCredentialScheme, SdJwtCredentialScheme, VcJwtCredentialScheme {
     const val CLAIM_GIVEN_NAME = "given_name"
     const val CLAIM_FAMILY_NAME = "family_name"
     const val CLAIM_DATE_OF_BIRTH = "date_of_birth"
@@ -222,4 +226,6 @@ object AtomicAttribute2025 : ConstantIndex.CredentialScheme {
         CLAIM_DATE_OF_BIRTH,
         CLAIM_PORTRAIT
     )
+    override val supportedRepresentations: Collection<at.asitplus.wallet.lib.data.CredentialRepresentation>
+        get() = listOf(ISO_MDOC, PLAIN_JWT, SD_JWT)
 }

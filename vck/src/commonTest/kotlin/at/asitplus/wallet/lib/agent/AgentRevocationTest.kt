@@ -15,11 +15,13 @@ package at.asitplus.wallet.lib.agent
 import at.asitplus.openid.OidcUserInfo
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.cosef.io.Base16Strict
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.FixedTimePeriodProvider.timePeriod
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignature
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
 import at.asitplus.wallet.lib.data.StatusListCwt
 import at.asitplus.wallet.lib.data.StatusListJwt
@@ -34,7 +36,6 @@ import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.data.toJsonElement
 import at.asitplus.wallet.lib.extensions.toView
 import at.asitplus.wallet.lib.jws.VerifyJwsObject
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.AssertionErrorBuilder.Companion.fail
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
@@ -196,7 +197,7 @@ val AgentRevocationTest by matrixSuite {
                 DummyCredentialDataProvider.getCredential(
                     it.verifierKeyMaterial.publicKey,
                     ConstantIndex.AtomicAttribute2023,
-                    ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                    ISO_MDOC,
                     revocationKind = RevocationList.Kind.IDENTIFIER_LIST,
                 ).getOrThrow()
             ).getOrElse {
@@ -211,7 +212,7 @@ val AgentRevocationTest by matrixSuite {
                 DummyCredentialDataProvider.getCredential(
                     it.verifierKeyMaterial.publicKey,
                     ConstantIndex.AtomicAttribute2023,
-                    ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                    ISO_MDOC,
                     revocationKind = RevocationList.Kind.IDENTIFIER_LIST,
                 ).getOrThrow()
             ).getOrElse {

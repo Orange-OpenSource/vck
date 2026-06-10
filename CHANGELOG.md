@@ -41,6 +41,11 @@ Release 6.0.0:
    - Remove code deprecated in 5.12.0, e.g. `CredentialSubject` as base class for JWT VC
    - Deprecate `vckJsonSerializer`, should be replaced with `joseCompliantSerializer` (Signum)
    - Deprecate `signDpop` in `OAuth2KtorClient` because DPoP need same key as instance attestation [EUDI Wallet TS3](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md)
+ - Credential definitions:
+   - Move `CredentialRepresentation` out of `ConstantIndex`
+   - Move `CredentialScheme` out of `ConstantIndex`
+   - Introudce typed sub-interfaces of `CredentialScheme`: `VcJwtCredentialScheme`, `SdJwtCredentialScheme` and `IsoMdocCredentialScheme`
+   - Add `UnknownCredentialScheme` so that the `scheme` property of several classes is never null
  - New modules:
    - `etsi-data-classes` implements list of trusted entities from [ETSI TS 119 602](https://www.etsi.org/deliver/etsi_ts/119600_119699/119602/01.01.01_60/ts_119602v010101p.pdf)
    - `sd-jwt-type-metadata` implements SD-JWT VC Type Metadata from [draft-ietf-oauth-sd-jwt-vc-16](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/):

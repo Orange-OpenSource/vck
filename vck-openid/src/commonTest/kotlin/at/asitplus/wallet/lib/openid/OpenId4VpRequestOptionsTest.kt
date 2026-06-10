@@ -2,24 +2,11 @@ package at.asitplus.wallet.lib.openid
 
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.QCertCreationAcceptance
-import at.asitplus.openid.dcql.DCQLClaimsPathPointerSegment
-import at.asitplus.openid.dcql.DCQLIsoMdocClaimsQuery
-import at.asitplus.openid.dcql.DCQLIsoMdocCredentialMetadataAndValidityConstraints
-import at.asitplus.openid.dcql.DCQLIsoMdocCredentialQuery
-import at.asitplus.openid.dcql.DCQLJsonClaimsQuery
-import at.asitplus.openid.dcql.DCQLSdJwtCredentialMetadataAndValidityConstraints
-import at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery
 import at.asitplus.signum.indispensable.asn1.ObjectIdentifier
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.data.ConstantIndex
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrowAny
-import io.kotest.matchers.collections.shouldBeSingleton
-import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 
 
 val OpenId4VpRequestOptionsTest by matrixSuite {

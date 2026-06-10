@@ -12,11 +12,12 @@ import at.asitplus.openid.OpenIdConstants.URN_TYPE_JWK_THUMBPRINT
 import at.asitplus.openid.SupportedCredentialFormat
 import at.asitplus.openid.VcJwtCredentialDefinition
 import at.asitplus.wallet.lib.data.AttributeIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialScheme
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.ConstantIndex.supportsIso
 import at.asitplus.wallet.lib.data.ConstantIndex.supportsSdJwt
 import at.asitplus.wallet.lib.data.ConstantIndex.supportsVcJwt
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.VcDataModelConstants
 
 /**
@@ -100,13 +101,13 @@ class DefaultCredentialSchemeMapper : CredentialSchemeMapper {
     override fun map(scheme: CredentialScheme): Map<String, SupportedCredentialFormat> =
         listOfNotNull(
             if (scheme.supportsIso) scheme.toIsoMdocSupportedCredentialFormat(
-                toCredentialIdentifier(scheme, CredentialRepresentation.ISO_MDOC)
+                toCredentialIdentifier(scheme, ISO_MDOC)
             ) else null,
             if (scheme.supportsVcJwt) scheme.toPlainJwtSupportedCredentialFormat(
-                toCredentialIdentifier(scheme, CredentialRepresentation.PLAIN_JWT)
+                toCredentialIdentifier(scheme, PLAIN_JWT)
             ) else null,
             if (scheme.supportsSdJwt) scheme.toSdJwtSupportedCredentialFormat(
-                toCredentialIdentifier(scheme, CredentialRepresentation.SD_JWT)
+                toCredentialIdentifier(scheme, SD_JWT)
             ) else null
         ).toMap()
 
@@ -114,9 +115,9 @@ class DefaultCredentialSchemeMapper : CredentialSchemeMapper {
         scheme: CredentialScheme,
         rep: CredentialRepresentation,
     ) = when (rep) {
-        CredentialRepresentation.PLAIN_JWT -> encodeToCredentialIdentifier(scheme.vcType!!, JWT_VC)
-        CredentialRepresentation.SD_JWT -> encodeToCredentialIdentifier(scheme.sdJwtType!!, DC_SD_JWT)
-        CredentialRepresentation.ISO_MDOC -> scheme.isoNamespace!!
+        PLAIN_JWT -> encodeToCredentialIdentifier(scheme.vcType!!, JWT_VC)
+        SD_JWT -> encodeToCredentialIdentifier(scheme.sdJwtType!!, DC_SD_JWT)
+        ISO_MDOC -> scheme.isoNamespace!!
     }
 
     override fun encodeToCredentialIdentifier(type: String, format: CredentialFormatEnum): String =
@@ -135,7 +136,7 @@ class DefaultCredentialSchemeMapper : CredentialSchemeMapper {
             Pair(credentialScheme, format.toRepresentation())
         } else {
             AttributeIndex.resolveIsoNamespace(input)
-                ?.let { Pair(it, CredentialRepresentation.ISO_MDOC) }
+                ?.let { Pair(it, ISO_MDOC) }
         }
 
 }

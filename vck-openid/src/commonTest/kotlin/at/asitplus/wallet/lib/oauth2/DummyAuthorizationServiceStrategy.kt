@@ -2,7 +2,8 @@ package at.asitplus.wallet.lib.oauth2
 
 import at.asitplus.openid.AuthorizationDetails
 import at.asitplus.openid.OpenIdAuthorizationDetails
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidAuthorizationDetails
 
 class DummyAuthorizationServiceStrategy(
@@ -45,7 +46,7 @@ class DummyAuthorizationServiceStrategy(
     override fun allCredentialIdentifier(): Set<String> = setOf()
 
     override fun toCredentialConfigurationIds(
-        credentials: Set<Pair<ConstantIndex.CredentialScheme, ConstantIndex.CredentialRepresentation>>
+        credentials: Set<Pair<CredentialScheme, CredentialRepresentation>>
     ): Set<String> {
         require(credentials.isEmpty()) {
             "DummyAuthorizationServiceStrategy does not support credential configuration mapping"

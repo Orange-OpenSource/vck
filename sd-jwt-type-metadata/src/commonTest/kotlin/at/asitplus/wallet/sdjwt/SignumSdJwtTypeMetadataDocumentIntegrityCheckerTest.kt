@@ -1,10 +1,8 @@
 package at.asitplus.wallet.sdjwt
 
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 
-@Suppress("unused")
 val SignumW3cSubresourceIntegrityCheckerTest by matrixSuite {
     /**
      * just making sure that the enum names remain consistent with the specification

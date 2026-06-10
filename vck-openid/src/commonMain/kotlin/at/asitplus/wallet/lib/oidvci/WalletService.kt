@@ -58,15 +58,11 @@ import at.asitplus.wallet.lib.RemoteResourceRetrieverFunction
 import at.asitplus.wallet.lib.RemoteResourceRetrieverInput
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.Holder
-import at.asitplus.wallet.lib.agent.Holder.StoreCredentialInput.Iso
-import at.asitplus.wallet.lib.agent.Holder.StoreCredentialInput.SdJwt
-import at.asitplus.wallet.lib.agent.Holder.StoreCredentialInput.Vc
+import at.asitplus.wallet.lib.agent.Holder.StoreCredentialInput.*
 import at.asitplus.wallet.lib.agent.KeyMaterial
-import at.asitplus.wallet.lib.data.ConstantIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.SignJwt
@@ -76,8 +72,8 @@ import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidRequest
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidToken
 import com.benasher44.uuid.uuid4
 import io.github.aakira.napier.Napier
-import io.ktor.http.Url
-import io.ktor.util.flattenEntries
+import io.ktor.http.*
+import io.ktor.util.*
 import io.matthewnelson.encoding.base64.Base64
 import io.matthewnelson.encoding.core.Decoder.Companion.decodeToByteArray
 import kotlinx.serialization.decodeFromByteArray
@@ -172,7 +168,7 @@ class WalletService(
         /**
          * Credential type to request
          */
-        val credentialScheme: ConstantIndex.CredentialScheme,
+        val credentialScheme: CredentialScheme,
         /**
          * Required representation, see [CredentialRepresentation]
          */
@@ -346,7 +342,7 @@ class WalletService(
         response: String,
         isEncrypted: Boolean,
         representation: CredentialRepresentation,
-        scheme: ConstantIndex.CredentialScheme,
+        scheme: CredentialScheme,
     ): KmmResult<Collection<Holder.StoreCredentialInput>> = catching {
         response.decryptIfNeeded(isEncrypted)
             .extractCredentials()
@@ -365,7 +361,7 @@ class WalletService(
     suspend fun parseCredentialResponse(
         response: CredentialResponse,
         representation: CredentialRepresentation,
-        scheme: ConstantIndex.CredentialScheme,
+        scheme: CredentialScheme,
     ): KmmResult<Collection<Holder.StoreCredentialInput>> = catching {
         response.decryptIfNeeded()
             .extractCredentials()
@@ -522,7 +518,7 @@ class WalletService(
     @Throws(Exception::class)
     private fun String.toStoreCredentialInput(
         credentialRepresentation: CredentialRepresentation,
-        credentialScheme: ConstantIndex.CredentialScheme,
+        credentialScheme: CredentialScheme,
     ): Holder.StoreCredentialInput = when (credentialRepresentation) {
         PLAIN_JWT -> Vc(
             signedVcJws = JwsCompactTyped<VerifiableCredentialJws>(this),

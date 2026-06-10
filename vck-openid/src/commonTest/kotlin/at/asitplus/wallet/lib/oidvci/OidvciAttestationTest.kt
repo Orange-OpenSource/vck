@@ -151,9 +151,10 @@ val OidvciAttestationTest by matrixSuite {
         }
     } - {
         test("use key attestation for proof") {
-            val requestOptions = RequestOptions(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
-            val credentialFormat = it.client.selectSupportedCredentialFormat(requestOptions, it.issuer.metadata)
-                .shouldNotBeNull()
+            val requestOptions = WalletService.RequestOptions(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
+            val credentialFormat =
+                it.client.selectSupportedCredentialFormat(requestOptions, it.issuer.metadata)
+                    .shouldNotBeNull()
             val scope = credentialFormat.scope.shouldNotBeNull()
             val token = it.getToken(scope)
             val clientNonce = it.issuer.nonceWithDpopNonce().getOrThrow().response.clientNonce
@@ -198,8 +199,9 @@ val OidvciAttestationTest by matrixSuite {
             )
 
             val requestOptions = RequestOptions(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
-            val credentialFormat = it.client.selectSupportedCredentialFormat(requestOptions, it.issuer.metadata)
-                .shouldNotBeNull()
+            val credentialFormat =
+                it.client.selectSupportedCredentialFormat(requestOptions, it.issuer.metadata)
+                    .shouldNotBeNull()
             val scope = credentialFormat.scope.shouldNotBeNull()
             val token = it.getToken(scope)
             val clientNonce = it.issuer.nonceWithDpopNonce().getOrThrow().response.clientNonce
@@ -225,8 +227,9 @@ val OidvciAttestationTest by matrixSuite {
             it.client = WalletService(loadKeyAttestation = null)
 
             val requestOptions = RequestOptions(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
-            val credentialFormat = it.client.selectSupportedCredentialFormat(requestOptions, it.issuer.metadata)
-                .shouldNotBeNull()
+            val credentialFormat =
+                it.client.selectSupportedCredentialFormat(requestOptions, it.issuer.metadata)
+                    .shouldNotBeNull()
             val scope = credentialFormat.scope.shouldNotBeNull()
             val token = it.getToken(scope)
             val clientNonce = it.issuer.nonceWithDpopNonce().getOrThrow().response.clientNonce

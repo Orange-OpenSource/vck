@@ -1,7 +1,6 @@
 package at.asitplus.wallet.lib.agent
 
 import at.asitplus.KmmResult
-import at.asitplus.catchingUnwrapped
 import at.asitplus.dif.ClaimFormat
 import at.asitplus.iso.IssuerSigned
 import at.asitplus.iso.sha256
@@ -11,11 +10,13 @@ import at.asitplus.openid.OAuth2AuthorizationServerMetadata
 import at.asitplus.openid.SupportedCredentialFormat
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.wallet.lib.data.AttributeIndex
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.IsoMdocFallbackCredentialScheme
 import at.asitplus.wallet.lib.data.SdJwtFallbackCredentialScheme
 import at.asitplus.wallet.lib.data.SelectiveDisclosureItem
+import at.asitplus.wallet.lib.data.UnknownCredentialScheme
 import at.asitplus.wallet.lib.data.VcDataModelConstants.VERIFIABLE_CREDENTIAL
 import at.asitplus.wallet.lib.data.VcFallbackCredentialScheme
 import at.asitplus.wallet.lib.data.VerifiableCredential
@@ -25,6 +26,7 @@ import io.ktor.utils.io.core.toByteArray
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToByteArray
+import kotlin.String
 
 /**
  * Stores all credentials that a subject has received
@@ -41,7 +43,7 @@ interface SubjectCredentialStore {
     suspend fun storeCredential(
         vc: VerifiableCredentialJws,
         vcSerialized: String,
-        scheme: ConstantIndex.CredentialScheme,
+        scheme: CredentialScheme,
         renewalInfo: CredentialRenewalInfo? = null,
     ): StoreEntry
 
@@ -56,7 +58,7 @@ interface SubjectCredentialStore {
         vc: VerifiableCredentialSdJwt,
         vcSerialized: String,
         disclosures: Map<String, SelectiveDisclosureItem?>,
-        scheme: ConstantIndex.CredentialScheme,
+        scheme: CredentialScheme,
         renewalInfo: CredentialRenewalInfo? = null,
     ): StoreEntry
 
@@ -68,7 +70,7 @@ interface SubjectCredentialStore {
      */
     suspend fun storeCredential(
         issuerSigned: IssuerSigned,
-        scheme: ConstantIndex.CredentialScheme,
+        scheme: CredentialScheme,
         renewalInfo: CredentialRenewalInfo? = null,
     ): StoreEntry
 
@@ -76,19 +78,19 @@ interface SubjectCredentialStore {
      * Return all stored credentials.
      * Selective Disclosure: Specify list of credential schemes in [credentialSchemes].
      */
-    suspend fun getCredentials(credentialSchemes: Collection<ConstantIndex.CredentialScheme>? = null)
+    suspend fun getCredentials(credentialSchemes: Collection<CredentialScheme>? = null)
             : KmmResult<List<StoreEntry>>
 
     @Serializable
     sealed interface StoreEntry {
         val schemaUri: String
-        val scheme: ConstantIndex.CredentialScheme?
-            get() = AttributeIndex.resolveSchemaUri(schemaUri) ?: getFallbackScheme()
+        val scheme: CredentialScheme
+            get() = getFallbackScheme()
         val credentialFormat: CredentialFormatEnum
         val claimFormat: ClaimFormat
         val renewalInfo: CredentialRenewalInfo?
 
-        fun getFallbackScheme(): ConstantIndex.CredentialScheme?
+        fun getFallbackScheme(): CredentialScheme
 
         @Serializable
         data class Vc(
@@ -101,8 +103,10 @@ interface SubjectCredentialStore {
             @SerialName("credential-renewal-info")
             override val renewalInfo: CredentialRenewalInfo? = null,
         ) : StoreEntry {
-            override fun getFallbackScheme(): ConstantIndex.CredentialScheme =
-                VcFallbackCredentialScheme(vc.vc.type.first { it != VERIFIABLE_CREDENTIAL })
+            override fun getFallbackScheme(): CredentialScheme =
+                vc.vc.type.firstOrNull { it != VERIFIABLE_CREDENTIAL }
+                    ?.let { VcFallbackCredentialScheme(it) }
+                    ?: UnknownCredentialScheme(PLAIN_JWT)
 
             override val credentialFormat: CredentialFormatEnum = CredentialFormatEnum.JWT_VC
             override val claimFormat: ClaimFormat = ClaimFormat.JWT_VP
@@ -122,7 +126,7 @@ interface SubjectCredentialStore {
             @SerialName("credential-renewal-info")
             override val renewalInfo: CredentialRenewalInfo? = null,
         ) : StoreEntry {
-            override fun getFallbackScheme(): ConstantIndex.CredentialScheme =
+            override fun getFallbackScheme(): CredentialScheme =
                 SdJwtFallbackCredentialScheme(sdJwt.verifiableCredentialType)
 
             override val credentialFormat: CredentialFormatEnum = CredentialFormatEnum.DC_SD_JWT
@@ -138,9 +142,9 @@ interface SubjectCredentialStore {
             @SerialName("credential-renewal-info")
             override val renewalInfo: CredentialRenewalInfo? = null,
         ) : StoreEntry {
-            override fun getFallbackScheme(): ConstantIndex.CredentialScheme? = catchingUnwrapped {
-                IsoMdocFallbackCredentialScheme(issuerSigned.issuerAuth.payload?.docType!!)
-            }.getOrNull()
+            override fun getFallbackScheme(): CredentialScheme =
+                issuerSigned.issuerAuth.payload?.docType?.let { IsoMdocFallbackCredentialScheme(it) }
+                    ?: UnknownCredentialScheme(ISO_MDOC)
 
             override val credentialFormat: CredentialFormatEnum = CredentialFormatEnum.MSO_MDOC
             override val claimFormat: ClaimFormat = ClaimFormat.MSO_MDOC

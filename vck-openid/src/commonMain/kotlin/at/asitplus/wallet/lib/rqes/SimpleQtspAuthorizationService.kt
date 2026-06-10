@@ -1,6 +1,6 @@
 package at.asitplus.wallet.lib.rqes
 
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.oauth2.AuthorizationService
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
 import at.asitplus.wallet.lib.oidvci.CredentialAuthorizationServiceStrategy
@@ -15,7 +15,7 @@ class SimpleQtspAuthorizationService private constructor(
 ) : OAuth2AuthorizationServerAdapter by authorizationService, AuthorizationService by authorizationService {
 
     constructor(
-        acceptedCredentials: Collection<ConstantIndex.CredentialScheme>,
+        acceptedCredentials: Collection<CredentialScheme>,
     ) : this(
         authorizationService = SimpleAuthorizationService(
             strategy = QtspAuthorizationServiceStrategy(

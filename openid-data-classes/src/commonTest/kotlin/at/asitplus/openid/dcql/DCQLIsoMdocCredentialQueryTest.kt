@@ -1,7 +1,6 @@
 package at.asitplus.openid.dcql
 
 import at.asitplus.openid.CredentialFormatEnum
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.collections.shouldHaveSize
@@ -10,7 +9,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 
-@Suppress("unused")
 val DCQLIsoMdocCredentialQueryTest by matrixSuite {
     "serialization" {
         val value = DCQLIsoMdocCredentialQuery(
