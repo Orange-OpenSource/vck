@@ -1,7 +1,6 @@
 import at.asitplus.gradle.VcLibVersions
 import at.asitplus.gradle.envExtra
 import at.asitplus.gradle.exportXCFramework
-import at.asitplus.gradle.ktor
 import at.asitplus.gradle.napier
 import at.asitplus.gradle.setupDokka
 import at.asitplus.gradle.vckAndroid
@@ -30,8 +29,6 @@ kotlin {
         commonMain {
             dependencies {
                 implementation(project.napier())
-                implementation(project.ktor("http"))
-                implementation(ktor("client-core"))
                 api(project(":rfc3986-uri-syntax"))
                 api("at.asitplus.signum:supreme:${VcLibVersions.supreme}")
                 api("at.asitplus.signum:indispensable:${VcLibVersions.signum}")

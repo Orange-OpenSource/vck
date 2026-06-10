@@ -1,7 +1,13 @@
-package at.asitplus.wallet.sdjwt
+package at.asitplus.wallet.lib.ktor.openid
 
 import at.asitplus.rfc3986uri.Rfc3986UniformResourceIdentifier
 import at.asitplus.rfc3986uri.Rfc3986UriSchemeName
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDefinition
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocument
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocumentIntegrityChecker
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocumentRetriever
+import at.asitplus.wallet.sdjwt.SdJwtVcType
+import at.asitplus.wallet.sdjwt.W3cSubresourceIntegrityMetadata
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -13,11 +19,16 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
-// unused because there are currently no officially available type metadata documents
-@Suppress("unused")
 class KtorSdJwtTypeMetadataDocumentRetriever(
     val httpClient: HttpClient,
     val clock: Clock,
+    /**
+     * Resolves the URL a metadata document is hosted at for a given `vct` (used both as document identity and for
+     * walking `extends`). Required because a `vct` is not necessarily a URL (e.g. `urn:eudi:pid:1`); the owning
+     * [at.asitplus.wallet.lib.data.CredentialMetadataRegistry] keeps the actual `vct -> URL` mapping and supplies this
+     * lookup. A `vct` for which this returns `null` cannot be fetched, and [retrieve] returns `null` for it.
+     */
+    val locateUrl: (SdJwtVcType) -> String?,
     val json: Json = Json.Default,
     val integrityChecker: SdJwtTypeMetadataDocumentIntegrityChecker = SdJwtTypeMetadataDocumentIntegrityChecker.DEFAULT,
 ) : SdJwtTypeMetadataDocumentRetriever {
@@ -28,8 +39,10 @@ class KtorSdJwtTypeMetadataDocumentRetriever(
         sdJwtVcType: SdJwtVcType,
         integrityMetadata: W3cSubresourceIntegrityMetadata?,
     ): SdJwtTypeMetadataDocument? {
+        val url = locateUrl(sdJwtVcType) ?: return null
+
         val uri = runCatching {
-            Rfc3986UniformResourceIdentifier.Companion(sdJwtVcType.string)
+            Rfc3986UniformResourceIdentifier.Companion(url)
         }.getOrNull() ?: return null
 
         if (uri.schemeName !in Rfc3986UriSchemeName.Common.run { listOf(HTTPS, HTTP) }) {
@@ -52,7 +65,7 @@ class KtorSdJwtTypeMetadataDocumentRetriever(
             }
         }
 
-        val response = httpClient.get(sdJwtVcType.string)
+        val response = httpClient.get(url)
         if (response.status == HttpStatusCode.OK) {
             val rawBytes = response.body<ByteArray>()
             val definition = json.decodeFromString(SdJwtTypeMetadataDefinition.serializer(), rawBytes.decodeToString())

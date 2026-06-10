@@ -228,7 +228,9 @@ val SdJwtTypeMetadataDocumentSerializationTest by matrixSuite {
         joseCompliantSerializer.decodeFromString(
             SdJwtTypeMetadataDocument.serializer(),
             input
-        ).definition.toSdJwtTypeMetadata().toCredentialScheme().apply {
+        ).definition.toSdJwtTypeMetadata()
+            .toCredentialScheme("https://metadata.example.test/ehic.json")
+            .apply {
             SD_JWT shouldBeIn supportedRepresentations
             sdJwtType shouldBe "urn:eudi:ehic:1"
             claimDescriptions shouldHaveSize 13
