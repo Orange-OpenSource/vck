@@ -35,12 +35,13 @@ object ConstantIndex {
         override val sdJwtType: String = "AtomicAttribute2023"
         override val isoNamespace: String = "at.a-sit.wallet.atomic-attribute-2023"
         override val isoDocType: String = "at.a-sit.wallet.atomic-attribute-2023.iso"
-        override val claimNames: Collection<String> = listOf(
-            CLAIM_GIVEN_NAME,
-            CLAIM_FAMILY_NAME,
-            CLAIM_DATE_OF_BIRTH,
-            CLAIM_PORTRAIT
-        )
+        override val claimDescriptions: Set<ClaimDescription>
+            get() = setOf(
+                ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_GIVEN_NAME)),
+                ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_FAMILY_NAME)),
+                ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_DATE_OF_BIRTH)),
+                ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_PORTRAIT)),
+            )
         override val supportedRepresentations: Collection<CredentialRepresentation>
             get() = listOf(ISO_MDOC, PLAIN_JWT, SD_JWT)
     }
@@ -125,7 +126,7 @@ interface CredentialScheme {
      * List of claims that may be issued separately when requested in format [ConstantIndex.CredentialRepresentation.SD_JWT]
      * or [ConstantIndex.CredentialRepresentation.ISO_MDOC].
      */
-    // To be replaced with claimDescriptions
+    @Deprecated("Use claimDescriptions instead")
     val claimNames: Collection<String>
         get() = listOf()
 
@@ -133,8 +134,8 @@ interface CredentialScheme {
      * List of claims that may be issued separately when requested in format [ConstantIndex.CredentialRepresentation.SD_JWT]
      * or [ConstantIndex.CredentialRepresentation.ISO_MDOC].
      */
-    val claimDescriptions: Collection<ClaimDescription>
-        get() = listOf()
+    val claimDescriptions: Set<ClaimDescription>
+        get() = setOf()
 
     /**
      * Supported representations for this credential. Note that this is usually only one representation,
@@ -158,6 +159,12 @@ interface SdJwtCredentialScheme : CredentialScheme {
      */
     override val sdJwtType: String
 
+    @Suppress("DEPRECATION")
+    override val claimDescriptions: Set<ClaimDescription>
+        get() = claimNames.map {
+            ClaimDescription(path = OpenId4VciClaimsPathPointer(it.split(".")))
+        }.toSet()
+
     override val supportedRepresentations: Collection<CredentialRepresentation>
         get() = listOf(SD_JWT)
 }
@@ -178,6 +185,14 @@ interface IsoMdocCredentialScheme : CredentialScheme {
      */
     override val isoNamespace: String
 
+    @Suppress("DEPRECATION")
+    override val claimDescriptions: Set<ClaimDescription>
+        get() = claimNames.map {
+            ClaimDescription(
+                path = OpenId4VciClaimsPathPointer(listOf(isoNamespace) + it.replace("$isoNamespace.", "").split("."))
+            )
+        }.toSet()
+
     override val supportedRepresentations: Collection<CredentialRepresentation>
         get() = listOf(ISO_MDOC)
 }
@@ -191,6 +206,12 @@ interface VcJwtCredentialScheme : CredentialScheme {
      */
     override val vcType: String
 
+    @Suppress("DEPRECATION")
+    override val claimDescriptions: Set<ClaimDescription>
+        get() = claimNames.map {
+            ClaimDescription(path = OpenId4VciClaimsPathPointer(it.split(".")))
+        }.toSet()
+
     override val supportedRepresentations: Collection<CredentialRepresentation>
         get() = listOf(PLAIN_JWT)
 }
@@ -203,7 +224,7 @@ fun SdJwtTypeMetadata.toCredentialScheme() = object : CredentialScheme {
     override val sdJwtType: String
         get() = vct.string
 
-    override val claimDescriptions: Collection<ClaimDescription>
+    override val claimDescriptions: Set<ClaimDescription>
         get() = claims?.map {
             ClaimDescription(
                 path = OpenId4VciClaimsPathPointer(it.path.map {
@@ -232,7 +253,7 @@ fun SdJwtTypeMetadata.toCredentialScheme() = object : CredentialScheme {
                     )
                 }?.toSet()
             )
-        } ?: setOf()
+        }?.toSet() ?: setOf()
 
     override val supportedRepresentations: Collection<CredentialRepresentation>
         get() = listOf(SD_JWT)

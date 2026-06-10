@@ -42,10 +42,11 @@ Release 6.0.0:
    - Deprecate `vckJsonSerializer`, should be replaced with `joseCompliantSerializer` (Signum)
    - Deprecate `signDpop` in `OAuth2KtorClient` because DPoP need same key as instance attestation [EUDI Wallet TS3](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md)
  - Credential definitions:
-   - Move `CredentialRepresentation` out of `ConstantIndex`
    - Move `CredentialScheme` out of `ConstantIndex`
+   - Provide type alias for `CredentialRepresentation`
    - Introudce typed sub-interfaces of `CredentialScheme`: `VcJwtCredentialScheme`, `SdJwtCredentialScheme` and `IsoMdocCredentialScheme`
    - That implies changes to `CredentialToBeIssued`, `IssuedCredential`, `StoreCredentialInput` and methods in `SubjectCredentialStore`
+   - In `CredentialScheme` deprecate `claimNames` (list of strings), to be replaced with `claimDescriptions` (set of typed descriptions)
    - In `StoreEntry` deprecate property `scheme` and add suspending function `resolveScheme()` to replace it 
    - Add `UnknownCredentialScheme` so that the `scheme` property of several classes is never null
  - New modules:

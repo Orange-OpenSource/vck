@@ -8,6 +8,8 @@ import at.asitplus.iso.Document
 import at.asitplus.iso.MobileSecurityObject
 import at.asitplus.jsonpath.core.NormalizedJsonPath
 import at.asitplus.jsonpath.core.NormalizedJsonPathSegment.NameSegment
+import at.asitplus.openid.ClaimDescription
+import at.asitplus.openid.OpenId4VciClaimsPathPointer
 import at.asitplus.signum.indispensable.cosef.CoseSigned
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
@@ -120,7 +122,9 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
             }
             val validItems = presentationParameters.presentationResults
                 .filterIsInstance<CreatePresentationResult.DeviceResponse>()
-                .map { resp -> it.verifier.verifyPresentationIsoMdoc(resp.deviceResponse, documentVerifier()).getOrThrow() }
+                .map { resp ->
+                    it.verifier.verifyPresentationIsoMdoc(resp.deviceResponse, documentVerifier()).getOrThrow()
+                }
                 .flatMap { it.shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>().documents }
                 .flatMap { it.validItems }
             validItems.firstOrNull { item -> item.elementIdentifier == CLAIM_GIVEN_NAME }
@@ -163,7 +167,9 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
 
             val validItems = presentationParameters.presentationResults
                 .filterIsInstance<CreatePresentationResult.DeviceResponse>()
-                .map { resp -> it.verifier.verifyPresentationIsoMdoc(resp.deviceResponse, documentVerifier()).getOrThrow() }
+                .map { resp ->
+                    it.verifier.verifyPresentationIsoMdoc(resp.deviceResponse, documentVerifier()).getOrThrow()
+                }
                 .flatMap { it.shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>().documents }
                 .flatMap { it.validItems }
             validItems.firstOrNull { item -> item.elementIdentifier == CLAIM_GIVEN_NAME }
@@ -220,12 +226,13 @@ object AtomicAttribute2025 : CredentialScheme, IsoMdocCredentialScheme, SdJwtCre
     override val sdJwtType: String = "AtomicAttribute2025"
     override val isoNamespace: String = "at.a-sit.wallet.atomic-attribute-2025"
     override val isoDocType: String = "at.a-sit.wallet.atomic-attribute-2025.iso"
-    override val claimNames: Collection<String> = listOf(
-        CLAIM_GIVEN_NAME,
-        CLAIM_FAMILY_NAME,
-        CLAIM_DATE_OF_BIRTH,
-        CLAIM_PORTRAIT
-    )
+    override val claimDescriptions: Set<ClaimDescription>
+        get() = setOf(
+            ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_GIVEN_NAME)),
+            ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_FAMILY_NAME)),
+            ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_DATE_OF_BIRTH)),
+            ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_PORTRAIT)),
+        )
     override val supportedRepresentations: Collection<at.asitplus.wallet.lib.data.CredentialRepresentation>
         get() = listOf(ISO_MDOC, PLAIN_JWT, SD_JWT)
 }
