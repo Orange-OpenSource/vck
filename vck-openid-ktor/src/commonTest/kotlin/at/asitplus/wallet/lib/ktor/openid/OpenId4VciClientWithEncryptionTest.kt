@@ -9,14 +9,15 @@ import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.matrixSuite
-import at.asitplus.wallet.eupid.EuPidScheme
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
+import at.asitplus.wallet.eupid.EuPidDataElements
+import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.CredentialRepresentation
@@ -212,8 +213,9 @@ val OpenId4VciClientWithEncryptionTest by matrixSuite {
 
     test("loadEuPidCredentialSdJwt") {
         val expectedFamilyName = uuid4().toString()
-        val expectedAttributeName = EuPidSdJwtScheme.SdJwtAttributes.FAMILY_NAME
-        with(setup(EuPidSdJwtScheme, SD_JWT, mapOf(expectedAttributeName to expectedFamilyName))) {
+        val expectedAttributeName = EuPidSdJwtDataElements.FAMILY_NAME
+        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
+        with(setup(euPidSdJwtScheme, SD_JWT, mapOf(expectedAttributeName to expectedFamilyName))) {
             var refreshTokenStore: CredentialRenewalInfo? = null
 
             // Load credential identifier infos from Issuing service
@@ -244,8 +246,9 @@ val OpenId4VciClientWithEncryptionTest by matrixSuite {
 
     test("loadEuPidCredentialIsoWithOffer") {
         val expectedAttributeValue = uuid4().toString()
-        val expectedAttributeName = EuPidScheme.Attributes.GIVEN_NAME
-        with(setup(EuPidScheme, ISO_MDOC, mapOf(expectedAttributeName to expectedAttributeValue))) {
+        val expectedAttributeName = EuPidDataElements.GIVEN_NAME
+        val euPidScheme = AttributeIndex.resolveIdentifier("eu.europa.ec.eudi.pid.1", ISO_MDOC)
+        with(setup(euPidScheme, ISO_MDOC, mapOf(expectedAttributeName to expectedAttributeValue))) {
             var refreshTokenStore: CredentialRenewalInfo? = null
 
             // Load credential identifier infos from Issuing service
@@ -257,7 +260,7 @@ val OpenId4VciClientWithEncryptionTest by matrixSuite {
             val offer = authorizationService.offerWithPreAuthnForUserForSchemes(
                 user = dummyUser(),
                 credentialIssuer = credentialIssuer.metadata.credentialIssuer,
-                schemes = setOf(EuPidScheme to ISO_MDOC),
+                schemes = setOf(euPidScheme to ISO_MDOC),
             )
             client.loadCredentialWithOfferReturningResult(offer, selectedCredential, null).getOrThrow().also {
                 it.shouldBeInstanceOf<CredentialIssuanceResult.Success>().also {

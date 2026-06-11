@@ -22,8 +22,7 @@ import at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme.SdJwtAttributes
+import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
@@ -36,13 +35,13 @@ import at.asitplus.wallet.lib.agent.SubjectCredentialStore
 import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
 import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.rfc3986.toUri
-import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import com.benasher44.uuid.uuid4
 import io.kotest.assertions.AssertionErrorBuilder.Companion.fail
 import io.kotest.assertions.throwables.shouldNotThrowAny
@@ -54,6 +53,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
@@ -61,26 +61,31 @@ private fun AuthenticationRequestParameters.serialize(): String = joseCompliantS
 
 val OpenId4VpCombinedProtocolTest by matrixSuite {
 
-    fixture {
-        object {
-            val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
-            val verifierKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
-            val clientId: String = "https://example.com/rp/${uuid4()}"
-            val holderAgent: Holder = HolderAgent(holderKeyMaterial)
-            val holderOid4vp: OpenId4VpHolder = OpenId4VpHolder(
-                keyMaterial = holderKeyMaterial,
-                holder = holderAgent,
-                randomSource = RandomSource.Default,
-            )
-            val verifierOid4vp: OpenId4VpVerifier = OpenId4VpVerifier(
-                keyMaterial = verifierKeyMaterial,
-                clientIdScheme = ClientIdScheme.RedirectUri(clientId),
-            )
+    fixture({
+        runBlocking {
+            val mdlScheme = AttributeIndex.resolveIdentifier("org.iso.18013.5.1.mDL", ISO_MDOC)
+            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
+            object {
+                val mdlScheme = mdlScheme
+                val euPidSdJwtScheme = euPidSdJwtScheme
+                val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
+                val verifierKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
+                val clientId: String = "https://example.com/rp/${uuid4()}"
+                val holderAgent: Holder = HolderAgent(holderKeyMaterial)
+                val holderOid4vp: OpenId4VpHolder = OpenId4VpHolder(
+                    keyMaterial = holderKeyMaterial,
+                    holder = holderAgent,
+                    randomSource = RandomSource.Default,
+                )
+                val verifierOid4vp: OpenId4VpVerifier = OpenId4VpVerifier(
+                    keyMaterial = verifierKeyMaterial,
+                    clientIdScheme = ClientIdScheme.RedirectUri(clientId),
+                )
+            }
         }
-    } - {
-
+    }) - {
         test("plain jwt: if not available despite others with correct format or correct attribute, but not both") {
-            it.holderAgent.storeJwtCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeJwtCredential(it.holderKeyMaterial, it.mdlScheme)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
@@ -100,7 +105,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
 
         test("plain jwt: if available despite others") {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeJwtCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeJwtCredential(it.holderKeyMaterial, it.mdlScheme)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
@@ -136,7 +141,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
 
         test("plain jwt: send plain if no cryptographic holder binding") {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeJwtCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeJwtCredential(it.holderKeyMaterial, it.mdlScheme)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
@@ -170,7 +175,8 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val vcFreshnessSummary = it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
                 .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
                 .shouldBeInstanceOf<VpTokenValidationResultDCQL>()
-                .credentialQueryResponseValidations.values.shouldBeSingleton().first().shouldBeSingleton().first()
+                .credentialQueryResponseValidations.values.shouldBeSingleton().first().shouldBeSingleton()
+                .first()
                 .getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessUnsigned>()
                 .vc
@@ -180,7 +186,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
 
         test("sd-jwt presex: if not available despite others with correct format or correct attribute, but not both") {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, it.mdlScheme)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
@@ -200,7 +206,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
         test("sd-jwt presex: if available despite others with correct format or correct attribute, but not both") {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, it.mdlScheme)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
@@ -225,7 +231,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
 
         test("sd-jwt dcql: if not available despite others with correct format or correct attribute, but not both") {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, it.mdlScheme)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
             val authnRequest = it.verifierOid4vp.prepareAuthnRequest(
@@ -246,7 +252,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
         test("sd-jwt dcql: if available despite others with correct format or correct attribute, but not both") {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, it.mdlScheme)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
@@ -266,7 +272,8 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
                 .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
                 .shouldBeInstanceOf<VpTokenValidationResultDCQL>()
-                .credentialQueryResponseValidations.values.shouldBeSingleton().first().shouldBeSingleton().first()
+                .credentialQueryResponseValidations.values.shouldBeSingleton().first().shouldBeSingleton()
+                .first()
                 .getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .verifiableCredentialSdJwt.verifiableCredentialType shouldBe ConstantIndex.AtomicAttribute2023.sdJwtType
@@ -275,7 +282,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
         "mdoc presex: if not available despite others with correct format or correct attribute, but not both" { it ->
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
@@ -295,7 +302,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
@@ -319,7 +326,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
         "mdoc dcql: if not available despite others with correct format or correct attribute, but not both" { it ->
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
@@ -340,7 +347,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
@@ -366,7 +373,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val dcqlRequest = CredentialPresentationRequestBuilder(
                 credentials = setOf(
@@ -406,7 +413,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val originalDcqlRequest = CredentialPresentationRequestBuilder(
                 credentials = setOf(
@@ -425,10 +432,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
 
             val otherDcqlQuery = CredentialPresentationRequestBuilder(
                 credentials = setOf(
-                    RequestOptionsCredential(
-                        ConstantIndex.AtomicAttribute2023,
-                        SD_JWT
-                    )
+                    RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
                 ),
             ).toDCQLRequest().shouldNotBeNull().dcqlQuery
 
@@ -436,17 +440,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 credentials = DCQLCredentialQueryList(
                     originalDcqlRequest.dcqlQuery.credentials.zip(otherDcqlQuery.credentials) { good, bad ->
                         when (bad) {
-                            is DCQLIsoMdocCredentialQuery -> bad.copy(
-                                id = good.id
-                            )
-
-                            is DCQLJwtVcCredentialQuery -> bad.copy(
-                                id = good.id
-                            )
-
-                            is DCQLSdJwtCredentialQuery -> bad.copy(
-                                id = good.id
-                            )
+                            is DCQLIsoMdocCredentialQuery -> bad.copy(id = good.id)
+                            is DCQLJwtVcCredentialQuery -> bad.copy(id = good.id)
+                            is DCQLSdJwtCredentialQuery -> bad.copy(id = good.id)
                         }
                     }.toNonEmptyList()
                 )
@@ -480,7 +476,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val dcqlRequest = CredentialPresentationRequestBuilder(
                 credentials = setOf(
@@ -518,14 +514,14 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
 
         "presentation of multiple credentials with different formats in one request/response" { it ->
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
-            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, MobileDrivingLicenceScheme)
+            it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
                         credentials = setOf(
                             RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT),
-                            RequestOptionsCredential(MobileDrivingLicenceScheme, ISO_MDOC)
+                            RequestOptionsCredential(it.mdlScheme, ISO_MDOC)
                         )
                     ).toPresentationExchangeRequest(),
                 ),
@@ -540,7 +536,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
         }
 
         "presentation of multiple SD-JWT credentials in one request/response" { it ->
-            it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, EuPidSdJwtScheme)
+            it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, it.euPidSdJwtScheme)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
             val requestOptions = OpenId4VpRequestOptions(
@@ -552,11 +548,11 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                             requestedAttributes = setOf(ConstantIndex.AtomicAttribute2023.CLAIM_DATE_OF_BIRTH),
                         ),
                         RequestOptionsCredential(
-                            credentialScheme = EuPidSdJwtScheme,
+                            credentialScheme = it.euPidSdJwtScheme,
                             representation = SD_JWT,
                             requestedAttributes = setOf(
-                                SdJwtAttributes.FAMILY_NAME,
-                                SdJwtAttributes.GIVEN_NAME
+                                EuPidSdJwtDataElements.FAMILY_NAME,
+                                EuPidSdJwtDataElements.GIVEN_NAME
                             ),
                         )
                     )
@@ -578,9 +574,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 result.shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 result.reconstructedJsonObject.entries.shouldNotBeEmpty()
                 when (result.verifiableCredentialSdJwt.verifiableCredentialType) {
-                    EuPidSdJwtScheme.sdJwtType -> {
-                        result.reconstructedJsonObject[SdJwtAttributes.FAMILY_NAME].shouldNotBeNull()
-                        result.reconstructedJsonObject[SdJwtAttributes.GIVEN_NAME].shouldNotBeNull()
+                    "urn:eudi:pid:1" -> {
+                        result.reconstructedJsonObject[EuPidSdJwtDataElements.FAMILY_NAME].shouldNotBeNull()
+                        result.reconstructedJsonObject[EuPidSdJwtDataElements.GIVEN_NAME].shouldNotBeNull()
                     }
 
                     ConstantIndex.AtomicAttribute2023.sdJwtType -> {
@@ -605,11 +601,8 @@ private suspend fun Holder.storeJwtCredential(
             identifier = "https://issuer.example.com/".toUri(),
             randomSource = RandomSource.Default
         ).issueCredential(
-            DummyCredentialDataProvider.getCredential(
-                holderKeyMaterial.publicKey,
-                credentialScheme,
-                PLAIN_JWT,
-            ).getOrThrow()
+            DummyCredentialDataProvider.getCredential(holderKeyMaterial.publicKey, credentialScheme, PLAIN_JWT)
+                .getOrThrow()
         ).getOrThrow().toStoreCredentialInput()
     )
 }
@@ -624,11 +617,8 @@ private suspend fun Holder.storeSdJwtCredential(
             identifier = "https://issuer.example.com/".toUri(),
             randomSource = RandomSource.Default
         ).issueCredential(
-            DummyCredentialDataProvider.getCredential(
-                holderKeyMaterial.publicKey,
-                credentialScheme,
-                SD_JWT,
-            ).getOrThrow()
+            DummyCredentialDataProvider.getCredential(holderKeyMaterial.publicKey, credentialScheme, SD_JWT)
+                .getOrThrow()
         ).getOrThrow().toStoreCredentialInput()
     )
 }
@@ -642,10 +632,6 @@ private suspend fun Holder.storeIsoCredential(
         identifier = "https://issuer.example.com/".toUri(),
         randomSource = RandomSource.Default
     ).issueCredential(
-        DummyCredentialDataProvider.getCredential(
-            holderKeyMaterial.publicKey,
-            credentialScheme,
-            ISO_MDOC,
-        ).getOrThrow()
+        DummyCredentialDataProvider.getCredential(holderKeyMaterial.publicKey, credentialScheme, ISO_MDOC).getOrThrow()
     ).getOrThrow().toStoreCredentialInput()
 )

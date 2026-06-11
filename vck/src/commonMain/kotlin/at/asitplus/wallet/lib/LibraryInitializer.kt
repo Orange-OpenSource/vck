@@ -39,10 +39,8 @@ object LibraryInitializer {
     }
 
     /**
-     * Register [credentialScheme] to be used with this library, e.g. in OpenID protocol implementations.
-     * Used for credentials supporting [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC],
-     * which need to specify several functions to allow encoding any values
-     * in [at.asitplus.iso.IssuerSignedItem].
+     * Register encoders for certain types used in ISO mDoc credential schemes,
+     * to help encoding "any" values in [at.asitplus.iso.IssuerSignedItem].
      * See the function typealiases in [JsonValueEncoder] and [ElementIdentifierToItemValueSerializerMap]
      * for implementation notes.
      * Example for [jsonValueEncoder]:
@@ -58,35 +56,38 @@ object LibraryInitializer {
      * Example for [itemValueSerializerMap]:
      * ```
      * mapOf(
-     *     MobileDrivingLicenceDataElements.BIRTH_DATE to LocalDate.serializer(),
-     *     MobileDrivingLicenceDataElements.PORTRAIT to ByteArraySerializer(),
+     *     "org.iso.18013.5.1" to mapOf(
+     *         MobileDrivingLicenceDataElements.BIRTH_DATE to LocalDate.serializer(),
+     *         MobileDrivingLicenceDataElements.PORTRAIT to ByteArraySerializer(),
+     *     )
      * )
      * ```
      *
-     * @param jsonValueEncoder used to describe the credential in input descriptors used in verifiable presentations,
-     * e.g. when used in SIOPv2
+     * @param jsonValueEncoder used to describe the credential in input descriptors (Presentation Exchange)
      * @param itemValueSerializerMap used to actually serialize and deserialize `Any` object in
-     * [at.asitplus.iso.IssuerSignedItemSerializer], with `elementIdentifier` as the key
+     * [at.asitplus.iso.IssuerSignedItemSerializer], with `elementIdentifier` and `namespace` as the keys
      */
-    fun registerExtensionLibrary(
-        credentialScheme: CredentialScheme,
+    fun registerCredentialSerializers(
         jsonValueEncoder: JsonValueEncoder,
-        itemValueSerializerMap: ElementIdentifierToItemValueSerializerMap = emptyMap(),
+        itemValueSerializerMap: IsoNamespaceToElementIdentifierToItemValueSerializerMap = mapOf(),
     ) {
-        registerExtensionLibrary(credentialScheme)
         JsonCredentialSerializer.register(jsonValueEncoder)
-        credentialScheme.isoNamespace?.let { CborCredentialSerializer.register(itemValueSerializerMap, it) }
+        itemValueSerializerMap.forEach {
+            CborCredentialSerializer.register(it.value, it.key)
+        }
     }
 
-    @Deprecated("Use the other method with CredentialScheme not from ConstantIndex")
+    @Suppress("DEPRECATION")
+    @Deprecated("Use registerCredentialMetadataRegistry for schemes and registerCredentialSerializers for serializers")
     fun registerExtensionLibrary(
         credentialScheme: ConstantIndex.CredentialScheme,
         jsonValueEncoder: JsonValueEncoder,
         itemValueSerializerMap: ElementIdentifierToItemValueSerializerMap = emptyMap(),
     ) {
-        registerExtensionLibrary(credentialScheme as CredentialScheme, jsonValueEncoder, itemValueSerializerMap)
+        registerExtensionLibrary(credentialScheme as CredentialScheme)
+        JsonCredentialSerializer.register(jsonValueEncoder)
+        credentialScheme.isoNamespace?.let { CborCredentialSerializer.register(itemValueSerializerMap, it) }
     }
-
 }
 
 /**
@@ -108,3 +109,10 @@ typealias JsonValueEncoder
  */
 typealias ElementIdentifierToItemValueSerializerMap
         = Map<String, KSerializer<*>>
+
+/**
+ * Maps from ISO mDoc namespaces to the element identifier (the claim name) to its corresponding
+ * [KSerializer].
+ */
+typealias IsoNamespaceToElementIdentifierToItemValueSerializerMap
+        = Map<String, ElementIdentifierToItemValueSerializerMap>

@@ -5,10 +5,9 @@ import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.RandomSource
-import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
-import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import io.kotest.matchers.collections.shouldHaveSingleElement
 import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -21,12 +20,7 @@ val OidvciMetadataTest by matrixSuite {
     fixture {
         object {
             val authorizationService = SimpleAuthorizationService(
-                strategy = CredentialAuthorizationServiceStrategy(
-                    setOf(
-                        AtomicAttribute2023,
-                        MobileDrivingLicenceScheme
-                    )
-                ),
+                strategy = CredentialAuthorizationServiceStrategy(AttributeIndex.schemeSet),
             )
             val issuer = CredentialIssuer(
                 authorizationService = authorizationService,
@@ -34,14 +28,14 @@ val OidvciMetadataTest by matrixSuite {
                     identifier = "https://issuer.example.com".toUri(),
                     randomSource = RandomSource.Default
                 ),
-                credentialSchemes = setOf(AtomicAttribute2023, MobileDrivingLicenceScheme),
+                credentialSchemes = AttributeIndex.schemeSet,
             )
         }
     } - {
         test("metadata for ISO_MDOC") {
             joseCompliantSerializer.encodeToJsonElement(it.issuer.metadata).jsonObject.apply {
                 get("credential_configurations_supported").shouldNotBeNull().jsonObject.apply {
-                    get("org.iso.18013.5.1").shouldNotBeNull().jsonObject.apply {
+                    get("org.iso.18013.5.1.mDL").shouldNotBeNull().jsonObject.apply {
                         get("credential_signing_alg_values_supported").shouldNotBeNull().jsonArray.apply {
                             shouldHaveSingleElement(JsonPrimitive(-9))
                         }

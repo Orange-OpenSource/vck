@@ -8,10 +8,10 @@ import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.AttributeIndex
+import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
 import at.asitplus.wallet.lib.data.CredentialRepresentation
-import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.JsonCredentialSerializer
 import com.benasher44.uuid.uuid4
 import io.kotest.matchers.shouldBe
@@ -27,7 +27,7 @@ private data class TestCredentialScheme(
     override val isoDocType: String? = null,
     override val claimNames: Collection<String> = emptyList(),
     override val supportedRepresentations: Collection<CredentialRepresentation> = listOf(PLAIN_JWT),
-) : CredentialScheme
+) : ConstantIndex.CredentialScheme
 
 val LibraryInitializerTest by matrixSuite {
     "registerExtensionLibrary registers schemes without serializer modules" {

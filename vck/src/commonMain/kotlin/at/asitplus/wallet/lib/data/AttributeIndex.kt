@@ -26,6 +26,9 @@ object AttributeIndex {
         credentialMetadataRegistry: CredentialMetadataRegistry
     ) {
         credentialMetadataRegistrySet += credentialMetadataRegistry
+        if (credentialMetadataRegistry is StaticCredentialMetadataRegistry) {
+            // TODO prepoluate schemeSet with all available metadata types
+        }
     }
 
     /**

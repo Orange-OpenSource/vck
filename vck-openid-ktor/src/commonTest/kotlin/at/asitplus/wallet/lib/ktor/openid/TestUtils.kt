@@ -15,12 +15,11 @@ import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.wallet.eupid.EuPidScheme
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
 import at.asitplus.wallet.lib.agent.Holder
 import at.asitplus.wallet.lib.agent.ValidatorSdJwt
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialRepresentation
 import at.asitplus.wallet.lib.data.CredentialScheme
@@ -118,9 +117,10 @@ object TestUtils {
         expectedClaimValue: String,
         credentialKey: CryptoPublicKey,
     ) {
+        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
         credentials.shouldBeSingleton().also {
             it.first().shouldBeInstanceOf<Holder.StoreCredentialInput.SdJwt>().also {
-                it.scheme shouldBe EuPidSdJwtScheme
+                it.scheme shouldBe euPidSdJwtScheme
                 ValidatorSdJwt().verifySdJwt(it.signedSdJwtVc, credentialKey).getOrThrow()
                     .disclosures.values.any {
                         it.claimName == claimName &&
@@ -131,13 +131,14 @@ object TestUtils {
         }
     }
 
-    fun CredentialIssuanceResult.Success.verifyIsoMdocCredential(
+    suspend fun CredentialIssuanceResult.Success.verifyIsoMdocCredential(
         claimName: String,
         expectedClaimValue: String,
     ) {
+        val euPidScheme = AttributeIndex.resolveIdentifier("eu.europa.ec.eudi.pid.1", ISO_MDOC)
         credentials.shouldBeSingleton().also {
             it.first().shouldBeInstanceOf<Holder.StoreCredentialInput.Iso>().also {
-                it.scheme shouldBe EuPidScheme
+                it.scheme shouldBe euPidScheme
                 it.issuerSigned.namespaces?.values?.flatMap { it.entries }?.map { it.value }
                     ?.any { it.elementIdentifier == claimName && it.elementValue == expectedClaimValue }
                     ?.shouldNotBeNull()?.shouldBeTrue()

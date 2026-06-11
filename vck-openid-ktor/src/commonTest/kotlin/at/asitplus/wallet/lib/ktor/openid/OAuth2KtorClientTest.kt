@@ -6,11 +6,11 @@ import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
 import at.asitplus.testballoon.matrix.matrixSuite
-import at.asitplus.wallet.eupid.EuPidScheme
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.dummyUser
@@ -145,7 +145,7 @@ val OAuth2KtorClientTest by matrixSuite {
         )
     }
 
-    val strategy = CredentialAuthorizationServiceStrategy(setOf(EuPidScheme))
+    val strategy = CredentialAuthorizationServiceStrategy(AttributeIndex.schemeSet)
     val requestedScope = strategy.validScopes().split(" ").first()
 
     listOf<Pair<Boolean, Set<JwsAlgorithm.Signature>?>>(

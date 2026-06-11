@@ -21,6 +21,7 @@ import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
@@ -32,7 +33,6 @@ import at.asitplus.wallet.lib.oidvci.WalletService.RequestOptions
 import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.DummyOAuth2IssuerCredentialDataProvider
 import at.asitplus.wallet.lib.openid.DummyUserProvider
-import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import com.benasher44.uuid.uuid4
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -48,7 +48,7 @@ val OidvciSameScopeTest by matrixSuite {
             val mapper = SameScopeCredentialSchemeMapper()
             val authorizationService = SimpleAuthorizationService(
                 strategy = CredentialAuthorizationServiceStrategy(
-                    credentialSchemes = setOf(AtomicAttribute2023, MobileDrivingLicenceScheme),
+                    credentialSchemes =  AttributeIndex.schemeSet,
                     mapper = mapper,
                 ),
             )
@@ -58,7 +58,7 @@ val OidvciSameScopeTest by matrixSuite {
                     identifier = "https://issuer.example.com".toUri(),
                     randomSource = RandomSource.Default
                 ),
-                credentialSchemes = setOf(AtomicAttribute2023, MobileDrivingLicenceScheme),
+                credentialSchemes =  AttributeIndex.schemeSet,
                 credentialSchemeMapper = mapper,
             )
             val client = WalletService()

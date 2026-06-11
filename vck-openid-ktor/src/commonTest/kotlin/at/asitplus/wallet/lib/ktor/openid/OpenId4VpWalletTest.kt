@@ -26,8 +26,8 @@ import at.asitplus.openid.dcql.DCQLQuery
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
-import at.asitplus.wallet.eupid.EuPidScheme
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
+import at.asitplus.wallet.eupid.EuPidDataElements
+import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
@@ -39,7 +39,10 @@ import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.lib.data.AttributeIndex
+import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.CredentialPresentation.DCQLPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
 import at.asitplus.wallet.lib.data.CredentialRepresentation
@@ -63,7 +66,6 @@ import at.asitplus.wallet.lib.openid.OpenId4VpVerifier.CreationOptions
 import at.asitplus.wallet.lib.openid.PresentationExchangeMatchingResult
 import at.asitplus.wallet.lib.openid.VpTokenValidationResultDCQL
 import at.asitplus.wallet.lib.openid.VpTokenValidationResultPresentationExchange
-import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import com.benasher44.uuid.uuid4
 import io.github.aakira.napier.Napier
 import io.kotest.matchers.collections.shouldBeSingleton
@@ -163,7 +165,7 @@ val OpenId4VpWalletTest by matrixSuite {
                 scheme: CredentialScheme,
                 attributes: Map<String, Any>,
             ): CredentialToBeIssued = when (this) {
-                PLAIN_JWT -> CredentialToBeIssued.VcJwt(
+                ConstantIndex.CredentialRepresentation.PLAIN_JWT -> CredentialToBeIssued.VcJwt(
                     subject = AtomicAttribute2023("sub", "name", "value", "text").toJsonElement(),
                     expiration = Clock.System.now().plus(1.minutes),
                     scheme = scheme as VcJwtCredentialScheme,
@@ -180,7 +182,7 @@ val OpenId4VpWalletTest by matrixSuite {
                     sdAlgorithm = supportedSdAlgorithms.random()
                 )
 
-                ISO_MDOC -> CredentialToBeIssued.Iso(
+                ConstantIndex.CredentialRepresentation.ISO_MDOC -> CredentialToBeIssued.Iso(
                     issuerSignedItems = attributes.map { it.toIssuerSignedItem() },
                     expiration = Clock.System.now().plus(1.minutes),
                     scheme = scheme as IsoMdocCredentialScheme,
@@ -250,11 +252,12 @@ val OpenId4VpWalletTest by matrixSuite {
         }
     } - {
         test("presentEuPidCredentialSdJwtDirectPost") {
+            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
             it.setup(
-                scheme = EuPidSdJwtScheme,
+                scheme = euPidSdJwtScheme,
                 representation = SD_JWT,
                 attributes = mapOf(
-                    EuPidSdJwtScheme.SdJwtAttributes.FAMILY_NAME to randomString()
+                    EuPidSdJwtDataElements.FAMILY_NAME to randomString()
                 ),
                 responseMode = ResponseMode.DirectPost,
                 clientId = uuid4().toString()
@@ -270,11 +273,12 @@ val OpenId4VpWalletTest by matrixSuite {
         }
 
         test("presentEuPidCredentialIsoQuery") {
+            val euPidScheme = AttributeIndex.resolveIdentifier("eu.europa.ec.eudi.pid.1", ISO_MDOC)
             it.setup(
-                scheme = EuPidScheme,
-                representation = ISO_MDOC,
+                scheme = euPidScheme,
+                representation = ConstantIndex.CredentialRepresentation.ISO_MDOC,
                 attributes = mapOf(
-                    EuPidScheme.Attributes.GIVEN_NAME to randomString()
+                    EuPidDataElements.GIVEN_NAME to randomString()
                 ),
                 responseMode = ResponseMode.Query,
                 clientId = uuid4().toString()
@@ -290,6 +294,7 @@ val OpenId4VpWalletTest by matrixSuite {
         }
 
         test("DC API") {
+            val mdlScheme = AttributeIndex.resolveIdentifier("org.iso.18013.5.1.mDL", ISO_MDOC)
             it.setupWallet(HttpClient().engine)
 
             val attributes = mapOf(
@@ -298,7 +303,7 @@ val OpenId4VpWalletTest by matrixSuite {
                 "age_over_21" to true
             )
 
-            val credential = it.storeMockCredentials(MobileDrivingLicenceScheme, ISO_MDOC, attributes)
+            val credential = it.storeMockCredentials(mdlScheme, ISO_MDOC, attributes)
 
             val dcqlQuery = DCQLQuery(
                 credentials = DCQLCredentialQueryList(
@@ -307,7 +312,7 @@ val OpenId4VpWalletTest by matrixSuite {
                             id = DCQLCredentialQueryIdentifier("cred1"),
                             format = CredentialFormatEnum.MSO_MDOC,
                             meta = DCQLIsoMdocCredentialMetadataAndValidityConstraints(
-                                doctypeValue = MobileDrivingLicenceScheme.isoDocType
+                                doctypeValue = mdlScheme.isoDocType!!
                             ),
                             claims = DCQLClaimsQueryList(
                                 list = nonEmptyListOf(
@@ -448,11 +453,12 @@ val OpenId4VpWalletTest by matrixSuite {
         }
 
         test("No matching credential test") {
+            val euPidScheme = AttributeIndex.resolveIdentifier("eu.europa.ec.eudi.pid.1", ISO_MDOC)
             it.setup(
-                scheme = EuPidScheme,
-                representation = ISO_MDOC,
+                scheme = euPidScheme,
+                representation = ConstantIndex.CredentialRepresentation.ISO_MDOC,
                 attributes = mapOf(
-                    EuPidScheme.Attributes.GIVEN_NAME to randomString()
+                    EuPidDataElements.GIVEN_NAME to randomString()
                 ),
                 responseMode = ResponseMode.Query,
                 clientId = uuid4().toString(),

@@ -43,6 +43,7 @@ import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
@@ -55,7 +56,6 @@ import at.asitplus.wallet.lib.oidvci.WalletService.KeyAttestationInput
 import at.asitplus.wallet.lib.oidvci.WalletService.RequestOptions
 import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.DummyOAuth2IssuerCredentialDataProvider
-import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import com.benasher44.uuid.uuid4
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
@@ -77,9 +77,7 @@ val OidvciAttestationTest by matrixSuite {
     fixture {
         object {
             val authorizationService = SimpleAuthorizationService(
-                strategy = CredentialAuthorizationServiceStrategy(
-                    setOf(ConstantIndex.AtomicAttribute2023, MobileDrivingLicenceScheme)
-                ),
+                strategy = CredentialAuthorizationServiceStrategy(AttributeIndex.schemeSet),
             )
             val oauth2Client = OAuth2Client()
             var issuer = CredentialIssuer(
@@ -88,7 +86,7 @@ val OidvciAttestationTest by matrixSuite {
                     identifier = "https://issuer.example.com".toUri(),
                     randomSource = RandomSource.Default
                 ),
-                credentialSchemes = setOf(ConstantIndex.AtomicAttribute2023, MobileDrivingLicenceScheme),
+                credentialSchemes = AttributeIndex.schemeSet,
                 proofValidator = ProofValidator(
                     verifyAttestationProof = { true },
                     requireKeyAttestation = true, // this is important, to require key attestation
@@ -151,7 +149,7 @@ val OidvciAttestationTest by matrixSuite {
         }
     } - {
         test("use key attestation for proof") {
-            val requestOptions = WalletService.RequestOptions(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
+            val requestOptions = RequestOptions(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
             val credentialFormat =
                 it.client.selectSupportedCredentialFormat(requestOptions, it.issuer.metadata)
                     .shouldNotBeNull()
@@ -191,7 +189,7 @@ val OidvciAttestationTest by matrixSuite {
                     identifier = "https://issuer.example.com".toUri(),
                     randomSource = RandomSource.Default
                 ),
-                credentialSchemes = setOf(ConstantIndex.AtomicAttribute2023, MobileDrivingLicenceScheme),
+                credentialSchemes = AttributeIndex.schemeSet,
                 proofValidator = ProofValidator(
                     verifyAttestationProof = { false }, // do not accept key attestation
                     requireKeyAttestation = true, // this is important, to require key attestation
@@ -327,7 +325,7 @@ val OidvciAttestationTest by matrixSuite {
                     identifier = "https://issuer.example.com".toUri(),
                     randomSource = RandomSource.Default
                 ),
-                credentialSchemes = setOf(ConstantIndex.AtomicAttribute2023, MobileDrivingLicenceScheme),
+                credentialSchemes = AttributeIndex.schemeSet,
                 proofValidator = ProofValidator(
                     verifyAttestationProof = { false }, // do not accept key attestation
                     requireKeyAttestation = false,
@@ -415,7 +413,7 @@ val OidvciAttestationTest by matrixSuite {
                     identifier = "https://issuer.example.com".toUri(),
                     randomSource = RandomSource.Default
                 ),
-                credentialSchemes = setOf(ConstantIndex.AtomicAttribute2023, MobileDrivingLicenceScheme),
+                credentialSchemes = AttributeIndex.schemeSet,
                 proofValidator = ProofValidator(requireKeyAttestation = false)
             )
 
@@ -510,7 +508,7 @@ val OidvciAttestationTest by matrixSuite {
                     identifier = "https://issuer.example.com".toUri(),
                     randomSource = RandomSource.Default
                 ),
-                credentialSchemes = setOf(ConstantIndex.AtomicAttribute2023, MobileDrivingLicenceScheme),
+                credentialSchemes = AttributeIndex.schemeSet,
                 proofValidator = ProofValidator(requireKeyAttestation = false),
             )
 

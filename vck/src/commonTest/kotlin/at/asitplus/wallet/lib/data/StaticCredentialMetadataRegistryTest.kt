@@ -1,6 +1,6 @@
 package at.asitplus.wallet.lib.data
 
-import at.asitplus.testballoon.invoke
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.LibraryInitializer
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
@@ -11,11 +11,10 @@ import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocumentRegistry
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataVckExtensions
 import at.asitplus.wallet.sdjwt.SdJwtVcType
 import com.benasher44.uuid.uuid4
-import de.infix.testBalloon.framework.core.testSuite
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 
-val StaticCredentialMetadataRegistryTest by testSuite {
+val StaticCredentialMetadataRegistryTest by matrixSuite {
 
     "static registry resolves SD-JWT metadata through AttributeIndex" {
         val vct = SdJwtVcType("urn:test:sd-jwt:${uuid4()}")

@@ -9,11 +9,11 @@ import at.asitplus.openid.TransactionData
 import at.asitplus.signum.indispensable.Digest
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme.SdJwtAttributes.FAMILY_NAME
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme.SdJwtAttributes.GIVEN_NAME
+import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements.FAMILY_NAME
+import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements.GIVEN_NAME
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.SdJwtConstants
 import at.asitplus.wallet.lib.data.toTransactionData
@@ -51,7 +51,7 @@ val RqesRequestOptionsTest by matrixSuite {
     }
 }
 
-internal fun buildRequestOptions(
+internal suspend fun buildRequestOptions(
     responseMode: OpenIdConstants.ResponseMode = OpenIdConstants.ResponseMode.Fragment,
     transactionDataHashAlgorithms: Set<String>?,
 ): OpenId4VpRequestOptions = uuid4().toString().let { credentialId ->
@@ -63,7 +63,7 @@ internal fun buildRequestOptions(
         presentationRequest = CredentialPresentationRequestBuilder(
             credentials = setOf(
                 RequestOptionsCredential(
-                    credentialScheme = EuPidSdJwtScheme,
+                    credentialScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT),
                     representation = SD_JWT,
                     requestedAttributes = setOf(FAMILY_NAME, GIVEN_NAME),
                     id = credentialId

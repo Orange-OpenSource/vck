@@ -17,6 +17,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
+import kotlin.time.Instant
 
 private const val SD_JWT_VC_TYPE = "vct"
 
@@ -98,7 +99,9 @@ object CredentialToJsonConverter {
         is Number -> JsonPrimitive(this)
         is String -> JsonPrimitive(this)
         is ByteArray -> JsonPrimitive(encodeToString(Base64UrlStrict))
-        is LocalDate -> JsonPrimitive(this.toString())
+        is LocalDate -> joseCompliantSerializer.encodeToJsonElement(this)
+        is Instant -> joseCompliantSerializer.encodeToJsonElement(this)
+        is LocalDateOrInstant -> joseCompliantSerializer.encodeToJsonElement(this)
         is UByte -> JsonPrimitive(this)
         is UShort -> JsonPrimitive(this)
         is UInt -> JsonPrimitive(this)

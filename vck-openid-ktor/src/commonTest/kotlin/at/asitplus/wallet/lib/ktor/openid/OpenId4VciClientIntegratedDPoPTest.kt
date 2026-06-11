@@ -7,13 +7,14 @@ import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
+import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
@@ -35,6 +36,7 @@ import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
 import com.benasher44.uuid.uuid4
 import io.github.aakira.napier.Napier
 import io.kotest.assertions.fail
+import io.kotest.engine.runBlocking
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
@@ -59,143 +61,146 @@ val OpenId4VciClientIntegratedDPoPTest by matrixSuite {
         val client: OpenId4VciClient,
     )
 
-    fixture {
-        val scheme = EuPidSdJwtScheme
-        val representation = SD_JWT
-        val attributes = mapOf(EuPidSdJwtScheme.SdJwtAttributes.FAMILY_NAME to uuid4().toString())
-        val credentialKeyMaterial = EphemeralKeyWithoutCert()
-        val clientAuthKeyMaterial = EphemeralKeyWithoutCert()
-        val credentialSchemes = setOf(scheme)
-        val authorizationEndpointPath = "/authorize"
-        val tokenEndpointPath = "/token"
-        val credentialEndpointPath = "/credential"
-        val nonceEndpointPath = "/nonce"
-        val parEndpointPath = "/par"
-        val publicContext = "https://issuer.example.com"
-        val authorizationService = SimpleAuthorizationService(
-            strategy = CredentialAuthorizationServiceStrategy(credentialSchemes),
-            publicContext = publicContext,
-            authorizationEndpointPath = authorizationEndpointPath,
-            tokenEndpointPath = tokenEndpointPath,
-            pushedAuthorizationRequestEndpointPath = parEndpointPath,
-            clientAuthenticationService = ClientAuthenticationService(
-                enforceClientAuthentication = true,
-            ),
-            tokenService = TokenService.jwt(
-                issueRefreshTokens = true
-            ),
-        )
-        val issuer = IssuerAgent(
-            keyMaterial = EphemeralKeyWithSelfSignedCert(),
-            identifier = "https://issuer.example.com/".toUri(),
-            randomSource = RandomSource.Default
-        )
-        val credentialIssuer = CredentialIssuer(
-            authorizationService = authorizationService,
-            issuer = issuer,
-            credentialSchemes = credentialSchemes,
-            publicContext = publicContext,
-            credentialEndpointPath = credentialEndpointPath,
-            nonceEndpointPath = nonceEndpointPath,
-        )
-        val mockEngine = MockEngine { request ->
-            when {
-                request.url.rawSegments.drop(1) == OpenIdConstants.WellKnownPaths.CredentialIssuer ->
-                    this.respond(credentialIssuer.metadata)
+    fixture({
+        runBlocking {
+            val scheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
 
-                request.url.rawSegments.drop(1) == OpenIdConstants.WellKnownPaths.OauthAuthorizationServer ->
-                    this.respond(authorizationService.metadata())
-
-                request.url.fullPath.startsWith(parEndpointPath) -> {
-                    val requestBody = request.body.toByteArray().decodeToString()
-                    val authnRequest: RequestParameters = requestBody.decodeFromPostBody<RequestParameters>()
-                    authorizationService.parWithDpopNonce(authnRequest, request.toRequestInfo()).fold(
-                        onSuccess = { respondIncludingDpopNonce(it) },
-                        onFailure = { fail("$parEndpointPath should not return an error") }
-                    )
-                }
-
-                request.url.fullPath.startsWith(authorizationEndpointPath) -> {
-                    val requestBody = request.body.toByteArray().decodeToString()
-                    val queryParameters: Map<String, String> =
-                        request.url.parameters.toMap().entries.associate { it.key to it.value.first() }
-                    val authnRequest: RequestParameters =
-                        if (requestBody.isEmpty()) queryParameters.decodeFromUrlQuery<RequestParameters>()
-                        else requestBody.decodeFromPostBody<RequestParameters>()
-                    authorizationService.authorize(authnRequest) { this.catching { TestUtils.dummyUser() } }.fold(
-                        onSuccess = { this.respondRedirect(it.url) },
-                        onFailure = { fail("$authorizationEndpointPath should not return an error") }
-                    )
-                }
-
-                request.url.fullPath.startsWith(tokenEndpointPath) -> {
-                    val requestBody = request.body.toByteArray().decodeToString()
-                    val params: TokenRequestParameters = requestBody.decodeFromPostBody<TokenRequestParameters>()
-                    authorizationService.tokenWithDpopNonce(params, request.toRequestInfo()).fold(
-                        onSuccess = { respondIncludingDpopNonce(it) },
-                        onFailure = { fail("$tokenEndpointPath should not return an error") }
-                    )
-                }
-
-                request.url.fullPath.startsWith(nonceEndpointPath) -> {
-                    this.respond(credentialIssuer.nonceWithDpopNonce().getOrThrow())
-                }
-
-                request.url.fullPath.startsWith(credentialEndpointPath) -> {
-                    val requestBody = request.body.toByteArray().decodeToString()
-                    val authn = request.headers[HttpHeaders.Authorization].shouldNotBeNull()
-                    credentialIssuer.credential(
-                        authorizationHeader = authn,
-                        params = WalletService.CredentialRequest.parse(requestBody).getOrThrow(),
-                        credentialDataProvider = TestUtils.credentialDataProviderFun(
-                            scheme,
-                            representation,
-                            attributes
-                        ),
-                        request = request.toRequestInfo(),
-                    ).fold(
-                        onSuccess = { this.respond(it) },
-                        onFailure = { fail("$credentialEndpointPath should not return an error") }
-                    )
-                }
-
-                else -> this.respondError(HttpStatusCode.NotFound)
-                    .also { Napier.w("NOT MATCHED ${request.url.fullPath}") }
-            }
-        }
-        val clientId = "https://example.com/rp"
-        Context(
-            attributes = attributes,
-            credentialKeyMaterial = credentialKeyMaterial,
-            clientAuthKeyMaterial = clientAuthKeyMaterial,
-            mockEngine = mockEngine,
-            credentialIssuer = credentialIssuer,
-            authorizationService = authorizationService,
-            client = OpenId4VciClient(
-                engine = mockEngine,
-                oid4vciService = WalletService(
-                    clientId = clientId,
-                    keyMaterial = credentialKeyMaterial,
+            val representation = SD_JWT
+            val attributes = mapOf(EuPidSdJwtDataElements.FAMILY_NAME to uuid4().toString())
+            val credentialKeyMaterial = EphemeralKeyWithoutCert()
+            val clientAuthKeyMaterial = EphemeralKeyWithoutCert()
+            val credentialSchemes = setOf(scheme)
+            val authorizationEndpointPath = "/authorize"
+            val tokenEndpointPath = "/token"
+            val credentialEndpointPath = "/credential"
+            val nonceEndpointPath = "/nonce"
+            val parEndpointPath = "/par"
+            val publicContext = "https://issuer.example.com"
+            val authorizationService = SimpleAuthorizationService(
+                strategy = CredentialAuthorizationServiceStrategy(credentialSchemes),
+                publicContext = publicContext,
+                authorizationEndpointPath = authorizationEndpointPath,
+                tokenEndpointPath = tokenEndpointPath,
+                pushedAuthorizationRequestEndpointPath = parEndpointPath,
+                clientAuthenticationService = ClientAuthenticationService(
+                    enforceClientAuthentication = true,
                 ),
-                oauth2Client = OAuth2KtorClient(
+                tokenService = TokenService.jwt(
+                    issueRefreshTokens = true
+                ),
+            )
+            val issuer = IssuerAgent(
+                keyMaterial = EphemeralKeyWithSelfSignedCert(),
+                identifier = "https://issuer.example.com/".toUri(),
+                randomSource = RandomSource.Default
+            )
+            val credentialIssuer = CredentialIssuer(
+                authorizationService = authorizationService,
+                issuer = issuer,
+                credentialSchemes = credentialSchemes,
+                publicContext = publicContext,
+                credentialEndpointPath = credentialEndpointPath,
+                nonceEndpointPath = nonceEndpointPath,
+            )
+            val mockEngine = MockEngine { request ->
+                when {
+                    request.url.rawSegments.drop(1) == OpenIdConstants.WellKnownPaths.CredentialIssuer ->
+                        this.respond(credentialIssuer.metadata)
+
+                    request.url.rawSegments.drop(1) == OpenIdConstants.WellKnownPaths.OauthAuthorizationServer ->
+                        this.respond(authorizationService.metadata())
+
+                    request.url.fullPath.startsWith(parEndpointPath) -> {
+                        val requestBody = request.body.toByteArray().decodeToString()
+                        val authnRequest: RequestParameters = requestBody.decodeFromPostBody<RequestParameters>()
+                        authorizationService.parWithDpopNonce(authnRequest, request.toRequestInfo()).fold(
+                            onSuccess = { respondIncludingDpopNonce(it) },
+                            onFailure = { fail("$parEndpointPath should not return an error") }
+                        )
+                    }
+
+                    request.url.fullPath.startsWith(authorizationEndpointPath) -> {
+                        val requestBody = request.body.toByteArray().decodeToString()
+                        val queryParameters: Map<String, String> =
+                            request.url.parameters.toMap().entries.associate { it.key to it.value.first() }
+                        val authnRequest: RequestParameters =
+                            if (requestBody.isEmpty()) queryParameters.decodeFromUrlQuery<RequestParameters>()
+                            else requestBody.decodeFromPostBody<RequestParameters>()
+                        authorizationService.authorize(authnRequest) { this.catching { TestUtils.dummyUser() } }.fold(
+                            onSuccess = { this.respondRedirect(it.url) },
+                            onFailure = { fail("$authorizationEndpointPath should not return an error") }
+                        )
+                    }
+
+                    request.url.fullPath.startsWith(tokenEndpointPath) -> {
+                        val requestBody = request.body.toByteArray().decodeToString()
+                        val params: TokenRequestParameters = requestBody.decodeFromPostBody<TokenRequestParameters>()
+                        authorizationService.tokenWithDpopNonce(params, request.toRequestInfo()).fold(
+                            onSuccess = { respondIncludingDpopNonce(it) },
+                            onFailure = { fail("$tokenEndpointPath should not return an error") }
+                        )
+                    }
+
+                    request.url.fullPath.startsWith(nonceEndpointPath) -> {
+                        this.respond(credentialIssuer.nonceWithDpopNonce().getOrThrow())
+                    }
+
+                    request.url.fullPath.startsWith(credentialEndpointPath) -> {
+                        val requestBody = request.body.toByteArray().decodeToString()
+                        val authn = request.headers[HttpHeaders.Authorization].shouldNotBeNull()
+                        credentialIssuer.credential(
+                            authorizationHeader = authn,
+                            params = WalletService.CredentialRequest.parse(requestBody).getOrThrow(),
+                            credentialDataProvider = TestUtils.credentialDataProviderFun(
+                                scheme,
+                                representation,
+                                attributes
+                            ),
+                            request = request.toRequestInfo(),
+                        ).fold(
+                            onSuccess = { this.respond(it) },
+                            onFailure = { fail("$credentialEndpointPath should not return an error") }
+                        )
+                    }
+
+                    else -> this.respondError(HttpStatusCode.NotFound)
+                        .also { Napier.w("NOT MATCHED ${request.url.fullPath}") }
+                }
+            }
+            val clientId = "https://example.com/rp"
+            Context(
+                attributes = attributes,
+                credentialKeyMaterial = credentialKeyMaterial,
+                clientAuthKeyMaterial = clientAuthKeyMaterial,
+                mockEngine = mockEngine,
+                credentialIssuer = credentialIssuer,
+                authorizationService = authorizationService,
+                client = OpenId4VciClient(
                     engine = mockEngine,
-                    loadInstanceAttestation = { _ ->
-                        catching {
-                            BuildClientAttestationJwt(
-                                SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
-                                clientId = clientId,
-                                issuer = "issuer",
-                                clientKey = clientAuthKeyMaterial.jsonWebKey
-                            )
-                        }
-                    },
-                    keyMaterial = clientAuthKeyMaterial,
-                    oAuth2Client = OAuth2Client(clientId = clientId),
-                    randomSource = RandomSource.Default,
+                    oid4vciService = WalletService(
+                        clientId = clientId,
+                        keyMaterial = credentialKeyMaterial,
+                    ),
+                    oauth2Client = OAuth2KtorClient(
+                        engine = mockEngine,
+                        loadInstanceAttestation = { _ ->
+                            catching {
+                                BuildClientAttestationJwt(
+                                    SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
+                                    clientId = clientId,
+                                    issuer = "issuer",
+                                    clientKey = clientAuthKeyMaterial.jsonWebKey
+                                )
+                            }
+                        },
+                        keyMaterial = clientAuthKeyMaterial,
+                        oAuth2Client = OAuth2Client(clientId = clientId),
+                        randomSource = RandomSource.Default,
+                    )
                 )
             )
-        )
-    } - {
+        }
+    }) - {
         test("loadEuPidCredentialSdJwt") { context ->
             var refreshTokenStore: CredentialRenewalInfo? = null
 
