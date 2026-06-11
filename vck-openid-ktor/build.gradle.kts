@@ -52,9 +52,6 @@ kotlin {
 
         commonTest {
             dependencies {
-                implementation("at.asitplus.wallet:eupidcredential:${VcLibVersions.eupid}")
-                implementation("at.asitplus.wallet:eupidcredential-sdjwt:${VcLibVersions.eupidsdjwt}")
-                implementation("at.asitplus.wallet:mobiledrivinglicence:${VcLibVersions.mdl}")
                 implementation(ktor("client-mock"))
                 implementation(kotest("assertions-core"))
             }
