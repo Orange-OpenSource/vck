@@ -6,6 +6,7 @@ import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.sdjwt.CredentialFormatEnum
 import at.asitplus.wallet.sdjwt.DelegatingSdJwtTypeMetadataDocumentResolver
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadata
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDefinition
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocumentIntegrityChecker
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocumentRegistry
@@ -31,6 +32,17 @@ class StaticCredentialMetadataRegistry(
         integrityChecker = integrityChecker,
     )
 
+    /**
+     * Self-contained bundled documents (those that don't `extends` another type) resolve synchronously, so they are
+     * registered eagerly to pre-seed the synchronous lookups. Documents that extend another type are left to the
+     * (suspending) [findEntry] path.
+     */
+    override fun preloadEntries(): Set<ResolvedCredentialMetadata> =
+        documentRegistry.entries.mapNotNull { (vct, document) ->
+            if (document.definition.extends != null) return@mapNotNull null
+            resolvedMetadata(vct, document.definition.toSdJwtTypeMetadata())
+        }.toSet()
+
     override suspend fun findEntry(
         identifier: String,
         representation: CredentialRepresentation,
@@ -42,9 +54,12 @@ class StaticCredentialMetadataRegistry(
             }?.key
             ?: return null
 
+        return resolvedMetadata(vct, resolver.resolve(vct, integrityMetadata[vct]))
+    }
+
+    private fun resolvedMetadata(vct: SdJwtVcType, metadata: SdJwtTypeMetadata): ResolvedCredentialMetadata {
         val loadedFrom = documentUrls[vct]
             ?: error("No metadata document URL configured for vct `$vct`.")
-        val metadata = resolver.resolve(vct, integrityMetadata[vct])
         return ResolvedCredentialMetadata(
             metadata = metadata,
             loadedFrom = loadedFrom,

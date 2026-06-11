@@ -26,6 +26,11 @@ val StaticCredentialMetadataRegistryTest by matrixSuite {
             )
         )
 
+        AttributeIndex.resolveSdJwtAttributeType(vct.string).shouldNotBeNull().apply {
+            schemaUri shouldBe loadedFrom
+            sdJwtType shouldBe vct.string
+        }
+
         AttributeIndex.resolveIdentifier(vct.string, SD_JWT).apply {
             schemaUri shouldBe loadedFrom
             sdJwtType shouldBe vct.string
@@ -50,6 +55,11 @@ val StaticCredentialMetadataRegistryTest by matrixSuite {
                 documentUrls = mapOf(vct to loadedFrom),
             )
         )
+
+        AttributeIndex.resolveAttributeType(vcType).shouldNotBeNull().apply {
+            schemaUri shouldBe loadedFrom
+            this.vcType shouldBe vcType
+        }
 
         AttributeIndex.resolveIdentifierPlainJwt(listOf("VerifiableCredential", vcType)).apply {
             schemaUri shouldBe loadedFrom
@@ -79,6 +89,12 @@ val StaticCredentialMetadataRegistryTest by matrixSuite {
         LibraryInitializer.registerCredentialMetadataRegistry(
             registry
         )
+
+        AttributeIndex.resolveIsoDoctype(docType).shouldNotBeNull().apply {
+            schemaUri shouldBe loadedFrom
+            isoDocType shouldBe docType
+            isoNamespace shouldBe namespace
+        }
 
         AttributeIndex.resolveIdentifier(docType, ISO_MDOC).apply {
             schemaUri shouldBe loadedFrom

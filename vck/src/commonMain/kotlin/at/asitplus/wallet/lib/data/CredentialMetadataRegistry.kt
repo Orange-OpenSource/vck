@@ -20,6 +20,12 @@ interface CredentialMetadataRegistry {
         identifier: String,
         representation: CredentialRepresentation,
     ): ResolvedCredentialMetadata?
+
+    /**
+     * Entries that can be resolved eagerly without network access, used to pre-seed the synchronous lookups in
+     * [AttributeIndex]. Defaults to none; registries that must fetch on demand keep the default.
+     */
+    fun preloadEntries(): Collection<ResolvedCredentialMetadata> = emptyList()
 }
 
 data class ResolvedCredentialMetadata(
@@ -107,3 +113,4 @@ data class ExtractedIsoMdocCredentialScheme(
     override val isoNamespace: String,
     override val claimDescriptions: Set<ClaimDescription>
 ) : IsoMdocCredentialScheme
+
