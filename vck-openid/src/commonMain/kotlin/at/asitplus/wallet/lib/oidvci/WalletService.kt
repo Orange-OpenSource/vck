@@ -1,5 +1,26 @@
 package at.asitplus.wallet.lib.oidvci
 
+/*
+ * Software Name : VC-K
+ * SPDX-FileCopyrightText: Copyright (c) A-SIT Plus GmbH
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modifications:
+ * - According to the W3C Verifiable Credential Data Model 1.1 https://www.w3.org/TR/vc-data-model-1.1/#jwt-encoding,
+ * "iss MUST represent the issuer property of a verifiable credential or the holder property of a verifiable presentation."
+ * So in this case the issuer should be the wallet holder, represented by it's DID.
+ * SPDX-FileCopyrightText: Copyright (c) Orange Business
+ * - Added support for configurable key binding method selection via resolveKeyBindingMethod,
+ * allowing the credential request proof JWS header to embed either an inline JsonWebKey (jwk)
+ * or a DID URL key identifier (kid), as required by the OID4VCI specification.
+ * Exactly one of jwk or kid must be provided; supplying both or neither raises an IllegalArgumentException.
+ * The default behaviour (embed jwk inline) is preserved for backward compatibility.
+ * SPDX-FileCopyrightText: Copyright (c) Orange Business
+ *
+ * This software is distributed under the Apache License 2.0,
+ * see the "LICENSE" file for more details
+ */
+
 import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.catchingUnwrapped
@@ -86,6 +107,35 @@ class WalletService(
     /** Handles credential request encryption and credential response decryption. */
     private val encryptionService: WalletEncryptionService = WalletEncryptionService(),
     private val loadKeyAttestation: (suspend (KeyAttestationInput) -> KmmResult<JwsCompactTyped<KeyAttestationJwt>>)? = null,
+    /**
+     * Selects the key binding to embed in the [JwsHeader] of a credential request proof JWT,
+     * as defined in the OpenID for Verifiable Credential Issuance specification.
+     *
+     * This function determines how the holder's key is referenced in the proof JWT header,
+     * by selecting between two mutually exclusive binding mechanisms:
+     *
+     * - **`jwk`** ([JwsHeader.jsonWebKey]): embeds the [JsonWebKey] inline in the header,
+     *   suitable when the holder has no associated DID.
+     * - **`kid`** ([JwsHeader.keyId]): embeds a DID URL string in the header,
+     *   identifying a specific key within the holder's DID Document.
+     *
+     * The lambda receives the current [KeyMaterial] and must return a [Pair] where:
+     * - the **first** element is the [JsonWebKey] to embed as the `jwk` header parameter, or `null`,
+     * - the **second** element is the DID URL string to embed as the `kid` header parameter, or `null`.
+     *
+     * Exactly **one** of the two values must be non-null, as `jwk` and `kid` are mutually exclusive:
+     * - Returning **both non-null** will throw an [IllegalArgumentException] during proof creation.
+     * - Returning **both null** will throw an [IllegalArgumentException] during proof creation.
+     *
+     * Defaults to selecting the [JsonWebKey] from [KeyMaterial.jsonWebKey] as the `jwk` binding,
+     * which is suitable when no DID is associated with the holder.
+     *
+     * @see JwsHeader.jsonWebKey
+     * @see JwsHeader.keyId
+     */
+    private val selectProofJwtKeyBinding: (suspend (KeyMaterial) -> Pair<JsonWebKey?, String?>) = { key ->
+        Pair(key.jsonWebKey, null)
+    }
 ) {
 
     data class KeyAttestationInput(
@@ -199,19 +249,19 @@ class WalletService(
         it.format.toRepresentation() == requestOptions.representation
     }?.firstOrNull {
         when (requestOptions.representation) {
-            PLAIN_JWT -> when(it) {
+            PLAIN_JWT -> when (it) {
                 is SupportedCredentialFormatW3cVcJwt -> it.credentialDefinition.types
                 is SupportedCredentialFormatW3cVcJwtJsonLd -> it.credentialDefinition.type
                 is SupportedCredentialFormatW3cVcJsonLd -> it.credentialDefinition.type
                 else -> listOf()
             }.contains(requestOptions.credentialScheme.vcType!!)
 
-            SD_JWT -> when(it) {
+            SD_JWT -> when (it) {
                 is SupportedCredentialFormatSdJwt -> it.sdJwtVcType
                 else -> null
             } == requestOptions.credentialScheme.sdJwtType!!
 
-            ISO_MDOC ->  when(it) {
+            ISO_MDOC -> when (it) {
                 is SupportedCredentialFormatIsoMdoc -> it.docType
                 else -> null
             } == requestOptions.credentialScheme.isoDocType!!
@@ -402,15 +452,31 @@ class WalletService(
         return CredentialRequestProofContainer(
             jwt = setOf(
                 SignJwt<JsonWebToken>(
-                    keyMaterial,
-                    // To be refactored once signJwt is not passed in the constructor but to this function
-                    { header: JwsHeader, key: KeyMaterial ->
-                        header.copy(
-                            jsonWebKey = key.jsonWebKey,
-                            keyAttestation = keyAttestation?.jws
-                        )
+                    keyMaterial
+                )
+                // To be refactored once signJwt is not passed in the constructor but to this function
+                { header: JwsHeader, key: KeyMaterial ->
+                    val (jsonWebKey, keyId) = this.selectProofJwtKeyBinding.invoke(key)
+
+                    when {
+                        jsonWebKey != null && keyId.isNullOrEmpty() ->
+                            header.copy(jsonWebKey = jsonWebKey, keyAttestation = keyAttestation?.jws)
+
+                        jsonWebKey == null && !keyId.isNullOrEmpty() ->
+                            header.copy(keyId = keyId, keyAttestation = keyAttestation?.jws)
+
+                        jsonWebKey != null && !keyId.isNullOrEmpty() ->
+                            throw IllegalArgumentException(
+                                "Key binding conflict: both 'jwk' and 'kid' are set, only one must be provided as per OID4VCI spec."
+                            )
+
+                        else -> // same as jsonWebKey == null && keyId.isNullOrEmpty()
+                            throw IllegalArgumentException(
+                                "Key binding missing: neither 'jwk' nor 'kid' is set, exactly one must be provided as per OID4VCI spec."
+                            )
                     }
-                ).invoke(
+
+                }.invoke(
                     OpenIdConstants.PROOF_JWT_TYPE,
                     JsonWebToken(
                         issuer = clientId, // omit when token was pre-authn?
@@ -438,7 +504,7 @@ class WalletService(
                     supportedAlgorithms = supportedAlgorithms,
                     preferredKeyStorageStatusPeriod = keyAttestationRequired?.preferredTtl,
                 )
-             )?.getOrThrow()?.jws ?: throw IllegalArgumentException("Key attestation required, none provided"))
+            )?.getOrThrow()?.jws ?: throw IllegalArgumentException("Key attestation required, none provided"))
         )
     )
 

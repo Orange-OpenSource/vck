@@ -5,7 +5,14 @@ package at.asitplus.wallet.lib.oidvci
  * SPDX-FileCopyrightText: Copyright (c) A-SIT Plus GmbH
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modifications: Credential subject is now a JsonElement
+ * Modifications:
+ * - Credential subject is now a JsonElement
+ * SPDX-FileCopyrightText: Copyright (c) Orange Business
+ * - Added support for configurable key binding method selection via resolveKeyBindingMethod,
+ * allowing the credential request proof JWS header to embed either an inline JsonWebKey (jwk)
+ * or a DID URL key identifier (kid), as required by the OID4VCI specification.
+ * Exactly one of jwk or kid must be provided; supplying both or neither raises an IllegalArgumentException.
+ * The default behaviour (embed jwk inline) is preserved for backward compatibility.
  * SPDX-FileCopyrightText: Copyright (c) Orange Business
  *
  * This software is distributed under the Apache License 2.0,
@@ -29,7 +36,8 @@ import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.JwsHeader
 import at.asitplus.signum.indispensable.josef.KeyAttestationJwt
 import at.asitplus.signum.indispensable.josef.KeyStorageStatus
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
@@ -43,12 +51,12 @@ import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
+import at.asitplus.wallet.lib.oidvci.WalletService.KeyAttestationInput
 import at.asitplus.wallet.lib.oidvci.WalletService.RequestOptions
 import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.DummyOAuth2IssuerCredentialDataProvider
 import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.assertions.throwables.shouldThrowAny
@@ -260,7 +268,8 @@ val OidvciAttestationTest by matrixSuite {
         }
 
         test("key attestation callback receives issuer preference context") {
-            var capturedInput: WalletService.KeyAttestationInput? = null
+            var capturedInput: KeyAttestationInput? = null
+
             it.client = WalletService(
                 loadKeyAttestation = { input ->
                     capturedInput = input
@@ -290,6 +299,7 @@ val OidvciAttestationTest by matrixSuite {
                     }
                 },
                 keyMaterial = it.clientKeyMaterial,
+                selectProofJwtKeyBinding = { key -> Pair(key.jsonWebKey, null) },
             )
 
             it.client.createCredentialRequestProofJwt(
@@ -435,11 +445,87 @@ val OidvciAttestationTest by matrixSuite {
             }
         }
 
+        // -----------------------------------------------------------------------------------------
+        // selectProofJwtKeyBinding: both jwk and kid set → IllegalArgumentException
+        // -----------------------------------------------------------------------------------------
+        test("throw when both jwk and kid are set in selectProofJwtKeyBinding") {
+            val conflictingClient = WalletService(
+                keyMaterial = it.clientKeyMaterial,
+                loadKeyAttestation = null,
+                selectProofJwtKeyBinding = { key ->
+                    Pair(key.jsonWebKey, "did:example:123#key-1") // both non-null → conflict
+                },
+            )
+
+            shouldThrow<IllegalArgumentException> {
+                conflictingClient.createCredentialRequestProofJwt(
+                    clientNonce = "nonce-abc",
+                    credentialIssuer = it.issuer.metadata.credentialIssuer,
+                )
+            }
+        }
+
+        // -----------------------------------------------------------------------------------------
+        // selectProofJwtKeyBinding: neither jwk nor kid set → IllegalArgumentException
+        // -----------------------------------------------------------------------------------------
+        test("throw when neither jwk nor kid is set in selectProofJwtKeyBinding") {
+            val emptyBindingClient = WalletService(
+                keyMaterial = it.clientKeyMaterial,
+                loadKeyAttestation = null,
+                selectProofJwtKeyBinding = { _ ->
+                    Pair(null, null) // neither set → missing binding
+                },
+            )
+
+            shouldThrow<IllegalArgumentException> {
+                emptyBindingClient.createCredentialRequestProofJwt(
+                    clientNonce = "nonce-abc",
+                    credentialIssuer = it.issuer.metadata.credentialIssuer,
+                )
+            }
+        }
+
+        // -----------------------------------------------------------------------------------------
+        // selectProofJwtKeyBinding: kid-only (DID URL) path → proof must be created without error
+        // -----------------------------------------------------------------------------------------
+        test("create proof using kid (DID URL) key binding method") {
+            val didKeyMaterial = it.clientKeyMaterial
+            val didUrl = "did:example:holder#key-1"
+
+            val kidOnlyClient = WalletService(
+                keyMaterial = didKeyMaterial,
+                loadKeyAttestation = null,
+                selectProofJwtKeyBinding = { _ ->
+                    Pair(null, didUrl) // kid only
+                },
+            )
+
+            // No key attestation required on the issuer side for this sub-test
+            it.issuer = CredentialIssuer(
+                authorizationService = it.authorizationService,
+                issuer = IssuerAgent(
+                    identifier = "https://issuer.example.com".toUri(),
+                    randomSource = RandomSource.Default
+                ),
+                credentialSchemes = setOf(ConstantIndex.AtomicAttribute2023, MobileDrivingLicenceScheme),
+                proofValidator = ProofValidator(requireKeyAttestation = false),
+            )
+
+            val proof = shouldNotThrowAny {
+                kidOnlyClient.createCredentialRequestProofJwt(
+                    clientNonce = it.issuer.nonceWithDpopNonce().getOrThrow().response.clientNonce,
+                    credentialIssuer = it.issuer.metadata.credentialIssuer,
+                )
+            }
+
+            // The resulting JWT set must be non-empty
+            proof.jwt.shouldNotBeNull().shouldNotBeEmpty()
+        }
     }
 }
 
 private suspend fun WalletService.loadTestKeyAttestation(
-    input: WalletService.KeyAttestationInput,
+    input: KeyAttestationInput,
 ) = catching {
     val walletProviderKeyMaterial = EphemeralKeyWithoutCert()
     val clientKeyMaterial = EphemeralKeyWithoutCert()
