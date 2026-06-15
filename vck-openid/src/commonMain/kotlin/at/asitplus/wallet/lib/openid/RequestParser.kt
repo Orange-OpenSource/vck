@@ -3,7 +3,6 @@ package at.asitplus.wallet.lib.openid
 import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.catchingUnwrapped
-import at.asitplus.dcapi.request.DCAPIWalletRequest
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.JarRequestParameters
 import at.asitplus.openid.OpenIdConstants
@@ -58,9 +57,14 @@ class RequestParser(
      * Pass in the data received by the DC API in signed or unsigned form. Will return [RequestParametersFrom].
      */
     suspend fun parseRequestParameters(
-        input: DCAPIWalletRequest.OpenId4Vp,
+        input: RequestParametersFrom.DcApiRequest,
     ): KmmResult<RequestParametersFrom<AuthenticationRequestParameters>> = catching {
-        input.parseAsDcApiRequest() ?: throw InvalidRequest("parse error: $input")
+        when (input) {
+            is RequestParametersFrom.OpenId4VpDcApiSigned -> input
+            is RequestParametersFrom.OpenId4VpDcApiUnsigned -> input
+            is RequestParametersFrom.OpenId4VpDcApiMultiSigned -> input
+            is RequestParametersFrom.IsoMdocDcApi -> throw InvalidRequest("ISO mdoc DC API requests are not OpenID4VP requests")
+        }
     }
 
     private suspend fun String.parseParameters(): RequestParametersFrom<out RequestParameters> =
@@ -90,32 +94,6 @@ class RequestParser(
         val params = joseCompliantSerializer.decodeFromString(RequestParameters.serializer(), this)
         RequestParametersFrom.Json(this, params, (parent as? RequestParametersFrom.Uri)?.url)
     }.getOrNull()
-
-    private fun DCAPIWalletRequest.OpenId4Vp.parseAsDcApiRequest(): RequestParametersFrom<AuthenticationRequestParameters>? =
-        catchingUnwrapped {
-            when (this) {
-                is DCAPIWalletRequest.OpenId4VpSigned -> RequestParametersFrom.DcApiSigned(
-                    this,
-                    this.request.request.payload,
-                    this.request.request.jws,
-                    false
-                )
-
-                is DCAPIWalletRequest.OpenId4VpUnsigned ->
-                    RequestParametersFrom.DcApiUnsigned(
-                        this,
-                        this.request.request,
-                        joseCompliantSerializer.encodeToString(this.request.request)
-                    )
-
-                is DCAPIWalletRequest.OpenId4VpMultiSigned -> RequestParametersFrom.DcApiMultiSigned(
-                    this,
-                    this.request.request.payload,
-                    this.request.request.jws,
-                    false
-                )
-            }
-        }.getOrNull()
 
     suspend fun extractRequest(
         parameters: JarRequestParameters,
@@ -154,4 +132,3 @@ class RequestParser(
             }
 
 }
-

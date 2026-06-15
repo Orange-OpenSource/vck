@@ -3,7 +3,6 @@ package at.asitplus.wallet.lib.openid
 import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.catchingUnwrapped
-import at.asitplus.dcapi.request.DCAPIWalletRequest
 import at.asitplus.dif.PresentationDefinition
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.AuthenticationResponseParameters
@@ -193,12 +192,6 @@ class OpenId4VpHolder(
     ) = requestParser.parseRequestParameters(input)
         .getOrThrow() as RequestParametersFrom<AuthenticationRequestParameters>
 
-    @Suppress("UNCHECKED_CAST")
-    private suspend fun parse(
-        input: DCAPIWalletRequest.OpenId4Vp,
-    ) = requestParser.parseRequestParameters(input)
-        .getOrThrow() as RequestParametersFrom<AuthenticationRequestParameters>
-
     /** Creates an error response for the [error], which can be sent to the verifier / relying party. */
     suspend fun createAuthnErrorResponse(
         error: Throwable,
@@ -259,18 +252,6 @@ class OpenId4VpHolder(
      */
     suspend fun startAuthorizationResponsePreparation(
         input: String,
-    ): KmmResult<AuthorizationResponsePreparationState> = catching {
-        startAuthorizationResponsePreparation(parse(input)).getOrThrow()
-    }
-
-    /**
-     * Loads the [AuthenticationRequestParameters] from DC API [input].
-     * Clients need to inform the user, get consent, and resume in [finalizeAuthorizationResponse].
-     *
-     * Exceptions thrown during request parsing are caught by [KmmResult],
-     */
-    suspend fun startAuthorizationResponsePreparation(
-        input: DCAPIWalletRequest.OpenId4Vp,
     ): KmmResult<AuthorizationResponsePreparationState> = catching {
         startAuthorizationResponsePreparation(parse(input)).getOrThrow()
     }
@@ -407,7 +388,7 @@ class OpenId4VpHolder(
     private fun RequestParametersFrom<AuthenticationRequestParameters>.extractAudience(
         clientJsonWebKeySet: Collection<JsonWebKey>?,
     ) = when (this) {
-        is RequestParametersFrom.DcApiRequest -> "origin:${dcApiRequest.callingOrigin}"
+        is RequestParametersFrom.DcApiRequest -> "origin:$callingOrigin"
         else -> parameters.extractAudience(clientJsonWebKeySet)
     }
 
@@ -420,19 +401,11 @@ class OpenId4VpHolder(
             ?.let { it.keyId ?: it.didEncoded ?: it.jwkThumbprint }
         ?: throw InvalidRequest("could not parse audience")
 
-    private fun RequestParametersFrom<AuthenticationRequestParameters>.callingOrigin() = when (this) {
-        is RequestParametersFrom.DcApiSigned -> dcApiRequest.callingOrigin
-        is RequestParametersFrom.DcApiUnsigned -> dcApiRequest.callingOrigin
-        is RequestParametersFrom.DcApiMultiSigned -> dcApiRequest.callingOrigin
-        else -> null
-    }
+    private fun RequestParametersFrom<AuthenticationRequestParameters>.callingOrigin() =
+        (this as? RequestParametersFrom.DcApiRequest)?.callingOrigin
 
-    private fun RequestParametersFrom<AuthenticationRequestParameters>.credentialIds() = when (this) {
-        is RequestParametersFrom.DcApiSigned -> dcApiRequest.credentialIds
-        is RequestParametersFrom.DcApiUnsigned -> dcApiRequest.credentialIds
-        is RequestParametersFrom.DcApiMultiSigned -> dcApiRequest.credentialIds
-        else -> null
-    }
+    private fun RequestParametersFrom<AuthenticationRequestParameters>.credentialIds() =
+        (this as? RequestParametersFrom.DcApiRequest)?.credentialIds
 
     private suspend fun RelyingPartyMetadata.loadJsonWebKeySet(): JsonWebKeySet? =
         jsonWebKeySet ?: jsonWebKeySetUrl
@@ -464,6 +437,7 @@ private fun RequestParameters.state() = when (this) {
     is JarRequestParameters -> this.state
     is RequestObjectParameters -> null
     is SignatureRequestParameters -> this.state
+    is RequestParametersFrom.IsoMdocDcApi.IsoMdocRequestWrapper -> null
 }
 
 fun Throwable.toOAuth2Error(

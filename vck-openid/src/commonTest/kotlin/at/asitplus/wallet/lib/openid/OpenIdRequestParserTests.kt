@@ -1,7 +1,5 @@
 package at.asitplus.wallet.lib.openid
 
-import at.asitplus.dcapi.request.DCAPIWalletRequest
-import at.asitplus.dcapi.request.DCAPIWalletRequest.OpenId4Vp.OpenId4VpRequest
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
@@ -161,8 +159,9 @@ val OpenIdRequestParserTests by testSuite {
         }
 
         "signed request from DCAPI" { requestParser ->
-            val input = DCAPIWalletRequest.OpenId4VpSigned(
-                request = OpenId4VpRequest.JwsCompact(JwsTyped<AuthenticationRequestParameters>(jws)),
+            val input = RequestParametersFrom.OpenId4VpDcApiSigned(
+                jwsTyped = JwsTyped<AuthenticationRequestParameters>(jws),
+                verified = false,
                 credentialIds = listOf("1"),
                 callingPackageName = "com.example.app",
                 callingOrigin = "https://example.com"
@@ -170,8 +169,8 @@ val OpenIdRequestParserTests by testSuite {
 
             requestParser.parseRequestParameters(input).getOrThrow().apply {
                 shouldBeInstanceOf<RequestParametersFrom<AuthenticationRequestParameters>>()
-                shouldBeInstanceOf<RequestParametersFrom.DcApiSigned<*>>()
-                this.jws.toString() shouldBe jws
+                val dcApiRequest = shouldBeInstanceOf<RequestParametersFrom.OpenId4VpDcApiSigned>()
+                dcApiRequest.jwsTyped.toString() shouldBe jws
                 parameters.assertParams()
 
                 joseCompliantSerializer.decodeFromString<RequestParametersFrom<AuthenticationRequestParameters>>(
@@ -181,8 +180,9 @@ val OpenIdRequestParserTests by testSuite {
         }
 
         "unsigned request from DCAPI" { requestParser ->
-            val input = DCAPIWalletRequest.OpenId4VpUnsigned(
-                request = joseCompliantSerializer.decodeFromString(authnRequestSerialized),
+            val input = RequestParametersFrom.OpenId4VpDcApiUnsigned(
+                parameters = joseCompliantSerializer.decodeFromString(authnRequestSerialized),
+                jsonString = authnRequestSerialized,
                 credentialIds = listOf("1"),
                 callingPackageName = "com.example.app",
                 callingOrigin = "https://example.com"
@@ -190,7 +190,7 @@ val OpenIdRequestParserTests by testSuite {
 
             requestParser.parseRequestParameters(input).getOrThrow().apply {
                 shouldBeInstanceOf<RequestParametersFrom<AuthenticationRequestParameters>>()
-                shouldBeInstanceOf<RequestParametersFrom.DcApiUnsigned<*>>()
+                shouldBeInstanceOf<RequestParametersFrom.OpenId4VpDcApiUnsigned>()
                 //jsonString shouldBe authnRequestSerialized // TODO Don't know why this is not the same
                 parameters.assertParams()
 
@@ -202,10 +202,9 @@ val OpenIdRequestParserTests by testSuite {
 
         "multisigned request from DCAPI" { requestParser ->
             val compactTyped = JwsCompactTyped<AuthenticationRequestParameters>(jws)
-            val input = DCAPIWalletRequest.OpenId4VpMultiSigned(
-                request = OpenId4VpRequest.JwsGeneral(
-                    JwsTyped(listOf(compactTyped.jws.toJwsFlattened()))
-                ),
+            val input = RequestParametersFrom.OpenId4VpDcApiMultiSigned(
+                jwsTyped = JwsTyped<AuthenticationRequestParameters>(listOf(compactTyped.jws.toJwsFlattened())),
+                verified = false,
                 credentialIds = listOf("1"),
                 callingPackageName = "com.example.app",
                 callingOrigin = "https://example.com"
@@ -213,7 +212,7 @@ val OpenIdRequestParserTests by testSuite {
 
             requestParser.parseRequestParameters(input).getOrThrow().apply {
                 shouldBeInstanceOf<RequestParametersFrom<AuthenticationRequestParameters>>()
-                shouldBeInstanceOf<RequestParametersFrom.DcApiMultiSigned<*>>()
+                shouldBeInstanceOf<RequestParametersFrom.OpenId4VpDcApiMultiSigned>()
                 parameters.assertParams()
 
                 joseCompliantSerializer.decodeFromString<RequestParametersFrom<AuthenticationRequestParameters>>(
