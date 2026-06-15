@@ -193,5 +193,31 @@ val OpenId4VpDcApiProtocolTest by testSuite {
             result.isFailure shouldBe true
             result.exceptionOrNull()!!.message!! shouldContain "expected_origins"
         }
+
+        test("DC API signed: rejects with InvalidRequest when expected_origins is missing") { f ->
+            val reqOptions = OpenId4VpRequestOptions(
+                presentationRequest = dcqlRequest,
+                responseMode = OpenIdConstants.ResponseMode.DcApi,
+                expectedOrigins = listOf(callingOrigin),
+            )
+            val signedRequest = f.verifierOid4vp.createAuthnRequestAsSignedRequestObject(reqOptions).getOrThrow()
+
+            // Simulate a (third-party) signed request that omits expected_origins entirely.
+            val withoutExpectedOrigins = JwsTyped(
+                signedRequest.jws,
+                signedRequest.payload.copy(expectedOrigins = null),
+            )
+            val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiSigned(
+                jwsTyped = withoutExpectedOrigins,
+                verified = false,
+                credentialIds = listOf(credentialId),
+                callingPackageName = callingPackageName,
+                callingOrigin = callingOrigin,
+            )
+
+            val result = f.holderOid4vp.startAuthorizationResponsePreparation(dcApiRequest)
+            result.isFailure shouldBe true
+            result.exceptionOrNull()!!.message!! shouldContain "expected_origins must be set"
+        }
     }
 }
