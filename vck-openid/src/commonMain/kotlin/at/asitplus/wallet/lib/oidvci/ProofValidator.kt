@@ -116,9 +116,7 @@ class ProofValidator(
             throw InvalidProof("key_attestation not contained in JWT proof")
         }
         if (keyAttestation != null) {
-            val attestedKeys = keyAttestation.validateKeyAttestation().ifEmpty {
-                throw InvalidProof("key attestation contains no attested keys")
-            }
+            val attestedKeys = keyAttestation.validateKeyAttestation()
             verifyJwsSignatureWithKey(jws, keyAttestation.payload.attestedKeys.first()).getOrElse {
                 throw InvalidProof("JWT proof not signed with key at index 0 of attested_keys", it)
             }
@@ -138,7 +136,7 @@ class ProofValidator(
      * in the `attested_keys` claim.
      */
     private suspend fun JwsCompactTyped<KeyAttestationJwt>.validateAttestationProof(): Collection<CryptoPublicKey> {
-                if (payload.nonce == null || !clientNonceService.verifyNonce(payload.nonce!!)) {
+        if (payload.nonce == null || !clientNonceService.verifyNonce(payload.nonce!!)) {
             throw InvalidNonce("invalid nonce: ${payload.nonce}")
         }
         return validateKeyAttestation()
