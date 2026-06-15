@@ -1,18 +1,16 @@
 package at.asitplus.wallet.lib.data.rfc.tokenStatusList
 
-import at.asitplus.testballoon.minus
-import at.asitplus.testballoon.withData
+import at.asitplus.testballoon.matrix.*
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatusBitSize
-import de.infix.testBalloon.framework.core.testSuite
+import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
 
 @OptIn(ExperimentalUnsignedTypes::class)
-val StatusListTest by testSuite {
+val StatusListTest by matrixSuite {
     "byte array correctness" - {
         "tokenStatus1 list" - {
-            withData(
-                mapOf(
+            mapOf(
                     "requires 0 bytes for 0 statuses" to Pair(
                         listOf(),
                         ByteArray(0) {
@@ -43,8 +41,8 @@ val StatusListTest by testSuite {
                             0.toByte()
                         }
                     ),
-                )
-            ) { (values, expectedByteArray) ->
+                ).asData(nameFn = { (name, _) -> name }) test { (_, expected) ->
+                val (values, expectedByteArray) = expected
                 StatusListView.fromTokenStatuses(
                     values,
                     statusBitSize = TokenStatusBitSize.ONE,
@@ -52,8 +50,7 @@ val StatusListTest by testSuite {
             }
         }
         "tokenStatus2 list" - {
-            withData(
-                mapOf(
+            mapOf(
                     "requires 0 bytes for 0 statuses" to Pair(
                         listOf(),
                         ByteArray(0) {
@@ -115,8 +112,8 @@ val StatusListTest by testSuite {
                             (if(index == 0) 0 else 1).toByte()
                         }
                     ),
-                )
-            ) { (values, expectedByteArray) ->
+                ).asData(nameFn = { (name, _) -> name }) test { (_, expected) ->
+                val (values, expectedByteArray) = expected
                 StatusListView.fromTokenStatuses(
                     values,
                     statusBitSize = TokenStatusBitSize.TWO,
@@ -124,8 +121,7 @@ val StatusListTest by testSuite {
             }
         }
         "tokenStatus4 list" - {
-            withData(
-                mapOf(
+            mapOf(
                     "requires 0 bytes for 0 statuses" to Pair(
                         listOf(),
                         ByteArray(0) {
@@ -183,8 +179,8 @@ val StatusListTest by testSuite {
                             (if(index == 0) 0 else 1).toByte()
                         }
                     ),
-                )
-            ) { (values, expectedByteArray) ->
+                ).asData(nameFn = { (name, _) -> name }) test { (_, expected) ->
+                val (values, expectedByteArray) = expected
                 StatusListView.fromTokenStatuses(
                     values,
                     statusBitSize = TokenStatusBitSize.FOUR,
@@ -192,8 +188,7 @@ val StatusListTest by testSuite {
             }
         }
         "tokenStatus8 list" - {
-            withData(
-                mapOf(
+            mapOf(
                     "requires 0 bytes for 0 statuses" to Pair(
                         listOf(),
                         ByteArray(0) {
@@ -224,8 +219,8 @@ val StatusListTest by testSuite {
                             0.toByte()
                         }
                     ),
-                )
-            ) { (values, expectedByteArray) ->
+                ).asData(nameFn = { (name, _) -> name }) test { (_, expected) ->
+                val (values, expectedByteArray) = expected
                 StatusListView.fromTokenStatuses(
                     values,
                     statusBitSize = TokenStatusBitSize.EIGHT,
