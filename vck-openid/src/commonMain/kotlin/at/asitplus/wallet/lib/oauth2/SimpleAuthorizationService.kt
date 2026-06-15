@@ -55,6 +55,7 @@ import io.github.aakira.napier.Napier
 import io.ktor.http.*
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlinx.serialization.json.JsonObject
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 
@@ -123,7 +124,8 @@ class SimpleAuthorizationService(
     /** Handles client authentication in [par] and [token]. */
     private val clientAuthenticationService: ClientAuthenticationService = ClientAuthenticationService(
         enforceClientAuthentication = false,
-        verifyClientAttestationJwt = { true }
+        verifyClientAttestationJwt = { true },
+        issuerIdentifier = publicContext
     ),
     /** Used to parse requests from clients, e.g., when using JWT-Secured Authorization Requests (RFC 9101) */
     private val requestParser: RequestParser = RequestParser(
@@ -147,11 +149,21 @@ class SimpleAuthorizationService(
      */
     private val requestObjectSigningAlgorithms: Set<JwsAlgorithm.Signature>? = setOf(JwsAlgorithm.Signature.ES256),
     /** Used for [OAuth2AuthorizationServerMetadata.clientAttestationSigningAlgValuesSupportedStrings] */
-    private val supportedSigningAlgorithms: Set<JwsAlgorithm.Signature> = setOf(JwsAlgorithm.Signature.ES256),
+    private val supportedSigningAlgorithms: Set<JwsAlgorithm.Signature> = DEFAULT_WALLET_ATTESTATION_ALGORITHMS,
+    /** Used for [OAuth2AuthorizationServerMetadata.preferredClientStatusPeriod]. */
+    private val preferredClientStatusPeriod: Duration? = 31.days,
     /** Used to sign JWT introspection responses (RFC 9701). */
     private val signIntrospectionJwt: SignJwtFun<TokenIntrospectionResponse> =
         SignJwt(EphemeralKeyWithoutCert(), JwsHeaderCertOrJwk()),
 ) : OAuth2AuthorizationServerAdapter, AuthorizationService {
+
+    companion object {
+        val DEFAULT_WALLET_ATTESTATION_ALGORITHMS: Set<JwsAlgorithm.Signature> = setOf(
+            JwsAlgorithm.Signature.ES256,
+            JwsAlgorithm.Signature.ES384,
+            JwsAlgorithm.Signature.ES512,
+        )
+    }
 
     private val _metadata: OAuth2AuthorizationServerMetadata by lazy {
         OAuth2AuthorizationServerMetadata(
@@ -168,6 +180,7 @@ class SimpleAuthorizationService(
                 .map { it.identifier }.toSet(),
             clientAttestationPopSigningAlgValuesSupportedStrings = supportedSigningAlgorithms
                 .map { it.identifier }.toSet(),
+            preferredClientStatusPeriod = preferredClientStatusPeriod,
             dpopSigningAlgValuesSupportedStrings = tokenService.dpopSigningAlgValuesSupportedStrings,
             requestObjectSigningAlgorithmsSupportedStrings = requestObjectSigningAlgorithms
                 ?.map { it.identifier }?.toSet(),

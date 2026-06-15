@@ -29,8 +29,10 @@ import at.asitplus.wallet.lib.oidvci.decodeFromPostBody
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
 import de.infix.testBalloon.framework.core.testSuite
 import io.github.aakira.napier.Napier
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
 import io.ktor.client.request.*
@@ -41,7 +43,6 @@ import kotlin.time.Duration.Companion.minutes
 val OAuth2KtorClientTest by testSuite {
 
     data class Context(
-        val dpopKeyMaterial: KeyMaterial,
         val clientAuthKeyMaterial: KeyMaterial,
         val mockEngine: MockEngine,
         val authorizationService: SimpleAuthorizationService,
@@ -51,9 +52,9 @@ val OAuth2KtorClientTest by testSuite {
     fun setup(
         strategy: CredentialAuthorizationServiceStrategy,
         requestObjectSigningAlgorithms: Set<JwsAlgorithm.Signature>?,
-        requirePAR: Boolean
+        requirePAR: Boolean,
+        captureAttestationInput: ((OAuth2KtorClient.LoadInstanceAttestationInput) -> Unit)? = null,
     ): Context {
-        val dpopKeyMaterial = EphemeralKeyWithoutCert()
         val clientAuthKeyMaterial = EphemeralKeyWithoutCert()
         val authorizationEndpointPath = "/authorize"
         val tokenEndpointPath = "/token"
@@ -124,13 +125,13 @@ val OAuth2KtorClientTest by testSuite {
         }
         val clientId = "https://example.com/rp"
         return Context(
-            dpopKeyMaterial = dpopKeyMaterial,
             clientAuthKeyMaterial = clientAuthKeyMaterial,
             mockEngine = mockEngine,
             authorizationService = authorizationService,
             client = OAuth2KtorClient(
                 engine = mockEngine,
                 loadInstanceAttestation = {
+                    captureAttestationInput?.invoke(it)
                     catching {
                         BuildClientAttestationJwt(
                             SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
@@ -140,17 +141,7 @@ val OAuth2KtorClientTest by testSuite {
                         )
                     }
                 },
-                loadInstanceAttestationPop = {
-                    catching {
-                        BuildClientAttestationPoPJwt(
-                            SignJwt(clientAuthKeyMaterial, JwsHeaderNone()),
-                            clientId = clientId,
-                            audience = publicContext,
-                            lifetime = 10.minutes,
-                        )
-                    }
-                },
-                signDpop = SignJwt(dpopKeyMaterial, JwsHeaderCertOrJwk()),
+                keyMaterial = clientAuthKeyMaterial,
                 oAuth2Client = OAuth2Client(clientId = clientId),
                 randomSource = RandomSource.Default,
             )
@@ -219,6 +210,63 @@ val OAuth2KtorClientTest by testSuite {
                 token = tokenResponse.params.accessToken,
                 popAudience = authorizationService.publicContext,
             ).active shouldBe true
+        }
+    }
+
+    test("applyAuthnForToken throws when keyMaterial does not match cnf key in instance attestation") {
+        val differentKey: KeyMaterial = EphemeralKeyWithoutCert()
+        val clientAuthKey: KeyMaterial = EphemeralKeyWithoutCert()
+        val mockEngine = MockEngine { respondOk() }
+        val clientId = "https://example.com/rp-mismatch"
+
+        val client = OAuth2KtorClient(
+            engine = mockEngine,
+            loadInstanceAttestation = {
+                catching {
+                    BuildClientAttestationJwt(
+                        SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
+                        clientId = clientId,
+                        clientKey = differentKey.jsonWebKey,  // WIA attests a different key
+                    )
+                }
+            },
+            keyMaterial = clientAuthKey,  // PoP signed with this key — does not match cnf
+            oAuth2Client = OAuth2Client(clientId = clientId),
+            randomSource = RandomSource.Default,
+        )
+
+        shouldThrow<Exception> {
+            client.applyAuthnForToken(
+                resourceUrl = "https://example.com/token",
+                httpMethod = HttpMethod.Post,
+                useDpop = false,
+                authorizationServer = "https://example.com",
+                preferredClientStatusPeriod = null,
+            )
+        }.message shouldContain "does not match"
+    }
+
+    test("instance attestation callbacks receive authorization server context") {
+        var attestationInput: OAuth2KtorClient.LoadInstanceAttestationInput? = null
+
+        with(
+            setup(
+                strategy = strategy,
+                requestObjectSigningAlgorithms = setOf(JwsAlgorithm.Signature.ES256),
+                requirePAR = true,
+                captureAttestationInput = { attestationInput = it },
+            )
+        ) {
+            client.startAuthorization(
+                oauthMetadata = authorizationService.metadata(),
+                authorizationServer = authorizationService.publicContext,
+                scope = requestedScope,
+            ).getOrThrow()
+
+            attestationInput.shouldNotBeNull().also {
+                it.authorizationServer shouldBe authorizationService.publicContext
+                it.preferredClientStatusPeriod shouldBe authorizationService.metadata().preferredClientStatusPeriod
+            }
         }
     }
 }

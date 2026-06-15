@@ -5,9 +5,7 @@ import at.asitplus.openid.CredentialFormatEnum
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenRequestParameters
-import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.testballoon.withFixtureGenerator
-import at.asitplus.wallet.eupid.EuPidScheme
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
 import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
@@ -57,7 +55,6 @@ val OpenId4VciClientIntegratedDPoPTest by testSuite {
     data class Context(
         val attributes: Map<String, String>,
         val credentialKeyMaterial: KeyMaterial,
-        val dpopKeyMaterial: KeyMaterial,
         val clientAuthKeyMaterial: KeyMaterial,
         val mockEngine: MockEngine,
         val credentialIssuer: CredentialIssuer,
@@ -70,7 +67,6 @@ val OpenId4VciClientIntegratedDPoPTest by testSuite {
         val representation = SD_JWT
         val attributes = mapOf(EuPidSdJwtScheme.SdJwtAttributes.FAMILY_NAME to uuid4().toString())
         val credentialKeyMaterial = EphemeralKeyWithoutCert()
-        val dpopKeyMaterial = EphemeralKeyWithoutCert()
         val clientAuthKeyMaterial = EphemeralKeyWithoutCert()
         val credentialSchemes = setOf(scheme)
         val authorizationEndpointPath = "/authorize"
@@ -174,7 +170,6 @@ val OpenId4VciClientIntegratedDPoPTest by testSuite {
         Context(
             attributes = attributes,
             credentialKeyMaterial = credentialKeyMaterial,
-            dpopKeyMaterial = dpopKeyMaterial,
             clientAuthKeyMaterial = clientAuthKeyMaterial,
             mockEngine = mockEngine,
             credentialIssuer = credentialIssuer,
@@ -183,23 +178,11 @@ val OpenId4VciClientIntegratedDPoPTest by testSuite {
                 engine = mockEngine,
                 oid4vciService = WalletService(
                     clientId = clientId,
-                    loadUnitAttestationPop = { input ->
-                        catching {
-                            SignJwt<JsonWebToken>(
-                                credentialKeyMaterial
-                            ) { header, material ->
-                                header.copy(jsonWebKey = material.jsonWebKey)
-                            }.invoke(
-                                input.type,
-                                input.payload,
-                                JsonWebToken.serializer(),
-                            ).getOrThrow()
-                        }
-                    }
+                    keyMaterial = credentialKeyMaterial,
                 ),
                 oauth2Client = OAuth2KtorClient(
                     engine = mockEngine,
-                    loadInstanceAttestation = {
+                    loadInstanceAttestation = { _ ->
                         catching {
                             BuildClientAttestationJwt(
                                 SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
@@ -209,17 +192,7 @@ val OpenId4VciClientIntegratedDPoPTest by testSuite {
                             )
                         }
                     },
-                    loadInstanceAttestationPop = {
-                        catching {
-                            BuildClientAttestationPoPJwt(
-                                SignJwt(clientAuthKeyMaterial, JwsHeaderNone()),
-                                clientId = clientId,
-                                audience = publicContext,
-                                lifetime = 10.minutes,
-                            )
-                        }
-                    },
-                    signDpop = SignJwt(dpopKeyMaterial, JwsHeaderCertOrJwk()),
+                    keyMaterial = clientAuthKeyMaterial,
                     oAuth2Client = OAuth2Client(clientId = clientId),
                     randomSource = RandomSource.Default,
                 )
