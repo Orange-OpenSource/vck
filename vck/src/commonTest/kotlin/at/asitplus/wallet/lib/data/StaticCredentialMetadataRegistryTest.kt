@@ -3,6 +3,7 @@ package at.asitplus.wallet.lib.data
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.LibraryInitializer
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.sdjwt.CredentialFormatEnum
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDefinition
@@ -120,15 +121,82 @@ val StaticCredentialMetadataRegistryTest by matrixSuite {
             isoNamespace shouldBe namespace
         }
     }
+
+    // Regression for PR #566: a child that `extends` a base and relies on inherited `vckExtensions` (no own `vck`
+    // block) must still be matchable by the inherited isoDocType — the matcher has to resolve the chain, not inspect
+    // the unresolved child whose `vckExtensions` is null.
+    "static registry matches an extending child by inherited ISO docType" {
+        val baseVct = SdJwtVcType("urn:test:iso:base:${uuid4()}")
+        val childVct = SdJwtVcType("urn:test:iso:child:${uuid4()}")
+        val docType = "org.example.${uuid4()}.credential"
+        val namespace = "org.example.${uuid4()}"
+        val childUrl = "https://metadata.example.test/${uuid4()}/child.json"
+        val registry = StaticCredentialMetadataRegistry(
+            // Child first, so a passing match proves the child (not the base) was selected.
+            documentRegistry = SdJwtTypeMetadataDocumentRegistry(
+                childVct to metadataDocument(vct = childVct, extends = baseVct),
+                baseVct to metadataDocument(
+                    vct = baseVct,
+                    vckExtensions = SdJwtTypeMetadataVckExtensions(
+                        format = CredentialFormatEnum.MSO_MDOC,
+                        isoDocType = docType,
+                        isoNamespace = namespace,
+                    ),
+                ),
+            ),
+            documentUrls = mapOf(
+                childVct to childUrl,
+                baseVct to "https://metadata.example.test/${uuid4()}/base.json",
+            ),
+        )
+
+        registry.findEntry(docType, ISO_MDOC).shouldNotBeNull().apply {
+            metadata.vct shouldBe childVct
+            loadedFrom shouldBe childUrl
+            metadata.vckExtensions?.isoDocType shouldBe docType
+        }
+    }
+
+    // Same inheritance bug for the W3C JWT path: the child must be matchable by the inherited vcType.
+    "static registry matches an extending child by inherited W3C vcType" {
+        val baseVct = SdJwtVcType("urn:test:w3c:base:${uuid4()}")
+        val childVct = SdJwtVcType("urn:test:w3c:child:${uuid4()}")
+        val vcType = "TestW3cCredential-${uuid4()}"
+        val childUrl = "https://metadata.example.test/${uuid4()}/child.json"
+        val registry = StaticCredentialMetadataRegistry(
+            documentRegistry = SdJwtTypeMetadataDocumentRegistry(
+                childVct to metadataDocument(vct = childVct, extends = baseVct),
+                baseVct to metadataDocument(
+                    vct = baseVct,
+                    vckExtensions = SdJwtTypeMetadataVckExtensions(
+                        format = CredentialFormatEnum.JWT_VC,
+                        vcType = vcType,
+                    ),
+                ),
+            ),
+            documentUrls = mapOf(
+                childVct to childUrl,
+                baseVct to "https://metadata.example.test/${uuid4()}/base.json",
+            ),
+        )
+
+        registry.findEntry(vcType, PLAIN_JWT).shouldNotBeNull().apply {
+            metadata.vct shouldBe childVct
+            loadedFrom shouldBe childUrl
+            metadata.vckExtensions?.vcType shouldBe vcType
+        }
+    }
 }
 
 private fun metadataDocument(
     vct: SdJwtVcType,
     vckExtensions: SdJwtTypeMetadataVckExtensions? = null,
+    extends: SdJwtVcType? = null,
 ) = SdJwtTypeMetadataDocument(
     originalBytes = ByteArray(0),
     definition = SdJwtTypeMetadataDefinition(
         vct = vct,
+        extends = extends,
         vckExtensions = vckExtensions,
     ),
 )

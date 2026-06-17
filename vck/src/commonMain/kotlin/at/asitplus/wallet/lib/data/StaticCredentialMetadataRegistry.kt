@@ -10,6 +10,7 @@ import at.asitplus.wallet.sdjwt.SdJwtTypeMetadata
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDefinition
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocumentIntegrityChecker
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocumentRegistry
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataVckExtensions
 import at.asitplus.wallet.sdjwt.SdJwtVcType
 import at.asitplus.wallet.sdjwt.W3cSubresourceIntegrityMetadata
 
@@ -78,7 +79,7 @@ class StaticCredentialMetadataRegistry(
         identifier: String,
         representation: CredentialRepresentation,
     ): Boolean {
-        val extensions = vckExtensions
+        val extensions = effectiveVckExtensions()
         return when (representation) {
             PLAIN_JWT -> extensions?.format == CredentialFormatEnum.JWT_VC &&
                     extensions.vcType == identifier
@@ -89,6 +90,22 @@ class StaticCredentialMetadataRegistry(
             ISO_MDOC -> extensions?.format == CredentialFormatEnum.MSO_MDOC &&
                     extensions.isoDocType == identifier
         }
+    }
+
+    /**
+     * The `vck` extensions a fully resolved document would carry: a child that `extends` a base inherits the base's
+     * block when it declares none (see [SdJwtTypeMetadataDefinition.extend]). Matching the unresolved child directly
+     * would miss it on PLAIN_JWT/ISO_MDOC lookups keyed by the inherited `vcType`/`isoDocType`, so we walk the
+     * `extends` chain here and take the first declared block.
+     */
+    private fun SdJwtTypeMetadataDefinition.effectiveVckExtensions(): SdJwtTypeMetadataVckExtensions? {
+        val visited = mutableSetOf<SdJwtVcType>()
+        var current: SdJwtTypeMetadataDefinition? = this
+        while (current != null && visited.add(current.vct)) {
+            current.vckExtensions?.let { return it }
+            current = current.extends?.let { documentRegistry[it]?.definition }
+        }
+        return null
     }
 }
 

@@ -85,7 +85,7 @@ data class SdJwtTypeMetadataDefinition(
                     childClaimInfo.extendFrom(baseClaimInfo)
                 }.values.filterNotNull()
             }?.let(::SdJwtTypeMetadataClaimInformationList) ?: base.claims,
-            vckExtensions = vckExtensions,
+            vckExtensions = vckExtensions ?: base.vckExtensions,
         )
     }
 }
