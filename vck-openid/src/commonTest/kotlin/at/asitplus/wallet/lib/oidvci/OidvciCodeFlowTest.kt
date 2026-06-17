@@ -44,6 +44,7 @@ import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.DummyOAuth2IssuerCredentialDataProvider
 import at.asitplus.wallet.lib.openid.DummyUserProvider
 import at.asitplus.wallet.lib.utils.MapStore
+import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import com.benasher44.uuid.uuid4
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
@@ -580,8 +581,7 @@ val OidvciCodeFlowTest by matrixSuite {
 
 
         "request credential in ISO MDOC, using scope" { it ->
-            val requestOptions =
-                RequestOptions(AttributeIndex.resolveIdentifier("org.iso.18013.5.1.mDL", ISO_MDOC), ISO_MDOC)
+            val requestOptions = RequestOptions(AttributeIndex.resolveIdentifier(MDL_DOCTYPE, ISO_MDOC), ISO_MDOC)
             val credentialFormat = it.client.selectSupportedCredentialFormat(requestOptions, it.issuer.metadata)
                 .shouldNotBeNull()
             val scope = credentialFormat.scope.shouldNotBeNull()

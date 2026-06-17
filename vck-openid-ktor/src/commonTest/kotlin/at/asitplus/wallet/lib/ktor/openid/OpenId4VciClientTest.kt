@@ -6,7 +6,9 @@ import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
 import at.asitplus.wallet.eupid.EuPidDataElements
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
@@ -224,7 +226,7 @@ val OpenId4VciClientTest by matrixSuite {
     "loadEuPidCredentialSdJwt" {
         val expectedFamilyName = uuid4().toString()
         val expectedAttributeName = EuPidSdJwtDataElements.FAMILY_NAME
-        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
+        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
         with(setup(euPidSdJwtScheme, SD_JWT, mapOf(expectedAttributeName to expectedFamilyName))) {
             var refreshTokenStore: CredentialRenewalInfo? = null
 
@@ -265,7 +267,7 @@ val OpenId4VciClientTest by matrixSuite {
     "loadEuPidCredentialIsoWithOfferIdentifierListRevocation" {
         val expectedAttributeValue = uuid4().toString()
         val expectedAttributeName = EuPidDataElements.GIVEN_NAME
-        val euPidScheme = AttributeIndex.resolveIdentifier("eu.europa.ec.eudi.pid.1", ISO_MDOC)
+        val euPidScheme = AttributeIndex.resolveIdentifier(EU_PID_DOCTYPE, ISO_MDOC)
         with(
             setup(
                 scheme = euPidScheme,
@@ -313,7 +315,7 @@ val OpenId4VciClientTest by matrixSuite {
     "loadEuPidCredentialIsoWithOffer" {
         val expectedAttributeValue = uuid4().toString()
         val expectedAttributeName = EuPidDataElements.GIVEN_NAME
-        val euPidScheme = AttributeIndex.resolveIdentifier("eu.europa.ec.eudi.pid.1", ISO_MDOC)
+        val euPidScheme = AttributeIndex.resolveIdentifier(EU_PID_DOCTYPE, ISO_MDOC)
         with(setup(euPidScheme, ISO_MDOC, mapOf(expectedAttributeName to expectedAttributeValue))) {
             var refreshTokenStore: CredentialRenewalInfo? = null
             // Load credential identifier infos from Issuing service

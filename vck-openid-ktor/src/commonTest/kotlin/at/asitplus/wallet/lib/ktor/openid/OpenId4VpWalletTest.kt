@@ -26,7 +26,9 @@ import at.asitplus.openid.dcql.DCQLQuery
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
 import at.asitplus.wallet.eupid.EuPidDataElements
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
@@ -66,6 +68,7 @@ import at.asitplus.wallet.lib.openid.OpenId4VpVerifier.CreationOptions
 import at.asitplus.wallet.lib.openid.PresentationExchangeMatchingResult
 import at.asitplus.wallet.lib.openid.VpTokenValidationResultDCQL
 import at.asitplus.wallet.lib.openid.VpTokenValidationResultPresentationExchange
+import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import com.benasher44.uuid.uuid4
 import io.github.aakira.napier.Napier
 import io.kotest.matchers.collections.shouldBeSingleton
@@ -182,7 +185,7 @@ val OpenId4VpWalletTest by matrixSuite {
                     sdAlgorithm = supportedSdAlgorithms.random()
                 )
 
-                ConstantIndex.CredentialRepresentation.ISO_MDOC -> CredentialToBeIssued.Iso(
+                ISO_MDOC -> CredentialToBeIssued.Iso(
                     issuerSignedItems = attributes.map { it.toIssuerSignedItem() },
                     expiration = Clock.System.now().plus(1.minutes),
                     scheme = scheme as IsoMdocCredentialScheme,
@@ -252,7 +255,7 @@ val OpenId4VpWalletTest by matrixSuite {
         }
     } - {
         test("presentEuPidCredentialSdJwtDirectPost") {
-            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
+            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
             it.setup(
                 scheme = euPidSdJwtScheme,
                 representation = SD_JWT,
@@ -273,10 +276,10 @@ val OpenId4VpWalletTest by matrixSuite {
         }
 
         test("presentEuPidCredentialIsoQuery") {
-            val euPidScheme = AttributeIndex.resolveIdentifier("eu.europa.ec.eudi.pid.1", ISO_MDOC)
+            val euPidScheme = AttributeIndex.resolveIdentifier(EU_PID_DOCTYPE, ISO_MDOC)
             it.setup(
                 scheme = euPidScheme,
-                representation = ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                representation = ISO_MDOC,
                 attributes = mapOf(
                     EuPidDataElements.GIVEN_NAME to randomString()
                 ),
@@ -294,7 +297,7 @@ val OpenId4VpWalletTest by matrixSuite {
         }
 
         test("DC API") {
-            val mdlScheme = AttributeIndex.resolveIdentifier("org.iso.18013.5.1.mDL", ISO_MDOC)
+            val mdlScheme = AttributeIndex.resolveIdentifier(MDL_DOCTYPE, ISO_MDOC)
             it.setupWallet(HttpClient().engine)
 
             val attributes = mapOf(
@@ -453,10 +456,10 @@ val OpenId4VpWalletTest by matrixSuite {
         }
 
         test("No matching credential test") {
-            val euPidScheme = AttributeIndex.resolveIdentifier("eu.europa.ec.eudi.pid.1", ISO_MDOC)
+            val euPidScheme = AttributeIndex.resolveIdentifier(EU_PID_DOCTYPE, ISO_MDOC)
             it.setup(
                 scheme = euPidScheme,
-                representation = ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                representation = ISO_MDOC,
                 attributes = mapOf(
                     EuPidDataElements.GIVEN_NAME to randomString()
                 ),

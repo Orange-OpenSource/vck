@@ -9,7 +9,7 @@ internal object InternalHelpers {
     internal fun mandatoryElements(vararg elements: String) = elements.map {
         SdJwtTypeMetadataClaimInformation(
             path = SdJwtTypeMetadataClaimInformationPath(
-                it.split("\\.").map { SdJwtTypeMetadataClaimInformationPathSegmentName(it) }),
+                it.split(".").map { SdJwtTypeMetadataClaimInformationPathSegmentName(it) }),
             isMandatory = true
         )
     }
@@ -27,7 +27,7 @@ internal object InternalHelpers {
     internal fun optionalElements(vararg elements: String) = elements.map {
         SdJwtTypeMetadataClaimInformation(
             path = SdJwtTypeMetadataClaimInformationPath(
-                it.split("\\.").map { SdJwtTypeMetadataClaimInformationPathSegmentName(it) }),
+                it.split(".").map { SdJwtTypeMetadataClaimInformationPathSegmentName(it) }),
             isMandatory = false
         )
     }

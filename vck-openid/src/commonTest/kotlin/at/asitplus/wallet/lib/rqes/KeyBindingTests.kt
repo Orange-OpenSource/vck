@@ -10,6 +10,7 @@ import at.asitplus.signum.indispensable.Digest
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.Holder
 import at.asitplus.wallet.lib.agent.HolderAgent
@@ -62,7 +63,7 @@ val KeyBindingTests by matrixSuite {
 
     fixture({
         runBlocking {
-            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
+            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
             val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
             val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
                 agent.storeCredential(

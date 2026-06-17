@@ -20,6 +20,7 @@ import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MD
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.oidvci.formUrlEncode
 import at.asitplus.wallet.lib.openid.OpenId4VpVerifier.CreationOptions.Query
+import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements.FAMILY_NAME
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements.GIVEN_NAME
 import com.benasher44.uuid.uuid4
@@ -40,7 +41,7 @@ val OpenId4VpIsoProtocolTest by matrixSuite {
 
     fixture({
         runBlocking {
-            val mdlScheme = AttributeIndex.resolveIdentifier("org.iso.18013.5.1.mDL", ISO_MDOC)
+            val mdlScheme = AttributeIndex.resolveIdentifier(MDL_DOCTYPE, ISO_MDOC)
             val material = EphemeralKeyWithoutCert()
             val agent = HolderAgent(material).also {
                 val issuerAgent = IssuerAgent(

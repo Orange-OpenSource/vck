@@ -7,6 +7,7 @@ import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
@@ -63,7 +64,7 @@ val OpenId4VciClientIntegratedDPoPTest by matrixSuite {
 
     fixture({
         runBlocking {
-            val scheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
+            val scheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
 
             val representation = SD_JWT
             val attributes = mapOf(EuPidSdJwtDataElements.FAMILY_NAME to uuid4().toString())

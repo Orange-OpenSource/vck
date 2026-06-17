@@ -18,6 +18,7 @@ import at.asitplus.iso.IssuerSignedItem
 import at.asitplus.openid.OidcUserInfo
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.CryptoPublicKey
+import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
 import at.asitplus.wallet.eupid.EuPidCredential
 import at.asitplus.wallet.eupid.EuPidDataElements
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
@@ -39,6 +40,7 @@ import at.asitplus.wallet.lib.data.toJsonElement
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import at.asitplus.wallet.lib.oidvci.CredentialDataProviderFun
 import at.asitplus.wallet.lib.oidvci.CredentialDataProviderInput
+import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements.DOCUMENT_NUMBER
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements.EXPIRY_DATE
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements.FAMILY_NAME
@@ -64,9 +66,9 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
     ): KmmResult<CredentialToBeIssued> = catching {
         if (input.credentialScheme == ConstantIndex.AtomicAttribute2023)
             getAtomic(input.userInfo, input.subjectPublicKey, input.credentialRepresentation, input.credentialScheme)
-        else if (input.credentialScheme.isoDocType == "org.iso.18013.5.1.mDL")
+        else if (input.credentialScheme.isoDocType == MDL_DOCTYPE)
             getMdl(input.userInfo, input.subjectPublicKey, input.credentialScheme)
-        else if (input.credentialScheme.isoDocType == "eu.europa.ec.eudi.pid.1" || input.credentialScheme.vcType == "EuPid2023")
+        else if (input.credentialScheme.isoDocType == EU_PID_DOCTYPE || input.credentialScheme.vcType == "EuPid2023")
             getEuPid(input.userInfo, input.subjectPublicKey, input.credentialRepresentation, input.credentialScheme)
         else throw NotImplementedError()
     }

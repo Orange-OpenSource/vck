@@ -24,14 +24,20 @@ import kotlinx.serialization.json.encodeToJsonElement
 )
 object MobileDrivingLicenceScheme
 
+/** `org.iso.18013.5.1.mDL` */
+const val MDL_DOCTYPE: String = "org.iso.18013.5.1.mDL"
+
+/** `org.iso.18013.5.1` */
+const val MDL_NAMESPACE: String = "org.iso.18013.5.1"
+
 val MobileDrivingLicenceMetadataDocument: Pair<SdJwtVcType, SdJwtTypeMetadataDocument> =
-    SdJwtVcType("org.iso.18013.5.1.mDL") to SdJwtTypeMetadataDocument(
+    SdJwtVcType(MDL_DOCTYPE) to SdJwtTypeMetadataDocument(
         originalBytes = ByteArray(0),
         definition = SdJwtTypeMetadataDefinition(
-            vct = SdJwtVcType("org.iso.18013.5.1.mDL"),
+            vct = SdJwtVcType(MDL_DOCTYPE),
             claims = SdJwtTypeMetadataClaimInformationList(
                 mandatoryElementsIso(
-                    "org.iso.18013.5.1",
+                    MDL_NAMESPACE,
                     MobileDrivingLicenceDataElements.FAMILY_NAME,
                     MobileDrivingLicenceDataElements.GIVEN_NAME,
                     MobileDrivingLicenceDataElements.BIRTH_DATE,
@@ -44,7 +50,7 @@ val MobileDrivingLicenceMetadataDocument: Pair<SdJwtVcType, SdJwtTypeMetadataDoc
                     MobileDrivingLicenceDataElements.DRIVING_PRIVILEGES,
                     MobileDrivingLicenceDataElements.UN_DISTINGUISHING_SIGN
                 ) + optionalElementsIso(
-                    "org.iso.18013.5.1",
+                    MDL_NAMESPACE,
                     MobileDrivingLicenceDataElements.ADMINISTRATIVE_NUMBER,
                     MobileDrivingLicenceDataElements.SEX,
                     MobileDrivingLicenceDataElements.HEIGHT,
@@ -84,14 +90,14 @@ val MobileDrivingLicenceMetadataDocument: Pair<SdJwtVcType, SdJwtTypeMetadataDoc
             ),
             vckExtensions = SdJwtTypeMetadataVckExtensions(
                 format = CredentialFormatEnum.MSO_MDOC,
-                isoDocType = "org.iso.18013.5.1.mDL",
-                isoNamespace = "org.iso.18013.5.1"
+                isoDocType = MDL_DOCTYPE,
+                isoNamespace = MDL_NAMESPACE
             )
         )
     )
 
 val MobileDrivingLicenceItemValueSerializerMap: IsoNamespaceToElementIdentifierToItemValueSerializerMap = mapOf(
-    "org.iso.18013.5.1" to mapOf(
+    MDL_NAMESPACE to mapOf(
         MobileDrivingLicenceDataElements.BIRTH_DATE to LocalDate.serializer(),
         MobileDrivingLicenceDataElements.ISSUE_DATE to LocalDate.serializer(),
         MobileDrivingLicenceDataElements.EXPIRY_DATE to LocalDate.serializer(),

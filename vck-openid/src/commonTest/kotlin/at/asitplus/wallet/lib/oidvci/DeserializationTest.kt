@@ -9,6 +9,7 @@ import at.asitplus.openid.SupportedCredentialFormatSdJwt
 import at.asitplus.signum.indispensable.SignatureAlgorithm
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -206,9 +207,9 @@ val DeserializationTest by matrixSuite {
         joseCompliantSerializer.decodeFromString<IssuerMetadata>(input).apply {
             supportedCredentialConfigurations.shouldNotBeNull().apply {
                 shouldNotBeEmpty()
-                get("org.iso.18013.5.1.mDL").shouldBeInstanceOf<SupportedCredentialFormatIsoMdoc>().apply {
+                get(MDL_DOCTYPE).shouldBeInstanceOf<SupportedCredentialFormatIsoMdoc>().apply {
                     format shouldBe CredentialFormatEnum.MSO_MDOC
-                    docType shouldBe "org.iso.18013.5.1.mDL"
+                    docType shouldBe MDL_DOCTYPE
                     supportedBindingMethods.shouldNotBeNull().shouldBeSingleton().shouldContain("cose_key")
                     supportedSigningAlgorithms.shouldNotBeNull().apply {
                         shouldContain(SignatureAlgorithm.ECDSAwithSHA256) // both -7 and -9 shall map to this

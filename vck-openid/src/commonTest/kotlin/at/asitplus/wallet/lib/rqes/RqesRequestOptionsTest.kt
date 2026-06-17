@@ -9,6 +9,7 @@ import at.asitplus.openid.TransactionData
 import at.asitplus.signum.indispensable.Digest
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements.FAMILY_NAME
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements.GIVEN_NAME
 import at.asitplus.wallet.lib.RequestOptionsCredential
@@ -63,7 +64,7 @@ internal suspend fun buildRequestOptions(
         presentationRequest = CredentialPresentationRequestBuilder(
             credentials = setOf(
                 RequestOptionsCredential(
-                    credentialScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT),
+                    credentialScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT),
                     representation = SD_JWT,
                     requestedAttributes = setOf(FAMILY_NAME, GIVEN_NAME),
                     id = credentialId

@@ -16,6 +16,7 @@ import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.iso.IssuerSignedItem
 import at.asitplus.signum.indispensable.CryptoPublicKey
+import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
 import at.asitplus.wallet.eupid.EuPidCredential
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
@@ -35,6 +36,7 @@ import at.asitplus.wallet.mdl.DrivingPrivilege
 import at.asitplus.wallet.mdl.DrivingPrivilegeCode
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements
 import at.asitplus.wallet.eupid.EuPidDataElements
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_DATE_OF_BIRTH
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME
@@ -42,6 +44,7 @@ import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_PORTR
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
+import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
 import kotlin.random.Random
@@ -95,7 +98,7 @@ object DummyCredentialDataProvider {
                     userInfo = DummyUserProvider.user,
                 )
             }
-        } else if (credentialScheme.isoDocType == "org.iso.18013.5.1.mDL") {
+        } else if (credentialScheme.isoDocType == MDL_DOCTYPE) {
             val drivingPrivilege = DrivingPrivilege(
                 vehicleCategoryCode = "B",
                 issueDate = LocalDate.parse("2023-01-01"),
@@ -127,7 +130,7 @@ object DummyCredentialDataProvider {
                 subjectPublicKey = subjectPublicKey,
                 userInfo = DummyUserProvider.user,
             )
-        } else if (credentialScheme.isoDocType == "eu.europa.ec.eudi.pid.1" || credentialScheme.vcType == "EuPid2023") {
+        } else if (credentialScheme.isoDocType == EU_PID_DOCTYPE || credentialScheme.vcType == "EuPid2023") {
             val subjectId = subjectPublicKey.didEncoded
             val familyName = "Musterfrau"
             val givenName = "Maria"
@@ -181,7 +184,7 @@ object DummyCredentialDataProvider {
 
                 else -> throw NotImplementedError()
             }
-        } else if (credentialScheme.sdJwtType == "urn:eudi:pid:1") {
+        } else if (credentialScheme.sdJwtType == EU_PID_SD_JWT_VCT) {
             val subjectId = subjectPublicKey.didEncoded
             val familyName = "Musterfrau"
             val givenName = "Maria"

@@ -14,7 +14,9 @@ import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
 import at.asitplus.wallet.eupid.EuPidDataElements
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
@@ -299,7 +301,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by matrixSuite {
     test("loadEuPidCredentialSdJwt") {
         val expectedAttributeValue = uuid4().toString()
         val expectedAttributeName = EuPidSdJwtDataElements.FAMILY_NAME
-        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
+        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
         with(setup(euPidSdJwtScheme, SD_JWT, mapOf(expectedAttributeName to expectedAttributeValue))) {
             var refreshTokenStore: CredentialRenewalInfo? = null
             // Load credential identifier infos from Issuing service
@@ -345,7 +347,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by matrixSuite {
         // aud = issuerPublicContext and the AS rejects them with InvalidClient.
         val expectedAttributeValue = uuid4().toString()
         val expectedAttributeName = EuPidSdJwtDataElements.FAMILY_NAME
-        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
+        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
         with(setup(euPidSdJwtScheme, SD_JWT, mapOf(expectedAttributeName to expectedAttributeValue), validatePopAudience = true)) {
             var refreshTokenStore: CredentialRenewalInfo? = null
             val credentialIdentifierInfos = client.loadCredentialMetadata(issuerPublicContext).getOrThrow()
@@ -381,7 +383,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by matrixSuite {
     test("loadEuPidCredentialIsoWithOffer") {
         val expectedAttributeValue = uuid4().toString()
         val expectedAttributeName = EuPidDataElements.GIVEN_NAME
-        val euPidScheme = AttributeIndex.resolveIdentifier("eu.europa.ec.eudi.pid.1", ISO_MDOC)
+        val euPidScheme = AttributeIndex.resolveIdentifier(EU_PID_DOCTYPE, ISO_MDOC)
         with(setup(euPidScheme, ISO_MDOC, mapOf(expectedAttributeName to expectedAttributeValue))) {
             var refreshTokenStore: CredentialRenewalInfo? = null
             // Load credential identifier infos from Issuing service

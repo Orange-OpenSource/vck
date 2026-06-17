@@ -22,6 +22,7 @@ import at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
@@ -42,6 +43,7 @@ import at.asitplus.wallet.lib.data.CredentialPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
 import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.rfc3986.toUri
+import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import com.benasher44.uuid.uuid4
 import io.kotest.assertions.AssertionErrorBuilder.Companion.fail
 import io.kotest.assertions.throwables.shouldNotThrowAny
@@ -63,8 +65,8 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
 
     fixture({
         runBlocking {
-            val mdlScheme = AttributeIndex.resolveIdentifier("org.iso.18013.5.1.mDL", ISO_MDOC)
-            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
+            val mdlScheme = AttributeIndex.resolveIdentifier(MDL_DOCTYPE, ISO_MDOC)
+            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
             object {
                 val mdlScheme = mdlScheme
                 val euPidSdJwtScheme = euPidSdJwtScheme
@@ -574,7 +576,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 result.shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 result.reconstructedJsonObject.entries.shouldNotBeEmpty()
                 when (result.verifiableCredentialSdJwt.verifiableCredentialType) {
-                    "urn:eudi:pid:1" -> {
+                    EU_PID_SD_JWT_VCT -> {
                         result.reconstructedJsonObject[EuPidSdJwtDataElements.FAMILY_NAME].shouldNotBeNull()
                         result.reconstructedJsonObject[EuPidSdJwtDataElements.GIVEN_NAME].shouldNotBeNull()
                     }

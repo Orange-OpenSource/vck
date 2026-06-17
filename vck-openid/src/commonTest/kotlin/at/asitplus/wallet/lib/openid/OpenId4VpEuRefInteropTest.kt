@@ -16,6 +16,7 @@ import at.asitplus.signum.indispensable.pki.SubjectAltNameImplicitTags
 import at.asitplus.signum.indispensable.pki.X509CertificateExtension
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
@@ -59,7 +60,7 @@ val OpenId4VpEuRefInteropTest by matrixSuite {
                 issuerAgent.issueCredential(
                     DummyCredentialDataProvider.getCredential(
                         holderKeyMaterial.publicKey,
-                        AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT),
+                        AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT),
                         SD_JWT,
                     ).getOrThrow()
                 ).getOrThrow().toStoreCredentialInput()

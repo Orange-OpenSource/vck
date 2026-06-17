@@ -13,12 +13,14 @@ import at.asitplus.wallet.sdjwt.SdJwtVcType
 )
 object EuPidSdJwtScheme
 
+/** `urn:eudi:pid:1` */
+const val EU_PID_SD_JWT_VCT: String = "urn:eudi:pid:1"
 
 val EuPidSdJwtMetadataDocument: Pair<SdJwtVcType, SdJwtTypeMetadataDocument> =
-    SdJwtVcType("urn:eudi:pid:1") to SdJwtTypeMetadataDocument(
+    SdJwtVcType(EU_PID_SD_JWT_VCT) to SdJwtTypeMetadataDocument(
         originalBytes = ByteArray(0),
         definition = SdJwtTypeMetadataDefinition(
-            vct = SdJwtVcType("urn:eudi:pid:1"),
+            vct = SdJwtVcType(EU_PID_SD_JWT_VCT),
             claims = SdJwtTypeMetadataClaimInformationList(
                 mandatoryElements(
                     EuPidSdJwtDataElements.FAMILY_NAME,

@@ -25,6 +25,9 @@ import kotlinx.serialization.json.encodeToJsonElement
 )
 object EuPidScheme
 
+/** `eu.europa.ec.eudi.pid.1` */
+const val EU_PID_DOCTYPE: String = "eu.europa.ec.eudi.pid.1"
+
 val EuPidMetadataDocument: Pair<SdJwtVcType, SdJwtTypeMetadataDocument> =
     SdJwtVcType("EuPid2023") to SdJwtTypeMetadataDocument(
         originalBytes = ByteArray(0),
@@ -32,7 +35,7 @@ val EuPidMetadataDocument: Pair<SdJwtVcType, SdJwtTypeMetadataDocument> =
             vct = SdJwtVcType("EuPid2023"),
             claims = SdJwtTypeMetadataClaimInformationList(
                 mandatoryElementsIso(
-                    "eu.europa.ec.eudi.pid.1",
+                    EU_PID_DOCTYPE, // yep, namespace is the same as docType
                     EuPidDataElements.FAMILY_NAME,
                     EuPidDataElements.GIVEN_NAME,
                     EuPidDataElements.BIRTH_DATE,
@@ -41,7 +44,7 @@ val EuPidMetadataDocument: Pair<SdJwtVcType, SdJwtTypeMetadataDocument> =
                     EuPidDataElements.ISSUING_AUTHORITY,
                     EuPidDataElements.ISSUING_COUNTRY,
                 ) + optionalElementsIso(
-                    "eu.europa.ec.eudi.pid.1",
+                    EU_PID_DOCTYPE, // yep, namespace is the same as docType
                     EuPidDataElements.FAMILY_NAME_BIRTH,
                     EuPidDataElements.GIVEN_NAME_BIRTH,
                     EuPidDataElements.PLACE_OF_BIRTH,
@@ -66,13 +69,13 @@ val EuPidMetadataDocument: Pair<SdJwtVcType, SdJwtTypeMetadataDocument> =
             ),
             vckExtensions = SdJwtTypeMetadataVckExtensions(
                 format = CredentialFormatEnum.MSO_MDOC,
-                isoDocType = "eu.europa.ec.eudi.pid.1",
-                isoNamespace = "eu.europa.ec.eudi.pid.1"
+                isoDocType = EU_PID_DOCTYPE,
+                isoNamespace = EU_PID_DOCTYPE // yep, namespace is the same as docType
             )
         )
     )
 val EuPidItemValueSerializerMap: IsoNamespaceToElementIdentifierToItemValueSerializerMap = mapOf(
-    "eu.europa.ec.eudi.pid.1" to mapOf(
+    EU_PID_DOCTYPE to mapOf(
         EuPidDataElements.BIRTH_DATE to LocalDate.serializer(),
         EuPidDataElements.SEX to UInt.serializer(),
         EuPidDataElements.NATIONALITY to SetSerializer(String.serializer()),

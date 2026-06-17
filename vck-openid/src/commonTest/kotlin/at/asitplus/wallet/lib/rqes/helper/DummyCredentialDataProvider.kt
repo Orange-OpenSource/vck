@@ -5,6 +5,7 @@ import at.asitplus.catching
 import at.asitplus.openid.OidcUserInfo
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.CryptoPublicKey
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
@@ -28,7 +29,7 @@ object DummyCredentialDataProvider {
     ): KmmResult<CredentialToBeIssued> = catching {
         val issuance = Clock.System.now()
         val expiration = issuance + defaultLifetime
-        if (credentialScheme.sdJwtType != "urn:eudi:pid:1") {
+        if (credentialScheme.sdJwtType != EU_PID_SD_JWT_VCT) {
             throw NotImplementedError()
         }
         if (representation != SD_JWT) {

@@ -2,6 +2,7 @@ package at.asitplus.wallet.lib.openid
 
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
@@ -26,7 +27,7 @@ val OpenId4VpSdJwtProtocolTest by matrixSuite {
 
     fixture({
         runBlocking {
-            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
+            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
             val holderKeyMaterial = EphemeralKeyWithoutCert()
             val holderAgent = HolderAgent(holderKeyMaterial).also {
                 it.storeCredential(

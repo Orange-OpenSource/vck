@@ -15,6 +15,8 @@ import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
+import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
 import at.asitplus.wallet.lib.agent.Holder
@@ -117,7 +119,7 @@ object TestUtils {
         expectedClaimValue: String,
         credentialKey: CryptoPublicKey,
     ) {
-        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier("urn:eudi:pid:1", SD_JWT)
+        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
         credentials.shouldBeSingleton().also {
             it.first().shouldBeInstanceOf<Holder.StoreCredentialInput.SdJwt>().also {
                 it.scheme shouldBe euPidSdJwtScheme
@@ -135,7 +137,7 @@ object TestUtils {
         claimName: String,
         expectedClaimValue: String,
     ) {
-        val euPidScheme = AttributeIndex.resolveIdentifier("eu.europa.ec.eudi.pid.1", ISO_MDOC)
+        val euPidScheme = AttributeIndex.resolveIdentifier(EU_PID_DOCTYPE, ISO_MDOC)
         credentials.shouldBeSingleton().also {
             it.first().shouldBeInstanceOf<Holder.StoreCredentialInput.Iso>().also {
                 it.scheme shouldBe euPidScheme
