@@ -5,28 +5,35 @@ import at.asitplus.wallet.lib.data.AttributeIndex.resolveIdentifierPlainJwt
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.VcDataModelConstants.VERIFIABLE_CREDENTIAL
 import at.asitplus.wallet.lib.data.VcDataModelConstants.VERIFIABLE_PRESENTATION
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.concurrent.atomics.update
 
+@OptIn(ExperimentalAtomicApi::class)
 object AttributeIndex {
 
-    var credentialMetadataRegistrySet = setOf<CredentialMetadataRegistry>()
-        private set
+    private val credentialMetadataRegistrySetRef =
+        AtomicReference(setOf<CredentialMetadataRegistry>())
 
-    var schemeSet = setOf<CredentialScheme>()
-        private set
+    private val schemeSetRef =
+        AtomicReference(setOf<CredentialScheme>(ConstantIndex.AtomicAttribute2023))
 
-    init {
-        schemeSet += ConstantIndex.AtomicAttribute2023
-    }
+    val credentialMetadataRegistrySet: Set<CredentialMetadataRegistry>
+        get() = credentialMetadataRegistrySetRef.load()
+
+    val schemeSet: Set<CredentialScheme>
+        get() = schemeSetRef.load()
 
     internal fun registerAttributeType(scheme: CredentialScheme) {
-        schemeSet += scheme
+        schemeSetRef.update { it + scheme }
     }
 
     internal fun registerCredentialMetadataRegistry(
         credentialMetadataRegistry: CredentialMetadataRegistry
     ) {
-        credentialMetadataRegistrySet += credentialMetadataRegistry
-        schemeSet += credentialMetadataRegistry.preloadEntries().map { it.toCredentialScheme() }
+        credentialMetadataRegistrySetRef.update { it + credentialMetadataRegistry }
+        val preloaded = credentialMetadataRegistry.preloadEntries().map { it.toCredentialScheme() }
+        schemeSetRef.update { it + preloaded }
     }
 
     /**
@@ -100,7 +107,7 @@ object AttributeIndex {
         representation: ConstantIndex.CredentialRepresentation
     ): CredentialScheme? = credentialMetadataRegistrySet.firstNotNullOfOrNull {
         it.findEntry(identifier, representation)?.toCredentialScheme()
-            ?.also { schemeSet += it }
+            ?.also { scheme -> schemeSetRef.update { it + scheme } }
     }
 
     /**
