@@ -1,8 +1,11 @@
 package at.asitplus.wallet.lib.oidvci
 
+import at.asitplus.openid.ClaimDescription
 import at.asitplus.openid.CredentialFormatEnum
 import at.asitplus.openid.CredentialFormatEnum.DC_SD_JWT
 import at.asitplus.openid.CredentialFormatEnum.JWT_VC
+import at.asitplus.openid.OpenId4VciClaimsPathPointer
+import at.asitplus.openid.OpenId4VciClaimsPathPointerSegmentString
 import at.asitplus.openid.OpenIdConstants.BINDING_METHOD_COSE_KEY
 import at.asitplus.openid.OpenIdConstants.BINDING_METHOD_JWK
 import at.asitplus.openid.OpenIdConstants.URN_TYPE_JWK_THUMBPRINT
@@ -63,8 +66,18 @@ fun CredentialScheme.toIsoMdocSupportedCredentialFormat(identifier: String): Pai
         scope = identifier,
         docType = isoDocType!!,
         supportedBindingMethods = setOf(BINDING_METHOD_JWK, BINDING_METHOD_COSE_KEY),
-        isoClaims = claimDescriptions
+        // ISO mdoc claims must be namespace-qualified. Multi-format schemes (e.g. AtomicAttribute2023) share JSON-style
+        // claim descriptions across representations, so prefix the namespace unless the path already carries it (as
+        // metadata-derived ISO schemes do).
+        isoClaims = claimDescriptions.map { it.qualifiedWithIsoNamespace(isoNamespace!!) }.toSet()
     )
+
+private fun ClaimDescription.qualifiedWithIsoNamespace(isoNamespace: String): ClaimDescription {
+    val firstSegment = path.firstOrNull()
+    val alreadyQualified = firstSegment is OpenId4VciClaimsPathPointerSegmentString && firstSegment.string == isoNamespace
+    return if (alreadyQualified) this
+    else copy(path = OpenId4VciClaimsPathPointer(isoNamespace) + path)
+}
 
 fun CredentialScheme.toPlainJwtSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
     identifier to SupportedCredentialFormat.forVcJwt(
