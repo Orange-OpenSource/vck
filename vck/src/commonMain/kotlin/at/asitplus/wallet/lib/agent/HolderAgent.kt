@@ -20,6 +20,7 @@ import at.asitplus.wallet.lib.data.CredentialPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
 import at.asitplus.wallet.lib.data.CredentialToJsonConverter
 import at.asitplus.wallet.lib.data.KeyBindingJws
+import at.asitplus.wallet.lib.data.VcDataModelConstants.VERIFIABLE_CREDENTIAL
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.data.dif.PresentationExchangeInputEvaluator
 import at.asitplus.wallet.lib.data.dif.PresentationSubmissionValidator
@@ -313,9 +314,22 @@ class HolderAgent(
         fallbackFormatHolder = fallbackFormatHolder,
         credentialClaimStructure = CredentialToJsonConverter.toJsonElement(credential),
         credentialFormat = credential.credentialFormat,
-        credentialScheme = credential.schemeIdentifier,
+        credentialScheme = credential.schemeIdentifierForMatching,
         pathAuthorizationValidator = pathAuthorizationValidator,
     )
+
+    /**
+     * Scheme identifier used to match input descriptors. Store entries serialized before [StoreEntry.schemeIdentifier]
+     * was introduced keep it `null`, so fall back to the identifier carried by the credential itself (the mdoc
+     * docType, the SD-JWT `vct`, or the W3C VC type). Otherwise `MSO_MDOC` input descriptors keyed by docType would
+     * never match legacy entries.
+     */
+    private val StoreEntry.schemeIdentifierForMatching: String?
+        get() = schemeIdentifier ?: when (this) {
+            is StoreEntry.Iso -> issuerSigned.issuerAuth.payload?.docType
+            is StoreEntry.SdJwt -> sdJwt.verifiableCredentialType
+            is StoreEntry.Vc -> vc.vc.type.firstOrNull { it != VERIFIABLE_CREDENTIAL }
+        }
 
     override suspend fun matchDCQLQueryAgainstCredentialStoreV2(
         dcqlQuery: DCQLQuery,
