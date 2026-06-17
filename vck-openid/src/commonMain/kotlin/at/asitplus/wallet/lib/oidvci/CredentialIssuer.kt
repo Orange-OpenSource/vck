@@ -2,6 +2,7 @@ package at.asitplus.wallet.lib.oidvci
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
+import at.asitplus.catchingUnwrapped
 import at.asitplus.openid.BatchCredentialIssuanceMetadata
 import at.asitplus.openid.ClientNonceResponse
 import at.asitplus.openid.CredentialRequestParameters
@@ -73,7 +74,7 @@ class CredentialIssuer(
         publicContext = publicContext,
         requireKeyAttestation = requireKeyAttestation,
         verifyAttestationProof = {
-            val tokenStatusValid = runCatching {
+            val tokenStatusValid = catchingUnwrapped {
                 it.payload.keyStorageStatus?.status?.get(StatusListInfo.SerialNames.STATUS_LIST_INFO)?.let { statusList ->
                     Json.decodeFromJsonElement<StatusListInfo>(statusList).let { statusListInfo ->
                         if (statusListTokenResolver?.toTokenStatusResolver()
@@ -84,7 +85,7 @@ class CredentialIssuer(
                 }
             }.isSuccess
 
-            val signatureValid = runCatching {
+            val signatureValid = catchingUnwrapped {
                 VerifyJwsObject().verifyJwsSignature(it.jws, it.jws.jwsHeader.publicKey!!).isSuccess
             }.getOrDefault(false)
 

@@ -1,5 +1,6 @@
 package at.asitplus.wallet.eupid
 
+import at.asitplus.catchingUnwrapped
 import at.asitplus.wallet.lib.data.LocalDateOrInstant
 import io.matthewnelson.encoding.base64.Base64
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
@@ -168,13 +169,13 @@ data class EuPidCredential(
     /** One or more alpha-2 country codes as specified in ISO 3166-1, representing the nationality of the user to whom
      *  the person identification data relates.*/
     val nationality: String? by lazy {
-        nationalityElement?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+        nationalityElement?.let { catchingUnwrapped { it.jsonPrimitive.content }.getOrNull() }
     }
 
     /** One or more alpha-2 country codes as specified in ISO 3166-1, representing the nationality of the user to whom
      *  the person identification data relates.*/
     val nationalities: Collection<String>? by lazy {
-        nationalityElement?.let { runCatching { it.jsonArray.map { it.jsonPrimitive.content } }.getOrNull() }
+        nationalityElement?.let { catchingUnwrapped { it.jsonArray.map { it.jsonPrimitive.content } }.getOrNull() }
     }
 
 

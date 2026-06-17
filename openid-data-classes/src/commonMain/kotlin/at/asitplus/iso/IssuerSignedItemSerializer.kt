@@ -186,7 +186,7 @@ open class IssuerSignedItemSerializer(
 
         val elementValueContainer = first { (it.key as CborText).value == PROP_ELEMENT_VALUE }.value
         val elementValue = CborCredentialSerializer.lookupSerializer(namespace, elementId)?.let {
-            runCatching {
+            catchingUnwrapped {
                 coseCompliantSerializer.decodeFromByteArray(it, elementValueContainer.cbor)
             }.getOrElse {
                 decodeGenericElementValue(elementValueContainer.cbor)
@@ -197,14 +197,14 @@ open class IssuerSignedItemSerializer(
     }
 
     private fun decodeGenericElementValue(bytes: ByteArray): Any {
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(LocalDate.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(InstantStringSerializer, bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(String.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(Long.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(Float.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(Double.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(Boolean.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(ByteArraySerializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(LocalDate.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(InstantStringSerializer, bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(String.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(Long.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(Float.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(Double.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(Boolean.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(ByteArraySerializer(), bytes) }
         return bytes
     }
 

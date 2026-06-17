@@ -2,6 +2,7 @@ package at.asitplus.wallet.lib.oauth2
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
+import at.asitplus.catchingUnwrapped
 import at.asitplus.iso.sha256
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.AuthenticationResponseParameters
@@ -660,7 +661,7 @@ class SimpleAuthorizationService(
     ): KmmResult<TokenIntrospectionResult> = catching {
         // TODO Which client_id to pass?
         clientAuthenticationService.authenticateClient(httpRequest, null)
-        val response = runCatching {
+        val response = catchingUnwrapped {
             tokenService.verification.getTokenInfo(request.token)
         }.fold(
             onSuccess = {

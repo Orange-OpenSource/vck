@@ -1,7 +1,8 @@
 # Changelog
 
 Release 7.0.0 (unreleased):
- - tbd
+ - Refactorings:
+   - `OpenId4VpHolder.getMatchingCredentials()` returns `KmmResult` instead of `Result`
 
 Release 6.0.0:
  - JWS:

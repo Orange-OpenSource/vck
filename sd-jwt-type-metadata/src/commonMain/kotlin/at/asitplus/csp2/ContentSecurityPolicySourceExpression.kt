@@ -1,5 +1,6 @@
 package at.asitplus.csp2
 
+import at.asitplus.catchingUnwrapped
 import at.asitplus.rfc3986uri.Rfc3986UriSchemeName
 
 sealed interface ContentSecurityPolicySourceExpression {
@@ -23,22 +24,22 @@ sealed interface ContentSecurityPolicySourceExpression {
          */
         operator fun invoke(string: String): ContentSecurityPolicySourceExpression {
             if (string.isNeitherSchemeNorHostSource()) {
-                runCatching {
+                catchingUnwrapped {
                     return ContentSecurityPolicySourceExpressionKeyword(
-                        ContentSecurityPolicySourceExpressionKeywordContent.valueOf(string.removePrefix("'").removeSuffix("'"))
+                        ContentSecurityPolicySourceExpressionKeywordContent.valueOf(
+                            string.removePrefix("'").removeSuffix("'")
+                        )
                     )
                 }
-                runCatching {
+                catchingUnwrapped {
                     return ContentSecurityPolicySourceExpressionNonce.parse(string)
                 }
-                runCatching {
+                catchingUnwrapped {
                     return ContentSecurityPolicySourceExpressionHash(string)
                 }
             } else if (string.isSchemeSource()) {
-                runCatching {
-                    return ContentSecurityPolicySourceExpressionScheme(
-                        Rfc3986UriSchemeName(string.removeSuffix(":"))
-                    )
+                catchingUnwrapped {
+                    return ContentSecurityPolicySourceExpressionScheme(Rfc3986UriSchemeName(string.removeSuffix(":")))
                 }
             } else {
                 return ContentSecurityPolicySourceExpressionHost(string)

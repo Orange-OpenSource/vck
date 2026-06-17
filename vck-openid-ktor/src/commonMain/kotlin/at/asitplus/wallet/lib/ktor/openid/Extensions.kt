@@ -1,6 +1,7 @@
 package at.asitplus.wallet.lib.ktor.openid
 
 import at.asitplus.catching
+import at.asitplus.catchingUnwrapped
 import at.asitplus.openid.OpenIdConstants.Errors.USE_DPOP_NONCE
 import at.asitplus.wallet.lib.oidvci.OAuth2Error
 import io.ktor.client.call.*
@@ -57,9 +58,8 @@ suspend inline fun <reified T, R> IntermediateResult<R>.onSuccess(
 }
 
 /** Extracts the header `DPoP-Nonce` if the error is `use_dpop_nonce`. */
-fun OAuth2Error?.dpopNonce(response: HttpResponse) = runCatching {
-    authorizationServerProvidedNonce(response)
-        ?: resourceServerProvidedNonce(response)
+fun OAuth2Error?.dpopNonce(response: HttpResponse) = catchingUnwrapped {
+    authorizationServerProvidedNonce(response) ?: resourceServerProvidedNonce(response)
 }.getOrNull()
 
 /** [RFC 9449 8.](https://datatracker.ietf.org/doc/html/rfc9449#name-authorization-server-provid) */

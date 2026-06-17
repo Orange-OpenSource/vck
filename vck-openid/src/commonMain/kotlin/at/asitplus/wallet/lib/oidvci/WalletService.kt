@@ -187,7 +187,7 @@ class WalletService(
      * which may contain a direct [CredentialOffer] or a URI pointing to it.
      */
     suspend fun parseCredentialOffer(input: String): KmmResult<CredentialOffer> = catching {
-        catching {
+        catchingUnwrapped {
             input.extractParams().fetchCredentialOffer()
         }.getOrNull() ?: catchingUnwrapped {
             joseCompliantSerializer.decodeFromString<CredentialOffer>(input)

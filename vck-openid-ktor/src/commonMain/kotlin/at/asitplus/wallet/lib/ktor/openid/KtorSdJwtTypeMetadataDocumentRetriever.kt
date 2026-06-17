@@ -1,5 +1,6 @@
 package at.asitplus.wallet.lib.ktor.openid
 
+import at.asitplus.catchingUnwrapped
 import at.asitplus.rfc3986uri.Rfc3986UniformResourceIdentifier
 import at.asitplus.rfc3986uri.Rfc3986UriSchemeName
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDefinition
@@ -32,7 +33,8 @@ class KtorSdJwtTypeMetadataDocumentRetriever(
     val json: Json = Json.Default,
     val integrityChecker: SdJwtTypeMetadataDocumentIntegrityChecker = SdJwtTypeMetadataDocumentIntegrityChecker.DEFAULT,
 ) : SdJwtTypeMetadataDocumentRetriever {
-    private val staticCache = mutableMapOf<SdJwtVcType, Pair<W3cSubresourceIntegrityMetadata, SdJwtTypeMetadataDocument>>()
+    private val staticCache =
+        mutableMapOf<SdJwtVcType, Pair<W3cSubresourceIntegrityMetadata, SdJwtTypeMetadataDocument>>()
     private val dynamicCache = mutableMapOf<SdJwtVcType, Pair<Instant, SdJwtTypeMetadataDocument>>()
 
     override suspend fun retrieve(
@@ -40,10 +42,7 @@ class KtorSdJwtTypeMetadataDocumentRetriever(
         integrityMetadata: W3cSubresourceIntegrityMetadata?,
     ): SdJwtTypeMetadataDocument? {
         val url = locateUrl(sdJwtVcType) ?: return null
-
-        val uri = runCatching {
-            Rfc3986UniformResourceIdentifier.Companion(url)
-        }.getOrNull() ?: return null
+        val uri = catchingUnwrapped { Rfc3986UniformResourceIdentifier(url) }.getOrNull() ?: return null
 
         if (uri.schemeName !in Rfc3986UriSchemeName.Common.run { listOf(HTTPS, HTTP) }) {
             return null

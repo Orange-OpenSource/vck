@@ -214,7 +214,7 @@ class OpenId4VpWallet(
      */
     suspend fun getMatchingCredentials(
         preparationState: AuthorizationResponsePreparationState,
-    ) = catchingUnwrapped {
+    ) = catching {
         openId4VpHolder.getMatchingCredentials(preparationState).getOrThrow()
     }
 

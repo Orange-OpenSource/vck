@@ -1,5 +1,6 @@
 package at.asitplus.wallet.lib.oidvci
 
+import at.asitplus.catchingUnwrapped
 import at.asitplus.openid.AuthorizationDetails
 import at.asitplus.openid.OpenIdAuthorizationDetails
 import at.asitplus.wallet.lib.data.CredentialRepresentation
@@ -35,7 +36,7 @@ class CredentialAuthorizationServiceStrategy(
     } else {
         credentials.mapNotNull { (scheme, representation) ->
             if (credentialSchemes.contains(scheme)) {
-                runCatching { mapper.toCredentialIdentifier(scheme, representation) }.getOrNull()
+                catchingUnwrapped { mapper.toCredentialIdentifier(scheme, representation) }.getOrNull()
             } else null
         }.toSet()
     }

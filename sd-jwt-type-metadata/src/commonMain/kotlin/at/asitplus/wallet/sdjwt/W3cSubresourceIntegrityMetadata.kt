@@ -26,7 +26,7 @@ value class W3cSubresourceIntegrityMetadata(
     val expression: ContentSecurityPolicySourceExpressionHash
 ) {
     constructor(string: String): this(
-        ContentSecurityPolicySourceExpressionHash.Companion("'$string'")
+        ContentSecurityPolicySourceExpressionHash("'$string'")
     )
 
     constructor(

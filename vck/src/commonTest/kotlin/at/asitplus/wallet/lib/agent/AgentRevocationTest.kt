@@ -12,6 +12,7 @@ package at.asitplus.wallet.lib.agent
  * see the "LICENSE" file for more details
  */
 
+import at.asitplus.catchingUnwrapped
 import at.asitplus.openid.OidcUserInfo
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.cosef.io.Base16Strict
@@ -239,7 +240,7 @@ val AgentRevocationTest by matrixSuite {
         }
 
         "identifier list JWT should not be issued" {
-            runCatching {
+            catchingUnwrapped {
                 it.statusListIssuer.issueStatusListJwt(kind = RevocationList.Kind.IDENTIFIER_LIST)
             }.isFailure shouldBe true
         }

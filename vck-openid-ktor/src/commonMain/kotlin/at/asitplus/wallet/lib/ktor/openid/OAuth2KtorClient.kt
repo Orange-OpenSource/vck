@@ -2,6 +2,7 @@ package at.asitplus.wallet.lib.ktor.openid
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
+import at.asitplus.catchingUnwrapped
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.AuthenticationResponseParameters
 import at.asitplus.openid.JarRequestParameters
@@ -615,11 +616,11 @@ private suspend fun parseTokenIntrospectionResponse(
     body: String,
     verifyTokenIntrospectionJwt: suspend (JwsCompactTyped<TokenIntrospectionResponse>) -> Boolean,
     requestedResponseFormat: TokenIntrospectionRequest.ResponseFormat?,
-): TokenIntrospectionResponse = runCatching {
+): TokenIntrospectionResponse = catchingUnwrapped {
     if (requestedResponseFormat == TokenIntrospectionRequest.ResponseFormat.JWT) {
         parseJwt(body, verifyTokenIntrospectionJwt)
     } else {
-        runCatching {
+        catchingUnwrapped {
             joseCompliantSerializer.decodeFromString(TokenIntrospectionResponse.serializer(), body)
         }.getOrElse {
             parseJwt(body, verifyTokenIntrospectionJwt)

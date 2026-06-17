@@ -1,5 +1,6 @@
 package at.asitplus.openid
 
+import at.asitplus.catchingUnwrapped
 import at.asitplus.signum.indispensable.SignatureAlgorithm
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
@@ -195,7 +196,7 @@ sealed interface SupportedCredentialFormat {
             }
             val jsonObject = decoder.decodeJsonElement().jsonObject
             val formatIdentifier = jsonObject[SerialNames.FORMAT]?.jsonPrimitive
-            val format = formatIdentifier?.runCatching {
+            val format = formatIdentifier?.catchingUnwrapped {
                 CredentialFormatEnum.parse(formatIdentifier.content)
             }?.getOrNull()
 

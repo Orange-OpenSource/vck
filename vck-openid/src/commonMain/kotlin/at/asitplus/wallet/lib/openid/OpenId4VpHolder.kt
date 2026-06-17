@@ -2,7 +2,6 @@ package at.asitplus.wallet.lib.openid
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
-import at.asitplus.catchingUnwrapped
 import at.asitplus.dif.PresentationDefinition
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.AuthenticationResponseParameters
@@ -42,6 +41,7 @@ import at.asitplus.wallet.lib.agent.Holder
 import at.asitplus.wallet.lib.agent.HolderAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.agent.SubjectCredentialStore
 import at.asitplus.wallet.lib.cbor.CoseHeaderNone
 import at.asitplus.wallet.lib.cbor.SignCoseDetached
 import at.asitplus.wallet.lib.cbor.SignCoseDetachedFun
@@ -135,7 +135,7 @@ class OpenId4VpHolder(
         OAuth2AuthorizationServerMetadata(
             issuer = clientId,
             authorizationEndpoint = authorizationEndpoint,
-            responseTypesSupported = setOf(OpenIdConstants.ID_TOKEN, OpenIdConstants.VP_TOKEN),
+            responseTypesSupported = setOf(OpenIdConstants.ID_TOKEN, VP_TOKEN),
             scopesSupported = setOf(OpenIdConstants.SCOPE_OPENID),
             idTokenSigningAlgorithmsSupportedStrings = supportedJwsAlgorithms.toSet(),
             requestObjectSigningAlgorithmsSupportedStrings = supportedJwsAlgorithms.toSet(),
@@ -344,12 +344,13 @@ class OpenId4VpHolder(
 
     private fun RequestParametersFrom<AuthenticationRequestParameters>.extractLeafCertKey(): JsonWebKey? =
         (this as? RequestParametersFrom.Jws<AuthenticationRequestParameters>)?.jws?.let {
-            (it as? JwsCompact)?.jwsHeader?.certificateChain?.firstOrNull()?.decodedPublicKey?.getOrNull()?.toJsonWebKey()
+            (it as? JwsCompact)?.jwsHeader?.certificateChain?.firstOrNull()?.decodedPublicKey?.getOrNull()
+                ?.toJsonWebKey()
         }
 
     suspend fun getMatchingCredentials(
         preparationState: AuthorizationResponsePreparationState,
-    ) = catchingUnwrapped {
+    ): KmmResult<CredentialMatchingResult<SubjectCredentialStore.StoreEntry>> = catching {
         when (val presentationRequest = preparationState.credentialPresentationRequest) {
             is CredentialPresentationRequest.DCQLRequest -> holder.matchDCQLQueryAgainstCredentialStoreV2(
                 dcqlQuery = presentationRequest.dcqlQuery,
