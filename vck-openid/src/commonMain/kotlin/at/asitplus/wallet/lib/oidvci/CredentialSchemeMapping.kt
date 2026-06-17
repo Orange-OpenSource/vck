@@ -61,15 +61,15 @@ interface CredentialSchemeMapper {
     fun decodeFromCredentialIdentifier(input: String): Pair<CredentialScheme, CredentialRepresentation>?
 }
 
-fun CredentialScheme.toIsoMdocSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
+fun IsoMdocCredentialScheme.toIsoMdocSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
     identifier to SupportedCredentialFormat.forIsoMdoc(
         scope = identifier,
-        docType = isoDocType!!,
+        docType = isoDocType,
         supportedBindingMethods = setOf(BINDING_METHOD_JWK, BINDING_METHOD_COSE_KEY),
         // ISO mdoc claims must be namespace-qualified. Multi-format schemes (e.g. AtomicAttribute2023) share JSON-style
         // claim descriptions across representations, so prefix the namespace unless the path already carries it (as
         // metadata-derived ISO schemes do).
-        isoClaims = claimDescriptions.map { it.qualifiedWithIsoNamespace(isoNamespace!!) }.toSet()
+        isoClaims = claimDescriptions.map { it.qualifiedWithIsoNamespace(isoNamespace) }.toSet()
     )
 
 private fun ClaimDescription.qualifiedWithIsoNamespace(isoNamespace: String): ClaimDescription {
@@ -79,20 +79,20 @@ private fun ClaimDescription.qualifiedWithIsoNamespace(isoNamespace: String): Cl
     else copy(path = OpenId4VciClaimsPathPointer(isoNamespace) + path)
 }
 
-fun CredentialScheme.toPlainJwtSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
+fun VcJwtCredentialScheme.toPlainJwtSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
     identifier to SupportedCredentialFormat.forVcJwt(
         scope = identifier,
         credentialDefinition = VcJwtCredentialDefinition(
-            types = setOf(VcDataModelConstants.VERIFIABLE_CREDENTIAL, vcType!!),
+            types = setOf(VcDataModelConstants.VERIFIABLE_CREDENTIAL, vcType),
         ),
         supportedBindingMethods = setOf(BINDING_METHOD_JWK, URN_TYPE_JWK_THUMBPRINT),
         vcJwtClaims = claimDescriptions
     )
 
-fun CredentialScheme.toSdJwtSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
+fun SdJwtCredentialScheme.toSdJwtSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
     identifier to SupportedCredentialFormat.forSdJwt(
         scope = identifier,
-        sdJwtVcType = sdJwtType!!,
+        sdJwtVcType = sdJwtType,
         supportedBindingMethods = setOf(BINDING_METHOD_JWK, URN_TYPE_JWK_THUMBPRINT),
         sdJwtClaims = claimDescriptions
     )

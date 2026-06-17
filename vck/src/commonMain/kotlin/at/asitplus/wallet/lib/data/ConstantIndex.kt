@@ -1,8 +1,6 @@
 package at.asitplus.wallet.lib.data
 
-import at.asitplus.data.NonEmptyList.Companion.toNonEmptyList
 import at.asitplus.openid.ClaimDescription
-import at.asitplus.openid.DisplayProperties
 import at.asitplus.openid.OpenId4VciClaimsPathPointer
 import at.asitplus.openid.OpenId4VciClaimsPathPointerSegment
 import at.asitplus.openid.OpenId4VciClaimsPathPointerSegmentIndex
@@ -51,19 +49,28 @@ object ConstantIndex {
     }
 
     @Suppress("DEPRECATION")
-    @Deprecated("Use type check for SdJwtCredentialScheme")
+    @Deprecated(
+        "Use type check for SdJwtCredentialScheme",
+        ReplaceWith("this is SdJwtCredentialScheme")
+    )
     val at.asitplus.wallet.lib.data.CredentialScheme.supportsSdJwt
         get() = (this is SdJwtCredentialScheme) ||
                 (supportedRepresentations.contains(SD_JWT) && sdJwtType != null)
 
     @Suppress("DEPRECATION")
-    @Deprecated("Use type check for VcJwtCredentialScheme")
+    @Deprecated(
+        "Use type check for VcJwtCredentialScheme",
+        ReplaceWith("this is VcJwtCredentialScheme")
+    )
     val at.asitplus.wallet.lib.data.CredentialScheme.supportsVcJwt
         get() = (this is VcJwtCredentialScheme) ||
                 (supportedRepresentations.contains(PLAIN_JWT) && vcType != null)
 
     @Suppress("DEPRECATION")
-    @Deprecated("Use type check for IsoMdocCredentialScheme")
+    @Deprecated(
+        "Use type check for IsoMdocCredentialScheme",
+        ReplaceWith("this is IsoMdocCredentialScheme")
+    )
     val at.asitplus.wallet.lib.data.CredentialScheme.supportsIso
         get() = (this is IsoMdocCredentialScheme) ||
                 (supportedRepresentations.contains(ISO_MDOC) && isoNamespace != null && isoDocType != null)
