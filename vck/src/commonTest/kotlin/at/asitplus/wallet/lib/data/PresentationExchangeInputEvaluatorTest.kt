@@ -77,9 +77,25 @@ val PresentationExchangeInputEvaluatorTest by matrixSuite {
             }
         }
 
-        test("array credential does not match constraint field with string filter and const") {
+        test("array-valued VC type matches a scalar const filter when an element matches") {
+            // VC-JWT credentials commonly carry `type` as an array; a scalar const filter on `$.type` matches when any
+            // element matches. The relaxation is scoped to the VC `type` field (see LegacyVcTypeConstraintTest for the
+            // negative case on other fields).
+            val typeArrayCredential = buildJsonObject {
+                put("type", buildJsonArray { add(JsonPrimitive(it.elementValue)) })
+            }
             PresentationExchangeInputEvaluator.matchConstraintFieldPaths(
-                constraintField = stringConstFilter(it.elementIdentifier, it.elementValue),
+                constraintField = stringConstFilter("type", it.elementValue),
+                credential = typeArrayCredential,
+                pathAuthorizationValidator = { true }
+            ).apply {
+                shouldHaveSize(1)
+            }
+        }
+
+        test("array credential does not match constraint field with string filter and non-matching const") {
+            PresentationExchangeInputEvaluator.matchConstraintFieldPaths(
+                constraintField = stringConstFilter(it.elementIdentifier, "value-not-present-in-array"),
                credential = it.arrayCredential,
                 pathAuthorizationValidator = { true }
             ).apply {
