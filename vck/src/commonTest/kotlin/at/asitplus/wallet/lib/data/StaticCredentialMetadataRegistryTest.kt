@@ -10,7 +10,9 @@ import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocument
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocumentRegistry
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataVckExtensions
 import at.asitplus.wallet.sdjwt.SdJwtVcType
+import at.asitplus.wallet.sdjwt.W3cSubresourceIntegrityMetadata
 import com.benasher44.uuid.uuid4
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 
@@ -35,6 +37,22 @@ val StaticCredentialMetadataRegistryTest by matrixSuite {
             schemaUri shouldBe loadedFrom
             sdJwtType shouldBe vct.string
         }
+    }
+
+    "preload defers integrity-pinned entries to the checked findEntry path" {
+        val vct = SdJwtVcType("urn:test:sd-jwt:${uuid4()}")
+        val loadedFrom = "https://metadata.example.test/${uuid4()}/sd-jwt.json"
+        val registry = StaticCredentialMetadataRegistry(
+            documentRegistry = SdJwtTypeMetadataDocumentRegistry(vct to metadataDocument(vct)),
+            documentUrls = mapOf(vct to loadedFrom),
+            integrityMetadata = mapOf(
+                vct to W3cSubresourceIntegrityMetadata(
+                    "sha384-H8BRh8j48O9oYatfu5AZzq6A9RINhZO5H16dQZngK7T62em8MUt1FLm52t+eX6xO"
+                )
+            ),
+        )
+        // Not eagerly preloaded: the integrity check is suspending, so an unchecked entry must not pass synchronously.
+        registry.preloadEntries().shouldBeEmpty()
     }
 
     "static registry resolves W3C JWT metadata through AttributeIndex" {

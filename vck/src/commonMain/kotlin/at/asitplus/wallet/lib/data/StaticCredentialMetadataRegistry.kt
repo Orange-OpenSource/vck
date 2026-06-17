@@ -36,10 +36,14 @@ class StaticCredentialMetadataRegistry(
      * Self-contained bundled documents (those that don't `extends` another type) resolve synchronously, so they are
      * registered eagerly to pre-seed the synchronous lookups. Documents that extend another type are left to the
      * (suspending) [findEntry] path.
+     *
+     * Entries pinned with [integrityMetadata] are also deferred to [findEntry]: the integrity check is suspending, so
+     * it cannot run here, and preloading them unchecked would let a mismatched document pass the synchronous lookup.
      */
     override fun preloadEntries(): Set<ResolvedCredentialMetadata> =
         documentRegistry.entries.mapNotNull { (vct, document) ->
             if (document.definition.extends != null) return@mapNotNull null
+            if (integrityMetadata.containsKey(vct)) return@mapNotNull null
             resolvedMetadata(vct, document.definition.toSdJwtTypeMetadata())
         }.toSet()
 
