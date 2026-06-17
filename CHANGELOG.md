@@ -44,7 +44,7 @@ Release 6.0.0:
  - Credential definitions:
    - Move `CredentialScheme` out of `ConstantIndex`
    - Provide type alias for `CredentialRepresentation`
-   - Introudce typed sub-interfaces of `CredentialScheme`: `VcJwtCredentialScheme`, `SdJwtCredentialScheme` and `IsoMdocCredentialScheme`
+   - Introduce typed sub-interfaces of `CredentialScheme`: `VcJwtCredentialScheme`, `SdJwtCredentialScheme` and `IsoMdocCredentialScheme`
    - That implies changes to `CredentialToBeIssued`, `IssuedCredential`, `StoreCredentialInput` and methods in `SubjectCredentialStore`
    - In `CredentialScheme` deprecate `claimNames` (list of strings), to be replaced with `claimDescriptions` (set of typed descriptions)
    - In `StoreEntry` deprecate property `scheme` and add suspending function `resolveScheme()` to replace it 
@@ -63,7 +63,7 @@ Release 6.0.0:
    - Update to [Supreme 0.14.0](https://github.com/a-sit-plus/signum/pull/451)
    - Update to Ktor 3.5.0
    - Update Bouncy Castle 1.84
-   - Update to kotlinx.coroutines 1.11.0
+   - Update to `kotlinx.coroutines` 1.11.0
  - Matrix testing
 
 Release 5.12.0:
@@ -85,7 +85,7 @@ Release 5.12.0:
    - Change: Update DCQLClaimsQuery and DCQLCredentialQuery to OpenID4VP 1.0
    - Change: Do not fail when only matching credentials without submitting a presentation
    - Allow issuance and verification of `IdentifierList` Revocation Mechanism
-   - Change: Don't send response on user initiated signature cancellation
+   - Change: Don't send response on user-initiated signature cancellation
    - BREAKING CHANGE: The result type from `verifyAuthnResponse`, `AuthnResponseResult` has been reworked to a data class
    - DCQL: Add custom credential types and proper satisfaction evaluation
    - Add: DCQL submission requirements validation
@@ -213,7 +213,7 @@ Release 5.10.0:
    - Drop single `proof` in credential request
    - Support credential response encryption correctly, see changed API in `CredentialIssuer.credential()`
    - Correctly verify credential request regarding `credential_configuration_id` and `credential_identifiers`
-   - Support credential request encryption correctly, if metadata is set at Issuer
+   - Support credential request encryption correctly if metadata is set at Issuer
  - OpenID for Verifiable Presentations:
    - Update implementation to 1.0 from 2025-07-09
    - Remove code elements deprecated in 5.9.0
@@ -382,11 +382,11 @@ Release 5.8.0:
    - In `SimpleAuthorizationService` deprecate constructor parameter `dataProvider`, use `authorize()` with `OAuth2LoadUserFun` instead
    - In `AuthorizationService` deprecate `authorize()` methods, adding `authorize()` with `OAuth2LoadUserFun`
  - Credential schemes:
-   - Provide fallback credential schemes, to be used when no matching scheme is registered with this library:
+   - Provide fallback credential schemes to be used when no matching scheme is registered with this library:
      - `SdJwtFallbackCredentialScheme`
      - `VcFallbackCredentialScheme`
      - `IsoMdocFallbackCredentialScheme`
-   - Note that these schemes are not resolved automatically, and need to be used explicitly in client applications
+   - Note that these schemes are not resolved automatically and need to be used explicitly in client applications
  - SD-JWT:
    - Add data class for [SD-JWT VC Type metadata](https://www.ietf.org/archive/id/draft-ietf-oauth-sd-jwt-vc-10.html#name-sd-jwt-vc-type-metadata) in `SdJwtTypeMetadata`
    - Update signum to provide SD-JWT VC Type metadata in `vctm` in the header of a SD-JWT
@@ -446,7 +446,7 @@ Release 5.7.0:
    - Replace type aliases with functional interfaces (providing named parameters in implementations)
    - Make cryptographic verification functions suspending
  - Fully integrated crypto functionality based on Signum 3.16.2. This carries over breaking changes:
-   - All debug-only kotlinx.serialization for cryptographic datatypes like certificates, public keys, etc. was removed
+   - All debug-only `kotlinx.serialization` for cryptographic datatypes like certificates, public keys, etc. was removed
    - This finally cleans up the RSAorHMAC
      - `SignatureAlgorithm.RSAorHMAC` is now properly split into `SignatureAlgorithm` and `MessageAuthenticationCode`. Both implement `DataIntegrityAlgorithm`.
      - This split also affects `JwsAlgorithm`, which now has subtypes: `Signature` and `MAC`. Hence, `JwsAlgorithm.ES256` -> `JwsAlgorithm.Signature.ES256`
@@ -464,7 +464,7 @@ Release 5.7.0:
    - Remove `Validator.checkRevocationStatus` in favor of `Validator.checkCredentialFreshness`
    - Remove `Holder.StoredCredential.status`
    - Remove `Verifier.VerifyCredentialResult.Revoked`
-   - Add constructor parameter `Validator.acceptedTokenStatuses` to allow library client to define token statuses deemed valid
+   - Add constructor parameter `Validator.acceptedTokenStatuses` to allow library clients to define token statuses deemed valid
  - Add support for Digital Credentials API as defined in OID4VP draft 28 and ISO 18013-7 Annex C:
    - Implement `DCAPIRequest` for requests received via the Digital Credentials API, with implementations for OID4VP (`Oid4vpDCAPIRequest`), ISO 18013-7 Annex C (`IsoMdocRequest`) and a non-standardised preview protocol (`PreviewDCAPIRequest`)
    - New property of type `Oid4vpDCAPIRequest` for requests originating from the Digital Credentials API in `AuthorizationResponsePreparationState`
@@ -472,7 +472,7 @@ Release 5.7.0:
    - New optional parameter `filterById` of type `String` in `Holder.matchInputDescriptorsAgainstCredentialStore`, `HolderAgent.getValidCredentialsByPriority` `HolderAgent.matchInputDescriptorsAgainstCredentialStore` `HolderAgent.matchDCQLQueryAgainstCredentialStore` to filter credentials by id
    - New method `SubjectCredentialStore.getDcApiId` to generate an id of type `String` for a credential
    - New optional property of type `DCAPIHandover` for `SessionTranscript`
- - Return member of interface `AuthenticationResult` instead of `AuthenticationSuccess` as authorization response in `OpenId4VpWallet`. Can either be
+ - Return member of interface `AuthenticationResult` instead of `AuthenticationSuccess` as authorization response in `OpenId4VpWallet`:
    - `AuthenticationSuccess`: contains a `redirectUri` (same behaviour as in 5.6.x)
    - `AuthenticationForward`: contains the `authenticationResponseResult` for responses via the Digital Credentials API
  - Refactoring of ISO data classes:
@@ -843,7 +843,7 @@ Release 5.2.0:
     - Remove `scopePresentationDefinitionRetriever` from `OidcSiopWallet` to keep implementation simple
 - Dependency Updates:
     - Signum 3.11.1
-    - Kotlin 2.1.0  through Conventions 2.1.0+20241204
+    - Kotlin 2.1.0 through Conventions 2.1.0+20241204
 
 Release 5.1.0:
  - Drop ARIES protocol implementation, and the `vck-aries` artifact
@@ -912,7 +912,7 @@ Release 5.0.0:
    - Remove binding method for `did:key`, as it was never completely implemented, but add binding method `jwk` for JSON Web Keys.
    - Rework interface of `WalletService` to make selecting the credential configuration by its ID more explicit
    - Support requesting issuance of credential using scope values
-   - Introudce `OAuth2Client` to extract creating authentication requests and token requests from OID4VCI `WalletService`
+   - Introduce `OAuth2Client` to extract creating authentication requests and token requests from OID4VCI `WalletService`
    - Refactor `SimpleAuthorizationService` to extract actual authentication and authorization into `AuthorizationServiceStrategy`
  - Implement JWE encryption with AES-CBC-HMAC algorithms
  - SIOPv2/OpenID4VP: Support requesting and receiving claims from different credentials, i.e. a combined presentation
