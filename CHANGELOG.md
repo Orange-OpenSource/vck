@@ -48,7 +48,7 @@ Release 6.0.0:
    - That implies changes to `CredentialToBeIssued`, `IssuedCredential`, `StoreCredentialInput` and methods in `SubjectCredentialStore`
    - In `CredentialScheme` deprecate `claimNames` (list of strings), to be replaced with `claimDescriptions` (set of typed descriptions)
    - In `StoreEntry` deprecate property `scheme` and add suspending function `resolveScheme()` to replace it 
-   - Add `UnknownCredentialScheme` so that the `scheme` property of several classes is never null
+   - Add `UnknownCredentialScheme` so that the `scheme` property in several methods and classes is not null
    - Import data classes and data element strings from credentials into this library for [EU PID](https://github.com/a-sit-plus/eu-pid-credential), [EU PID in SD-JWT](https://github.com/a-sit-plus/eu-pid-credential-sdjwt/) and [Mobile Driving Licence](https://github.com/a-sit-plus/mobile-driving-licence-credential/)
    - Document usage of remote metadata retrieval
  - New modules:

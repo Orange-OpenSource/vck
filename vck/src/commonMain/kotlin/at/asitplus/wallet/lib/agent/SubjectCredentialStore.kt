@@ -183,6 +183,7 @@ interface SubjectCredentialStore {
             override suspend fun resolveScheme(): CredentialScheme =
                 schemeIdentifier?.let { AttributeIndex.resolveIdentifier(it, ISO_MDOC) }
                     ?: issuerSigned.issuerAuth.payload?.docType?.let { AttributeIndex.resolveIdentifier(it, ISO_MDOC) }
+                    ?: issuerSigned.issuerAuth.payload?.docType?.let { IsoMdocFallbackCredentialScheme(it) }
                     ?: UnknownCredentialScheme(ISO_MDOC)
 
             override val credentialFormat: CredentialFormatEnum = CredentialFormatEnum.MSO_MDOC
