@@ -1,5 +1,6 @@
 package at.asitplus.wallet.lib.ktor.openid
 
+import at.asitplus.catching
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.CredentialMetadataLookup
@@ -58,7 +59,8 @@ class RemoteCredentialMetadataRegistry(
             ?: SdJwtVcType(identifier).takeIf { representation == SD_JWT && documentUrls.containsKey(it) }
             ?: return null
         val loadedFrom = documentUrls[vct] ?: return null
-        val metadata = resolver.resolve(vct, integrityMetadata[vct])
+        // Return null on fetch/integrity failure so AttributeIndex can fall back to a fallback scheme.
+        val metadata = catching { resolver.resolve(vct, integrityMetadata[vct]) }.getOrNull() ?: return null
         return ResolvedCredentialMetadata(
             metadata = metadata,
             loadedFrom = loadedFrom,
