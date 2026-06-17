@@ -10,21 +10,9 @@ import at.asitplus.openid.OAuth2AuthorizationServerMetadata
 import at.asitplus.openid.SupportedCredentialFormat
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.wallet.lib.data.AttributeIndex
+import at.asitplus.wallet.lib.data.*
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
-import at.asitplus.wallet.lib.data.CredentialScheme
-import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
-import at.asitplus.wallet.lib.data.IsoMdocFallbackCredentialScheme
-import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
-import at.asitplus.wallet.lib.data.SdJwtFallbackCredentialScheme
-import at.asitplus.wallet.lib.data.SelectiveDisclosureItem
-import at.asitplus.wallet.lib.data.UnknownCredentialScheme
 import at.asitplus.wallet.lib.data.VcDataModelConstants.VERIFIABLE_CREDENTIAL
-import at.asitplus.wallet.lib.data.VcFallbackCredentialScheme
-import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
-import at.asitplus.wallet.lib.data.VerifiableCredential
-import at.asitplus.wallet.lib.data.VerifiableCredentialJws
-import at.asitplus.wallet.lib.data.VerifiableCredentialSdJwt
 import io.ktor.utils.io.core.toByteArray
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -114,7 +102,10 @@ interface SubjectCredentialStore {
             @SerialName("scheme-identifier")
             override val schemeIdentifier: String? = null,
         ) : StoreEntry {
-            @Deprecated("Use resolveScheme() instead to support fetching remote definitions")
+            @Deprecated(
+                "Use resolveScheme() instead to support fetching remote definitions",
+                ReplaceWith("resolveScheme()")
+            )
             override val scheme: CredentialScheme
                 get() = schemeIdentifier?.let { AttributeIndex.resolveAttributeType(it) }
                     ?: vc.vc.type.firstOrNull { it != VERIFIABLE_CREDENTIAL }
@@ -149,7 +140,10 @@ interface SubjectCredentialStore {
             @SerialName("scheme-identifier")
             override val schemeIdentifier: String? = null,
         ) : StoreEntry {
-            @Deprecated("Use resolveScheme() instead to support fetching remote definitions")
+            @Deprecated(
+                "Use resolveScheme() instead to support fetching remote definitions",
+                ReplaceWith("resolveScheme()")
+            )
             override val scheme: CredentialScheme
                 get() = schemeIdentifier?.let { AttributeIndex.resolveSdJwtAttributeType(it) }
                     ?: AttributeIndex.resolveSdJwtAttributeType(sdJwt.verifiableCredentialType)
@@ -176,7 +170,10 @@ interface SubjectCredentialStore {
             @SerialName("scheme-identifier")
             override val schemeIdentifier: String? = null,
         ) : StoreEntry {
-            @Deprecated("Use resolveScheme() instead to support fetching remote definitions")
+            @Deprecated(
+                "Use resolveScheme() instead to support fetching remote definitions",
+                ReplaceWith("resolveScheme()")
+            )
             override val scheme: CredentialScheme
                 get() = schemeIdentifier?.let { AttributeIndex.resolveIsoDoctype(it) }
                     ?: issuerSigned.issuerAuth.payload?.docType?.let { AttributeIndex.resolveIsoDoctype(it) }
