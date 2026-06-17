@@ -16,6 +16,10 @@ object EuPidSdJwtScheme
 /** `urn:eudi:pid:1` */
 const val EU_PID_SD_JWT_VCT: String = "urn:eudi:pid:1"
 
+/** Canonical hosted location of [EuPidSdJwtMetadataDocument], used as the resolved scheme's `schemaUri`. */
+const val EU_PID_SD_JWT_METADATA_URL: String =
+    "https://raw.githubusercontent.com/a-sit-plus/credentials-collection/main/eu-pid-sdjwt.json"
+
 val EuPidSdJwtMetadataDocument: Pair<SdJwtVcType, SdJwtTypeMetadataDocument> =
     SdJwtVcType(EU_PID_SD_JWT_VCT) to SdJwtTypeMetadataDocument(
         originalBytes = ByteArray(0),

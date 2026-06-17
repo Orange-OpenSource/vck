@@ -28,6 +28,10 @@ object EuPidScheme
 /** `eu.europa.ec.eudi.pid.1` */
 const val EU_PID_DOCTYPE: String = "eu.europa.ec.eudi.pid.1"
 
+/** Canonical hosted location of [EuPidMetadataDocument], used as the resolved scheme's `schemaUri`. */
+const val EU_PID_METADATA_URL: String =
+    "https://raw.githubusercontent.com/a-sit-plus/credentials-collection/main/eu-pid.json"
+
 val EuPidMetadataDocument: Pair<SdJwtVcType, SdJwtTypeMetadataDocument> =
     SdJwtVcType("EuPid2023") to SdJwtTypeMetadataDocument(
         originalBytes = ByteArray(0),

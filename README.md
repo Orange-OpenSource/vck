@@ -116,6 +116,53 @@ As discovered in [#226](https://github.com/a-sit-plus/vck/issues/226), using the
 The actual credentials are provided as discrete artefacts and are maintained separately [over here](https://github.com/a-sit-plus/credentials-collection).
 It is fine to add credentials **and** VC-K to as project dependencies, e. g., to use a version of VC-K that is more recent than the one a certain credentials depends on.
 
+### Registering credential schemes
+
+Credential schemes are derived from [SD-JWT Type Metadata](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/)
+documents and resolved through `AttributeIndex`. Register one or more `CredentialMetadataRegistry` instances once at
+startup; on a lookup miss `AttributeIndex` consults them, builds the scheme, and caches it. Two registries coexist:
+a `StaticCredentialMetadataRegistry` for documents **bundled in code** (offline, authoritative; preloaded so they win
+on lookup), and a `RemoteCredentialMetadataRegistry` that **fetches documents over HTTP** for everything else. The
+documents are hosted in [credentials-collection](https://github.com/a-sit-plus/credentials-collection).
+
+```kotlin
+val base = "https://raw.githubusercontent.com/a-sit-plus/credentials-collection/main"
+
+// Bundled in code: EU PID (ISO), EU PID SD-JWT, mDL. The URL is the document's hosted copy (becomes schemaUri).
+LibraryInitializer.registerCredentialMetadataRegistry(
+    StaticCredentialMetadataRegistry(
+        documentRegistry = SdJwtTypeMetadataDocumentRegistry(
+            EuPidSdJwtMetadataDocument, EuPidMetadataDocument, MobileDrivingLicenceMetadataDocument,
+        ),
+        documentUrls = mapOf(
+            EuPidSdJwtMetadataDocument.first to EU_PID_SD_JWT_METADATA_URL,
+            EuPidMetadataDocument.first to EU_PID_METADATA_URL,
+            MobileDrivingLicenceMetadataDocument.first to MDL_METADATA_URL,
+        ),
+    )
+)
+
+// Fetched on demand: add one `vct -> URL` entry per published document. SD-JWT resolves directly (identifier == vct);
+// ISO mDoc has no direct vct fallback, so its docType must be aliased to the document's vct.
+LibraryInitializer.registerCredentialMetadataRegistry(
+    RemoteCredentialMetadataRegistry(
+        httpClient = httpClient, // your app's Ktor HttpClient
+        clock = Clock.System,
+        documentUrls = mutableMapOf(
+            SdJwtVcType("urn:eudi:ehic:1") to "$base/ehic.json",
+            SdJwtVcType("eu.europa.ec.av.1") to "$base/age-verification.json",
+        ),
+        aliases = mapOf(
+            CredentialMetadataLookup(ISO_MDOC, "eu.europa.ec.av.1") to SdJwtVcType("eu.europa.ec.av.1"),
+        ),
+    )
+)
+```
+
+ISO mDoc credentials with non-primitive values additionally need their CBOR/JSON value serializers registered from
+code (e.g. `LibraryInitializer.registerCredentialSerializers(EuPidJsonValueEncoder, EuPidItemValueSerializerMap)`);
+schemes whose values are all primitive (such as the all-boolean age verification) need none.
+
 ## Limitations
 
  - Several parts of the W3C VC Data Model have not been fully implemented, i.e. everything around resolving cryptographic key material.

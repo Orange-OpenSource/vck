@@ -30,6 +30,10 @@ const val MDL_DOCTYPE: String = "org.iso.18013.5.1.mDL"
 /** `org.iso.18013.5.1` */
 const val MDL_NAMESPACE: String = "org.iso.18013.5.1"
 
+/** Canonical hosted location of [MobileDrivingLicenceMetadataDocument], used as the resolved scheme's `schemaUri`. */
+const val MDL_METADATA_URL: String =
+    "https://raw.githubusercontent.com/a-sit-plus/credentials-collection/main/mdl.json"
+
 val MobileDrivingLicenceMetadataDocument: Pair<SdJwtVcType, SdJwtTypeMetadataDocument> =
     SdJwtVcType(MDL_DOCTYPE) to SdJwtTypeMetadataDocument(
         originalBytes = ByteArray(0),
