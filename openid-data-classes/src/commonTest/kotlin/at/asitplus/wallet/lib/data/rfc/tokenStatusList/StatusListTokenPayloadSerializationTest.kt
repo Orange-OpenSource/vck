@@ -2,16 +2,15 @@ package at.asitplus.wallet.lib.data.rfc.tokenStatusList
 
 import at.asitplus.signum.indispensable.cosef.io.Base16Strict
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
-import at.asitplus.wallet.lib.data.vckJsonSerializer
+import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.iso18013.Identifier
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.iso18013.IdentifierInfo
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.PositiveDuration
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatusBitSize
 import at.asitplus.wallet.lib.data.rfc3986.UniformResourceIdentifier
-import at.asitplus.testballoon.matrix.matrixSuite
-import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.matchers.shouldBe
 import io.matthewnelson.encoding.core.Decoder.Companion.decodeToByteArray
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
@@ -82,7 +81,7 @@ private val expectedPrefix = """
 
 val StatusListTokenPayloadSerializationTest by matrixSuite {
     "JSON serialization uses the expected claim names and ttl number format" {
-        val json = vckJsonSerializer
+        val json = joseCompliantSerializer
             .encodeToJsonElement(StatusListTokenPayload.serializer(), statusListPayload)
             .jsonObject
 
@@ -96,7 +95,7 @@ val StatusListTokenPayloadSerializationTest by matrixSuite {
 
     "JSON serialization rejects identifier lists" {
         shouldThrow<SerializationException> {
-            vckJsonSerializer.encodeToString(StatusListTokenPayload.serializer(), identifierListPayload)
+            joseCompliantSerializer.encodeToString(StatusListTokenPayload.serializer(), identifierListPayload)
         }
     }
 
@@ -110,12 +109,12 @@ val StatusListTokenPayloadSerializationTest by matrixSuite {
         """.trimIndent()
 
         shouldThrow<SerializationException> {
-            vckJsonSerializer.decodeFromString<StatusListTokenPayload>(json)
+            joseCompliantSerializer.decodeFromString<StatusListTokenPayload>(json)
         }
     }
 
     "JSON deserialization rejects identifier_list even when status_list is present" {
-        val validStatusListJson = vckJsonSerializer
+        val validStatusListJson = joseCompliantSerializer
             .encodeToJsonElement(StatusListTokenPayload.serializer(), statusListPayload)
             .jsonObject
         val invalidJson = JsonObject(
@@ -123,7 +122,7 @@ val StatusListTokenPayloadSerializationTest by matrixSuite {
         )
 
         shouldThrow<SerializationException> {
-            vckJsonSerializer.decodeFromString<StatusListTokenPayload>(invalidJson.toString())
+            joseCompliantSerializer.decodeFromString<StatusListTokenPayload>(invalidJson.toString())
         }
     }
 

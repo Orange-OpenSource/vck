@@ -2,8 +2,7 @@ package at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives
 
 import at.asitplus.signum.indispensable.cosef.io.Base16Strict
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
-import at.asitplus.wallet.lib.data.vckJsonSerializer
+import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -25,10 +24,10 @@ val PositiveDurationFormatSerializerTest by matrixSuite {
             ).asData(nameFn = { (name, _) -> name }) test { (_, expected) ->
             val (duration, expectedJson) = expected
             val value = PositiveDuration(duration)
-            val encoded = vckJsonSerializer.encodeToString(value)
+            val encoded = joseCompliantSerializer.encodeToString(value)
 
             encoded shouldBe expectedJson
-            vckJsonSerializer.decodeFromString<PositiveDuration>(encoded) shouldBe value
+            joseCompliantSerializer.decodeFromString<PositiveDuration>(encoded) shouldBe value
         }
     }
 
@@ -39,7 +38,7 @@ val PositiveDurationFormatSerializerTest by matrixSuite {
                 "negative fractional seconds" to "-1.5",
             ).asData(nameFn = { (name, _) -> name }) test { (_, encoded) ->
             shouldThrow<SerializationException> {
-                vckJsonSerializer.decodeFromString<PositiveDuration>(encoded)
+                joseCompliantSerializer.decodeFromString<PositiveDuration>(encoded)
             }
         }
     }
