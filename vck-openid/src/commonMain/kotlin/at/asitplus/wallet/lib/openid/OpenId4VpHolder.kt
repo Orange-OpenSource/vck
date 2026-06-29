@@ -71,8 +71,7 @@ import kotlin.time.Clock
  * show the information to the user,
  * and create the response in [finalizeAuthorizationResponse], and send it back to the verifier.
  */
-class OpenId4VpHolder
-@JvmOverloads constructor(
+class OpenId4VpHolder(
     /** Key material used to encrypt responses and sign ID tokens. */
     private val keyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
     /** Holds the credentials and creates the verifiable presentation. */

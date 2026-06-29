@@ -19,7 +19,6 @@ import at.asitplus.wallet.lib.DefaultNonceService
 import at.asitplus.wallet.lib.utils.MapStore
 import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidDpopProof
-import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Clock.System
 import kotlin.time.Duration.Companion.days
@@ -45,8 +44,7 @@ interface TokenGenerationService {
  * Implemented from
  * [OAuth 2.0 Demonstrating Proof of Possession (DPoP)](https://datatracker.ietf.org/doc/html/rfc9449)
  */
-class JwtTokenGenerationService
-@JvmOverloads constructor(
+class JwtTokenGenerationService(
     /** Used to create nonces for tokens during issuing. */
     internal val nonceService: NonceService,
     /** Used to create nonces for refresh tokens during issuing, which are long-lived. */
@@ -139,8 +137,7 @@ class JwtTokenGenerationService
 /**
  * Simple bearer token generation (just a nonce) for an OAuth 2.0 authorization server.
  */
-class BearerTokenGenerationService
-@JvmOverloads constructor(
+class BearerTokenGenerationService(
     /** Used to create nonces for tokens during issuing. */
     internal val nonceService: NonceService = DefaultNonceService(),
     private val accessTokenToValidatedAccessToken: MapStore<String, ValidatedAccessToken> = DefaultMapStore(),

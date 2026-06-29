@@ -32,15 +32,13 @@ import at.asitplus.wallet.lib.jws.VerifyJwsSignature
 import at.asitplus.wallet.lib.jws.VerifyJwsSignatureFun
 import io.github.aakira.napier.Napier
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.jvm.JvmOverloads
 
 /**
  * Parses and validates Verifiable Credentials and Verifiable Presentations.
  * Does verify the cryptographic authenticity of the data.
  * Does verify the revocation status of the data (when a status information is encoded in the credential).
  */
-class ValidatorVcJws
-@JvmOverloads constructor(
+class ValidatorVcJws(
     private val verifySignature: VerifySignatureFun = VerifySignature(),
     private val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(verifySignature),
     private val verifyJwsObject: VerifyJwsObjectFun = VerifyJwsObject(verifyJwsSignature),

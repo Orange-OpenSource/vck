@@ -21,10 +21,8 @@ import at.asitplus.wallet.lib.oidvci.json
 import io.ktor.http.*
 import io.ktor.util.*
 import kotlinx.serialization.json.JsonObject
-import kotlin.jvm.JvmOverloads
 
-class RequestParser
-@JvmOverloads constructor(
+class RequestParser(
     /**
      * Need to implement if resources are defined by reference, i.e. the URL for a
      * [at.asitplus.signum.indispensable.josef.JsonWebKeySet],

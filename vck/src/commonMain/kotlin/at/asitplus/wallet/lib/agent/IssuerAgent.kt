@@ -52,7 +52,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
-import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -61,8 +60,7 @@ import kotlin.time.Instant
 /**
  * An agent that implements [Issuer], i.e., it issues credentials for other agents.
  */
-class IssuerAgent
-@JvmOverloads constructor(
+class IssuerAgent(
     override val keyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
     private val issuerCredentialStore: IssuerCredentialStore = InMemoryIssuerCredentialStore(),
     private val statusListBaseUrl: String = "https://wallet.a-sit.at/backend/credentials/status",

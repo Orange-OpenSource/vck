@@ -91,7 +91,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
@@ -105,8 +104,7 @@ import kotlin.time.toDuration
  * clients need to send it to the holder (see [OpenId4VpHolder]) which will create the Authentication Response,
  * which will be verified here in [validateAuthnResponse].
  */
-class OpenId4VpVerifier
-@JvmOverloads constructor(
+class OpenId4VpVerifier(
     /** Scheme to use for our client identifier. */
     private val clientIdScheme: ClientIdScheme,
     /** Key material to sign the authentication request with [signAuthnRequest]. */

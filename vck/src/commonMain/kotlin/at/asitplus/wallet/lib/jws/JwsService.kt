@@ -56,7 +56,6 @@ import at.asitplus.wallet.lib.agent.VerifySignature
 import at.asitplus.wallet.lib.agent.VerifySignatureFun
 import kotlinx.serialization.SerializationStrategy
 import kotlin.io.encoding.Base64
-import kotlin.jvm.JvmOverloads
 
 
 /** Modify the [JwsHeader] before it being signed. */
@@ -502,8 +501,7 @@ fun interface VerifyJwsSignatureFun {
  * Verifies a JWS signature against a provided public key.
  * Use when the verification key is already resolved out of band.
  */
-class VerifyJwsSignature
-@JvmOverloads constructor(
+class VerifyJwsSignature(
     val verifySignature: VerifySignatureFun = VerifySignature(),
 ) : VerifyJwsSignatureFun {
     override suspend operator fun invoke(
@@ -532,8 +530,7 @@ fun interface VerifyJwsSignatureWithKeyFun {
  * Verifies a JWS signature using a JSON Web Key.
  * Use when the signer key is available in JWK form.
  */
-class VerifyJwsSignatureWithKey
-@JvmOverloads constructor(
+class VerifyJwsSignatureWithKey(
     val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(),
 ) : VerifyJwsSignatureWithKeyFun {
     override suspend operator fun invoke(
@@ -553,8 +550,7 @@ fun interface VerifyJwsSignatureWithCnfFun {
  * Verifies a JWS signature using the confirmation claim (cnf) key material.
  * Use when tokens bind signatures to a subject key in the payload.
  */
-class VerifyJwsSignatureWithCnf
-@JvmOverloads constructor(
+class VerifyJwsSignatureWithCnf(
     val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(),
     /**
      * Need to implement if JSON web keys in JWS headers are referenced by a `kid`, and need to be retrieved from
@@ -595,8 +591,7 @@ class VerifyJwsSignatureWithCnf
  * The X.509 certificate of the trust anchor MUST NOT be included in the x5c JOSE header of the Status List Token.
  * The X.509 certificate signing the request MUST NOT be self-signed.
  */
-class VerifyStatusListTokenHAIP
-@JvmOverloads constructor(
+class VerifyStatusListTokenHAIP(
     val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(),
     /** Need to implement if valid keys for JWS are transported somehow out-of-band, e.g. provided by a trust store */
     val trustStoreLookup: TrustStoreLookup = TrustStoreLookup { null },
@@ -649,8 +644,7 @@ fun interface VerifyJwsObjectFun {
  * Verifies a JWS by loading possible signing keys from headers or lookup callbacks.
  * Use for validating incoming JWS objects in verification flows.
  */
-class VerifyJwsObject
-@JvmOverloads constructor(
+class VerifyJwsObject(
     val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(),
     /**
      * Need to implement if JSON web keys in JWS headers are referenced by a `kid`, and need to be retrieved from

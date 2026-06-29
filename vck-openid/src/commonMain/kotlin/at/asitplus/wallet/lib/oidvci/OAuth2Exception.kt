@@ -25,7 +25,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonContentPolymorphicSerializer
 import kotlinx.serialization.json.JsonElement
-import kotlin.jvm.JvmOverloads
 
 /**
  * OAuth2/OIDC error representation for issuer and wallet flows.
@@ -46,36 +45,31 @@ sealed class OAuth2Exception(
      * HTTP 400 (Bad Request) status code.
      */
     @Serializable
-    class InvalidRequest
-    @JvmOverloads constructor(
+    class InvalidRequest(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_REQUEST, description)
 
     @Serializable
-    class InvalidClient
-    @JvmOverloads constructor(
+    class InvalidClient(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_CLIENT, description)
 
     @Serializable
-    class InvalidScope
-    @JvmOverloads constructor(
+    class InvalidScope(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_SCOPE, description)
 
     @Serializable
-    class InvalidGrant
-    @JvmOverloads constructor(
+    class InvalidGrant(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_GRANT, description)
 
     @Serializable
-    class InvalidCode
-    @JvmOverloads constructor(
+    class InvalidCode(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_CODE, description)
@@ -86,36 +80,31 @@ sealed class OAuth2Exception(
      * status code.  The client MAY request a new access token and retry the protected resource request.
      */
     @Serializable
-    class InvalidToken
-    @JvmOverloads constructor(
+    class InvalidToken(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_TOKEN, description), OAuthAuthorizationError
 
     @Serializable
-    class InvalidProof
-    @JvmOverloads constructor(
+    class InvalidProof(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_PROOF, description)
 
     @Serializable
-    class UserCancelled
-    @JvmOverloads constructor(
+    class UserCancelled(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(USER_CANCELLED, description)
 
     @Serializable
-    class InvalidDpopProof
-    @JvmOverloads constructor(
+    class InvalidDpopProof(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_DPOP_PROOF, description), OAuthAuthorizationError
 
     @Serializable
-    class UseDpopNonce
-    @JvmOverloads constructor(
+    class UseDpopNonce(
         /** Set this as the value for HTTP header `DPoP-Nonce` in the response. */
         val dpopNonce: String,
         @Transient val description: String? = null,
@@ -123,64 +112,55 @@ sealed class OAuth2Exception(
     ) : OAuth2Exception(USE_DPOP_NONCE, description), OAuthAuthorizationError
 
     @Serializable
-    class InvalidCredentialRequest
-    @JvmOverloads constructor(
+    class InvalidCredentialRequest(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_CREDENTIAL_REQUEST, description)
 
     @Serializable
-    class UnknownCredentialConfiguration
-    @JvmOverloads constructor(
+    class UnknownCredentialConfiguration(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(UNKNOWN_CREDENTIAL_CONFIGURATION, description)
 
     @Serializable
-    class UnknownCredentialIdentifier
-    @JvmOverloads constructor(
+    class UnknownCredentialIdentifier(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(UNKNOWN_CREDENTIAL_IDENTIFIER, description)
 
     @Serializable
-    class CredentialRequestDenied
-    @JvmOverloads constructor(
+    class CredentialRequestDenied(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(CREDENTIAL_REQUEST_DENIED, description)
 
     @Serializable
-    class InvalidEncryptionParameters
-    @JvmOverloads constructor(
+    class InvalidEncryptionParameters(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_ENCRYPTION_PARAMETERS, description)
 
     @Serializable
-    class InvalidNonce
-    @JvmOverloads constructor(
+    class InvalidNonce(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_NONCE, description)
 
     @Serializable
-    class AccessDenied
-    @JvmOverloads constructor(
+    class AccessDenied(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(ACCESS_DENIED, description)
 
     @Serializable
-    class RegistrationValueNotSupported
-    @JvmOverloads constructor(
+    class RegistrationValueNotSupported(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(REGISTRATION_VALUE_NOT_SUPPORTED, description)
 
     @Serializable
-    class InvalidAuthorizationDetails
-    @JvmOverloads constructor(
+    class InvalidAuthorizationDetails(
         @Transient val description: String? = null,
         @Transient override val cause: Throwable? = null
     ) : OAuth2Exception(INVALID_AUTHDETAILS, description)

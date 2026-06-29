@@ -18,13 +18,11 @@ import at.asitplus.wallet.lib.oidvci.decodeFromPostBody
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
 import io.ktor.http.*
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.jvm.JvmOverloads
 
 /**
  * Parses authentication responses for [OpenId4VpVerifier]
  */
-class ResponseParser
-@JvmOverloads constructor(
+class ResponseParser(
     private val decryptJwe: DecryptJweFun = DecryptJwe(EphemeralKeyWithoutCert()),
     private val verifyJwsObject: VerifyJwsObjectFun = VerifyJwsObject(),
 ) {

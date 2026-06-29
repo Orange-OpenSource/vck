@@ -78,8 +78,7 @@ import kotlin.time.Duration.Companion.minutes
  * [OAuth 2.0 Token Introspection](https://datatracker.ietf.org/doc/html/rfc7662)
  * [OAuth 2.0 Token Exchange](https://datatracker.ietf.org/doc/html/rfc8693)
  */
-class SimpleAuthorizationService
-@JvmOverloads constructor(
+class SimpleAuthorizationService(
     /** Used to filter authorization details and scopes. */
     private val strategy: AuthorizationServiceStrategy,
     /** Used to load the actual user data during [authorize]. */

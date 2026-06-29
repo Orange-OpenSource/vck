@@ -12,7 +12,6 @@ import at.asitplus.signum.supreme.mac.mac
 import at.asitplus.signum.supreme.sign.SignatureInput
 import at.asitplus.signum.supreme.sign.Verifier
 import at.asitplus.signum.supreme.sign.verifierFor
-import kotlin.jvm.JvmOverloads
 
 fun interface VerifySignatureFun {
     suspend operator fun invoke(
@@ -34,8 +33,7 @@ class VerifySignature : VerifySignatureFun {
     }
 }
 
-class InvalidMacException
-@JvmOverloads constructor(message: String, cause: Throwable? = null): Throwable(message, cause)
+class InvalidMacException(message: String, cause: Throwable? = null): Throwable(message, cause)
 
 fun interface VerifyMacFun {
     data object Success

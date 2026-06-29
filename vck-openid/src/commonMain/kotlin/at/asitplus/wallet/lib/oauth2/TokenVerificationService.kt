@@ -21,7 +21,6 @@ import at.asitplus.wallet.lib.jws.VerifyJwsSignatureWithKeyFun
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.*
 import at.asitplus.wallet.lib.oidvci.TokenInfo
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
-import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Clock.System
 import kotlin.time.Duration
@@ -65,8 +64,7 @@ interface TokenVerificationService {
  * Implemented from
  * [OAuth 2.0 Demonstrating Proof of Possession (DPoP)](https://datatracker.ietf.org/doc/html/rfc9449)
  */
-class JwtTokenVerificationService
-@JvmOverloads constructor(
+class JwtTokenVerificationService(
     /** Used to verify nonces of tokens created by the token generation service. */
     private val nonceService: NonceService,
     /** Used to verify nonces of refresh tokens (long-lived!) created by the token generation service. */

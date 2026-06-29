@@ -22,8 +22,7 @@ import kotlin.time.Duration.Companion.minutes
  * Implemented from
  * [OAuth 2.0 Attestation-Based Client Authentication](https://www.ietf.org/archive/id/draft-ietf-oauth-attestation-based-client-auth-05.html)
  */
-class ClientAuthenticationService
-@JvmOverloads constructor(
+class ClientAuthenticationService(
     /** Enforce client authentication as defined in OpenID4VC HAIP, i.e. with wallet attestations */
     private val enforceClientAuthentication: Boolean = false,
     /** Used to verify client attestation JWTs */

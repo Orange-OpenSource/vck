@@ -34,10 +34,8 @@ import io.github.aakira.napier.Napier
 import io.ktor.utils.io.core.toByteArray
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
-import kotlin.jvm.JvmOverloads
 
-class Iso180137AnnexCVerifier
-@JvmOverloads constructor(
+class Iso180137AnnexCVerifier(
     /** Creates challenges in authentication requests. */
     override val nonceService: NonceService = DefaultNonceService(),
     /** Used to store issued requests to verify the response to it */

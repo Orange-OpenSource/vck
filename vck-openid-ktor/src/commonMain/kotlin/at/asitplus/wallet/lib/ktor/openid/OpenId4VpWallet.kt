@@ -34,7 +34,6 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlin.jvm.JvmOverloads
 
 /**
  * Implements the wallet side of
@@ -42,8 +41,7 @@ import kotlin.jvm.JvmOverloads
  * and
  * [OpenID for Verifiable Presentations - draft 21](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html)
  */
-class OpenId4VpWallet
-@JvmOverloads constructor(
+class OpenId4VpWallet(
     /** ktor engine to make requests to the verifier. */
     engine: HttpClientEngine,
     /** Additional configuration for building the HTTP client, e.g. callers may enable logging. */
