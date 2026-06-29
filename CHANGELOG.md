@@ -1,5 +1,8 @@
 # Changelog
 
+Release 7.0.0 (unreleased):
+ - tbd
+
 Release 6.0.0:
  - JWS:
    - BREAKING: Replace `JwsSigned` with `JwsCompact` and `JwsCompactTyped` in signing, verification, OpenID request/response, OAuth 2.0 DPoP/client attestation, OID4VCI proof, JWT VC, status list JWT, and SD-JWT APIs
