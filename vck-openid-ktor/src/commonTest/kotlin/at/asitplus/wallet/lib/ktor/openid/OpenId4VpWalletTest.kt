@@ -3,13 +3,13 @@ package at.asitplus.wallet.lib.ktor.openid
 import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.data.NonEmptyList.Companion.nonEmptyListOf
-import at.asitplus.dcapi.request.DCAPIWalletRequest
 import at.asitplus.iso.IssuerSignedItem
 import at.asitplus.openid.AuthenticationResponseParameters
 import at.asitplus.openid.CredentialFormatEnum
 import at.asitplus.openid.OidcUserInfo
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.openid.OpenIdConstants.ResponseMode
+import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.openid.RequestObjectParameters
 import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.openid.dcql.DCQLClaimsPathPointerSegment.NameSegment
@@ -24,7 +24,7 @@ import at.asitplus.openid.dcql.DCQLIsoMdocCredentialMetadataAndValidityConstrain
 import at.asitplus.openid.dcql.DCQLIsoMdocCredentialQuery
 import at.asitplus.openid.dcql.DCQLQuery
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.withFixtureGenerator
+import at.asitplus.testballoon.matrix.*
 import at.asitplus.wallet.eupid.EuPidScheme
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
 import at.asitplus.wallet.lib.RequestOptionsCredential
@@ -61,7 +61,7 @@ import at.asitplus.wallet.lib.openid.VpTokenValidationResultDCQL
 import at.asitplus.wallet.lib.openid.VpTokenValidationResultPresentationExchange
 import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import com.benasher44.uuid.uuid4
-import de.infix.testBalloon.framework.core.testSuite
+import at.asitplus.testballoon.matrix.matrixSuite
 import io.github.aakira.napier.Napier
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -87,9 +87,9 @@ import kotlin.time.Duration.Companion.minutes
 
 
 @Suppress("unused")
-val OpenId4VpWalletTest by testSuite {
+val OpenId4VpWalletTest by matrixSuite {
 
-    withFixtureGenerator {
+    fixture {
         object {
             val countdownLatch = Mutex(true)
             val keyMaterial = EphemeralKeyWithoutCert()
@@ -421,8 +421,9 @@ val OpenId4VpWalletTest by testSuite {
                        "response_type" : "vp_token"
                     }
                     """.trimIndent()
-            val dcApiRequest = DCAPIWalletRequest.OpenId4VpUnsigned(
-                request = joseCompliantSerializer.decodeFromString(request),
+            val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiUnsigned(
+                parameters = joseCompliantSerializer.decodeFromString(request),
+                jsonString = request,
                 credentialIds = listOf("c72a2a8a6e94564cd8dea6ef0c7eb47b31a31947620ebcc0f07177bb71078def"),
                 callingPackageName = "com.android.chrome",
                 callingOrigin = "https://apps.egiz.gv.at/customverifier"

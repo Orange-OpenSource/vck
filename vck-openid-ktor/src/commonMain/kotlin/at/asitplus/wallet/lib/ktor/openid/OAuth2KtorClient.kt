@@ -19,9 +19,10 @@ import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.openid.TokenResponseParameters
 import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
-import at.asitplus.signum.indispensable.josef.JwsSigned
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
+import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
@@ -48,7 +49,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.util.*
 import io.ktor.utils.io.*
-import kotlin.jvm.JvmOverloads
+import kotlin.time.Duration
 
 /**
  * Implements the client side of OAuth2
@@ -70,8 +71,19 @@ class OAuth2KtorClient
     cookiesStorage: CookiesStorage? = null,
     /** Additional configuration for building the HTTP client, e.g. callers may enable logging. */
     httpClientConfig: (HttpClientConfig<*>.() -> Unit)? = null,
-    /** Used to calculate DPoP, i.e. the key the access token and refresh token gets bound to. */
-    private val signDpop: SignJwtFun<JsonWebToken> = SignJwt(EphemeralKeyWithoutCert(), JwsHeaderCertOrJwk()),
+    /**
+     * Used to prove possession of the key material for the instance attestation.
+     * Also used for the DPoP signing function. (ts3-wallet-unit-attestation 1.5.1)
+     */
+    val keyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
+
+    /**
+     * DPoP sign function
+     * Uses instance attestation key material (ts3-wallet-unit-attestation 1.5.1)
+     **/
+    @Deprecated("Gets removed from the constructor in near future. Customization unnecessary because of ts3-wallet-unit-attestation 1.5.1")
+    private val signDpop: SignJwtFun<JsonWebToken> = SignJwt(keyMaterial = keyMaterial, JwsHeaderCertOrJwk()),
+
     /**
      * Implements OAuth2 protocol, `redirectUrl` needs to be registered by the OS for this application, so redirection
      * back from browser works
@@ -82,13 +94,18 @@ class OAuth2KtorClient
     /**
      * Verifies signed token introspection responses (RFC 9701). By default, every syntactically valid JWS is accepted.
      */
-    private val verifyTokenIntrospectionJwt: suspend (JwsSigned<TokenIntrospectionResponse>) -> Boolean = { true },
+    private val verifyTokenIntrospectionJwt: suspend (JwsCompactTyped<TokenIntrospectionResponse>) -> Boolean = { true },
 
     /** Returns a new instance attestation to validate the app against an authorization server. */
-    val loadInstanceAttestation: (suspend () -> KmmResult<JwsSigned<JsonWebToken>>)? = null,
-    /** Returns a proof of possession for an instance attestation */
-    val loadInstanceAttestationPop: (suspend () -> KmmResult<JwsSigned<JsonWebToken>>)? = null,
-) {
+    val loadInstanceAttestation: (suspend (LoadInstanceAttestationInput) -> KmmResult<JwsCompactTyped<JsonWebToken>>)? = null,
+
+    ) {
+    data class LoadInstanceAttestationInput(
+        val authorizationServer: String,
+        val preferredClientStatusPeriod: Duration?,
+    )
+
+
     /**
      * Stores the latest DPoP nonce per origin. RFC 9449 requires using only the most recent nonce
      * issued by the server that provided it.
@@ -223,7 +240,7 @@ class OAuth2KtorClient
                 scope = scope,
                 authorizationDetails = if (!hasScope) authorizationDetails else null
             ),
-            popAudience = credentialIssuer,
+            popAudience = oauthMetadata.issuer,
         )
         Napier.i("Received token response")
         Napier.d("Received token response $tokenResponse")
@@ -272,7 +289,13 @@ class OAuth2KtorClient
             setBody(FormDataContent(parameters {
                 tokenRequest.encodeToParameters().forEach { append(it.key, it.value) }
             }))
-            applyAuthnForToken(tokenEndpointUrl, HttpMethod.Post, true)()
+            applyAuthnForToken(
+                resourceUrl = tokenEndpointUrl,
+                httpMethod = HttpMethod.Post,
+                useDpop = true,
+                authorizationServer = popAudience,
+                preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
+            )()
         }.onFailure { response ->
             updateDpopNonceAndRetry(response, tokenEndpointUrl, retryCount) {
                 postToken(oauthMetadata, tokenRequest, popAudience, retryCount + 1)
@@ -376,7 +399,13 @@ class OAuth2KtorClient
                 authRequest.encodeToParameters().forEach { append(it.key, it.value) }
                 append(OpenIdConstants.PARAMETER_PROMPT, OpenIdConstants.PARAMETER_PROMPT_LOGIN)
             }))
-            applyAuthnForToken(parEndpointUrl, HttpMethod.Post, true)()
+            applyAuthnForToken(
+                resourceUrl = parEndpointUrl,
+                httpMethod = HttpMethod.Post,
+                useDpop = true,
+                authorizationServer = popAudience,
+                preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
+            )()
         }.onFailure { response ->
             updateDpopNonceAndRetry(response, parEndpointUrl, retryCount) {
                 pushAuthorizationRequest(oauthMetadata, authRequest, state, popAudience, retryCount + 1)
@@ -411,6 +440,8 @@ class OAuth2KtorClient
                 resourceUrl = introspectionUrl,
                 httpMethod = HttpMethod.Post,
                 useDpop = true,
+                authorizationServer = popAudience,
+                preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
             )()
         }.onFailure { response ->
             updateDpopNonceAndRetry(response, introspectionUrl, retryCount) {
@@ -463,28 +494,58 @@ class OAuth2KtorClient
         return {
             headers {
                 append(HttpHeaders.Authorization, tokenResponse.toHttpHeaderValue())
-                dpopHeader?.let { append(HttpHeaders.DPoP, it) }
+                dpopHeader?.let { append(HttpHeaders.DPoP, it.toString()) }
             }
         }
     }
 
     /**
      * Sets the appropriate headers when accessing a token endpoint:
-     * - loads client attestation when [loadInstanceAttestation] and [loadInstanceAttestationPop] is set
+     * - loads client attestation when [loadInstanceAttestation] is set
      * - sends a DPoP proof when [useDpop] is set
      */
     suspend fun applyAuthnForToken(
         resourceUrl: String,
         httpMethod: HttpMethod,
         useDpop: Boolean,
+        authorizationServer: String,
+        preferredClientStatusPeriod: Duration?,
     ): HttpRequestBuilder.() -> Unit {
-        val (clientAttJwt, clientAttPop) = if (loadInstanceAttestation != null && loadInstanceAttestationPop != null) {
-            loadInstanceAttestation.let {
-                it().getOrNull()?.serialize()
-            } to loadInstanceAttestationPop.let {
-                it().getOrNull()?.serialize()
+        val (clientAttJwt, clientAttPop) = when (loadInstanceAttestation != null) {
+            true -> {
+                val wia = loadInstanceAttestation.invoke(
+                    LoadInstanceAttestationInput(
+                        authorizationServer = authorizationServer,
+                        preferredClientStatusPeriod = preferredClientStatusPeriod,
+                    )
+                ).getOrElse { throw Exception("Unable to load instance attestation $it") }
+
+                val cnfKey = wia.payload.confirmationClaim?.jsonWebKey
+                    ?: throw Exception("Instance attestation has no cnf.jwk — PoP key cannot be verified")
+                if (cnfKey.jwkThumbprint != keyMaterial.jsonWebKey.jwkThumbprint) {
+                    throw Exception(
+                        "keyMaterial does not match the cnf key in the instance attestation. " +
+                        "The PoP JWT will not verify on the server. " +
+                        "Expected cnf thumbprint: ${cnfKey.jwkThumbprint}, " +
+                        "got keyMaterial thumbprint: ${keyMaterial.jsonWebKey.jwkThumbprint}"
+                    )
+                }
+
+                wia.jws to catching {
+                    BuildClientAttestationPoPJwt.invoke(
+                        signJwt = SignJwt(keyMaterial, JwsHeaderNone()),
+                        clientId = oAuth2Client.clientId,
+                        audience = authorizationServer,
+                        nonce = null // TODO: Add nonce after backend implementation is ready
+                    )
+                }.getOrElse { throw Exception("Unable to build instance attestation pop jwt $it") }
+                    .jws
             }
-        } else (null to null)
+
+            else -> {
+                null to null
+            }
+        }
 
         val dpopHeader = useDpop.takeIf { it }?.let {
             BuildDPoPHeader(
@@ -498,13 +559,12 @@ class OAuth2KtorClient
 
         return {
             headers {
-                clientAttJwt?.let { append(HttpHeaders.OAuthClientAttestation, it) }
-                clientAttPop?.let { append(HttpHeaders.OAuthClientAttestationPop, it) }
-                dpopHeader?.let { append(HttpHeaders.DPoP, it) }
+                clientAttJwt?.let { append(HttpHeaders.OAuthClientAttestation, it.toString()) }
+                clientAttPop?.let { append(HttpHeaders.OAuthClientAttestationPop, it.toString()) }
+                dpopHeader?.let { append(HttpHeaders.DPoP, it.toString()) }
             }
         }
     }
-
 }
 
 val HttpHeaders.OAuthClientAttestation: String
@@ -536,7 +596,7 @@ private suspend inline fun <R> IntermediateResult<R>.onSuccessToken(
 ) = onSuccess<TokenResponseParameters, R>(block)
 
 private suspend inline fun <R> IntermediateResult<R>.onSuccessTokenIntrospection(
-    noinline verifyTokenIntrospectionJwt: suspend (JwsSigned<TokenIntrospectionResponse>) -> Boolean,
+    noinline verifyTokenIntrospectionJwt: suspend (JwsCompactTyped<TokenIntrospectionResponse>) -> Boolean,
     requestedResponseFormat: TokenIntrospectionRequest.ResponseFormat?,
     block: TokenIntrospectionResponse.(httpResponse: HttpResponse) -> R,
 ) = when (this) {
@@ -552,7 +612,7 @@ private suspend inline fun <R> IntermediateResult<R>.onSuccessTokenIntrospection
 
 private suspend fun parseTokenIntrospectionResponse(
     body: String,
-    verifyTokenIntrospectionJwt: suspend (JwsSigned<TokenIntrospectionResponse>) -> Boolean,
+    verifyTokenIntrospectionJwt: suspend (JwsCompactTyped<TokenIntrospectionResponse>) -> Boolean,
     requestedResponseFormat: TokenIntrospectionRequest.ResponseFormat?,
 ): TokenIntrospectionResponse = runCatching {
     if (requestedResponseFormat == TokenIntrospectionRequest.ResponseFormat.JWT) {
@@ -570,12 +630,11 @@ private suspend fun parseTokenIntrospectionResponse(
 
 private suspend fun parseJwt(
     body: String,
-    verifyTokenIntrospectionJwt: suspend (JwsSigned<TokenIntrospectionResponse>) -> Boolean
+    verifyTokenIntrospectionJwt: suspend (JwsCompactTyped<TokenIntrospectionResponse>) -> Boolean
 ): TokenIntrospectionResponse =
     joseCompliantSerializer.decodeFromString(TokenIntrospectionJwtResponse.serializer(), body).let { jwtResponse ->
-        JwsSigned.deserialize(TokenIntrospectionResponse.serializer(), jwtResponse.jwt, joseCompliantSerializer)
-            .getOrThrow().run {
-                require(verifyTokenIntrospectionJwt(this)) { "Token introspection JWT validation failed" }
-                payload
-            }
+        JwsCompactTyped<TokenIntrospectionResponse>(jwtResponse.jwt).run {
+            require(verifyTokenIntrospectionJwt(this)) { "Token introspection JWT validation failed" }
+            payload
+        }
     }

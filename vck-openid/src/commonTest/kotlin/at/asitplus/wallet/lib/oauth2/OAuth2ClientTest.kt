@@ -1,29 +1,28 @@
 package at.asitplus.wallet.lib.oauth2
 
 import at.asitplus.catching
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.PushedAuthenticationResponseParameters
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenIntrospectionJwtResponse
 import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenIntrospectionRequest.ResponseFormat
 import at.asitplus.openid.TokenIntrospectionResponse
-import at.asitplus.signum.indispensable.josef.JwsSigned
-import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.withFixtureGenerator
+import at.asitplus.testballoon.matrix.*
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
 import at.asitplus.wallet.lib.oidvci.randomString
 import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.DummyUserProvider.user
 import com.benasher44.uuid.uuid4
-import de.infix.testBalloon.framework.core.testSuite
+import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
-val OAuth2ClientTest by testSuite {
-    withFixtureGenerator {
+val OAuth2ClientTest by matrixSuite {
+    fixture {
         object {
             val scope = randomString()
             val client = OAuth2Client()
@@ -101,11 +100,7 @@ val OAuth2ClientTest by testSuite {
                 null
             ).getOrThrow()
                 .shouldBeInstanceOf<TokenIntrospectionJwtResponse>()
-            val parsed = JwsSigned.deserialize(
-                TokenIntrospectionResponse.serializer(),
-                jwtResponse.jwt,
-                joseCompliantSerializer
-            ).getOrThrow()
+            val parsed = JwsCompactTyped<TokenIntrospectionResponse>(jwtResponse.jwt)
             parsed.payload.active shouldBe true
         }
         test("process with pushed authorization request and JAR") {

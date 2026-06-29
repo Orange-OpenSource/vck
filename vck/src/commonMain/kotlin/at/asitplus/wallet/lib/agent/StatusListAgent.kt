@@ -1,10 +1,10 @@
 package at.asitplus.wallet.lib.agent
 
 import at.asitplus.catching
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.truncateToSeconds
 import at.asitplus.signum.indispensable.cosef.CoseHeader
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
-import at.asitplus.signum.indispensable.josef.JwsSigned
 import at.asitplus.wallet.lib.DefaultZlibService
 import at.asitplus.wallet.lib.ZlibService
 import at.asitplus.wallet.lib.cbor.CoseHeaderCertificate
@@ -67,25 +67,31 @@ class StatusListAgent
     override suspend fun issueStatusListJwt(
         time: Instant?,
         kind: RevocationList.Kind
-    ): JwsSigned<StatusListTokenPayload> =
-        catching {
-            require(kind == RevocationList.Kind.STATUS_LIST) { "JWT only supports revocation list kind StatusList" }
-        }.transform {
-            signStatusListJwt(
-                type = MediaTypes.STATUSLIST_JWT,
-                payload = buildStatusListTokenPayload(time.toTimePeriod(), RevocationList.Kind.STATUS_LIST),
-                serializer = StatusListTokenPayload.serializer(),
-            )
-        }.getOrElse {
-            throw IllegalStateException("Status token could not be created.", it)
-        }
+    ): JwsCompactTyped<StatusListTokenPayload> =
+        issueStatusListJwt(time.toTimePeriod(), kind)
 
     /**
      * Wraps the revocation information from [issuerCredentialStore] into a Status List Token,
      * returns a CWS representation of that.
      */
     override suspend fun issueStatusListCwt(time: Instant?, kind: RevocationList.Kind) =
-        with(buildStatusListTokenPayload(time.toTimePeriod(), kind)) {
+        issueStatusListCwt(time.toTimePeriod(), kind)
+
+    override suspend fun issueStatusListJwt(timePeriod: Int, kind: RevocationList.Kind): JwsCompactTyped<StatusListTokenPayload> =
+        catching {
+            require(kind == RevocationList.Kind.STATUS_LIST) { "JWT only supports revocation list kind StatusList" }
+        }.transform {
+            signStatusListJwt(
+                type = MediaTypes.STATUSLIST_JWT,
+                payload = buildStatusListTokenPayload(timePeriod, kind),
+                serializer = StatusListTokenPayload.serializer(),
+            )
+        }.getOrElse {
+            throw IllegalStateException("Status token could not be created.", it)
+        }
+
+    override suspend fun issueStatusListCwt(timePeriod: Int, kind: RevocationList.Kind) =
+        with(buildStatusListTokenPayload(timePeriod, kind)) {
             signStatusListCwt(
                 protectedHeader = CoseHeader(type = kind.mediaType()),
                 unprotectedHeader = null,
@@ -95,7 +101,6 @@ class StatusListAgent
                 throw IllegalStateException("Status token could not be created", it)
             }
         }
-
     private fun RevocationList.Kind.mediaType(): String =
         if (this == RevocationList.Kind.STATUS_LIST)
             MediaTypes.Application.STATUSLIST_CWT

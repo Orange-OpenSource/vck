@@ -64,11 +64,11 @@ class ValidatorSdJwt
         }
         sdJwtResult.sdJwtSigned.keyBindingJws?.also { keyBindingSigned ->
             vcSdJwt.confirmationClaim?.let {
-                if (!verifyJwsSignatureWithCnf(keyBindingSigned, it)) {
+                if (!verifyJwsSignatureWithCnf(keyBindingSigned.jws, it)) {
                     throw Throwable("Key binding JWT not verified (from cnf)")
                 }
             } ?: run {
-                verifyJwsObject(keyBindingSigned).getOrElse {
+                verifyJwsObject(keyBindingSigned.jws).getOrElse {
                     throw Throwable("Key binding JWT not verified. $it")
                 }
             }
@@ -120,7 +120,10 @@ class ValidatorSdJwt
             !validationResult.isIntegrityGood -> throw Throwable("Signature not verified")
 
             validationResult.payloadCredentialValidationSummary.getOrNull()?.isSuccess == false
-                -> throw IllegalArgumentException("cnf claim invalid")
+                -> throw IllegalArgumentException(
+                "cnf claim invalid",
+                validationResult.payloadCredentialValidationSummary.exceptionOrNull()
+            )
 
             else -> validationResult.payload
         }

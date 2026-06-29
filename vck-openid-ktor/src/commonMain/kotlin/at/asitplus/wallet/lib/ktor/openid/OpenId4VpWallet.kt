@@ -3,7 +3,6 @@ package at.asitplus.wallet.lib.ktor.openid
 import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.catchingUnwrapped
-import at.asitplus.dcapi.request.DCAPIWalletRequest
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
@@ -12,6 +11,7 @@ import at.asitplus.wallet.lib.agent.HolderAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.data.CredentialPresentation
+import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidRequest
 import at.asitplus.wallet.lib.oidvci.encodeToParameters
 import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.AuthorizationResponsePreparationState
@@ -81,7 +81,7 @@ class OpenId4VpWallet
         keyMaterial = keyMaterial,
         remoteResourceRetriever = { data ->
             withContext(Dispatchers.IO) {
-                if (data.method == HttpMethod.Post) {
+                val response = if (data.method == HttpMethod.Post) {
                     client.submitForm(
                         url = data.url,
                         formParameters = parameters {
@@ -91,7 +91,7 @@ class OpenId4VpWallet
                         data.headers.forEach {
                             headers[it.key] = it.value
                         }
-                    }.bodyAsText()
+                    }
                 } else {
                     client.get(URLBuilder(data.url).apply {
                         data.requestObjectParameters?.encodeToParameters()
@@ -100,8 +100,12 @@ class OpenId4VpWallet
                         data.headers.forEach {
                             headers[it.key] = it.value
                         }
-                    }.bodyAsText()
+                    }
                 }
+                if (response.status.value in 400..599) {
+                    throw InvalidRequest("Failed to dereference request_uri ${data.url}: HTTP ${response.status}")
+                }
+                response.bodyAsText()
             }
         },
         randomSource = randomSource,
@@ -136,11 +140,6 @@ class OpenId4VpWallet
 
     suspend fun startAuthorizationResponsePreparation(
         input: String,
-    ): KmmResult<AuthorizationResponsePreparationState> =
-        openId4VpHolder.startAuthorizationResponsePreparation(input)
-
-    suspend fun startAuthorizationResponsePreparation(
-        input: DCAPIWalletRequest.OpenId4Vp,
     ): KmmResult<AuthorizationResponsePreparationState> =
         openId4VpHolder.startAuthorizationResponsePreparation(input)
 

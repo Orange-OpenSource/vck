@@ -21,25 +21,16 @@
 
 VC-K is a comprehensive **Kotlin Multiplatform** library for implementing digital identity solutions, with full support for modern credential standards and protocols. It enables developers to build wallet applications, verifier systems, and issuer services using a single, consistent API across multiple platforms.
 
-Designed with developers in mind, VCK provides a flexible, modular architecture that simplifies the implementation of complex identity workflows while maintaining compatibility with the broader digital identity ecosystem, including the EU Digital Identity Wallet (EUDI Wallet).
+Designed with developers in mind, VC-K provides a flexible, modular architecture that simplifies the implementation of complex identity workflows while maintaining compatibility with the broader digital identity ecosystem, including the EU Digital Identity Wallet (EUDI Wallet).
 
 ## Architecture
 
-Notable features to fully support Kotlin multiplatform are:
+VC-K is split into published Kotlin Multiplatform modules that separate wire models, credential behavior, OpenID
+protocol behavior, and Ktor transport integration.
 
- - Use of [Napier](https://github.com/AAkira/Napier) as the logging framework
- - Use of [Kotest](https://kotest.io/) for unit tests
- - Use of [kotlinx-datetime](https://github.com/Kotlin/kotlinx-datetime) for date and time classes
- - Use of [kotlinx-serialization](https://github.com/Kotlin/kotlinx.serialization) for serialization from/to JSON and CBOR
- - Implementation of a ZLIB service in Kotlin with native parts, see `ZlibService`
-
-Some parts for increased multiplatform support have been extracted into separate repositories:
- - Reimplementation of Kotlin's [Result](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-result/) called [KmmResult](https://github.com/a-sit-plus/kmmresult) for easy use from Swift code (since inline classes are [not supported](https://kotlinlang.org/docs/native-objc-interop.html#unsupported)).
- - Several crypto datatypes (including an ASN.1 parser and encoder), as well as a multiplatform crypto library, called [Signum](https://github.com/a-sit-plus/signum).
-
-The main entry point for applications is an instance of `HolderAgent`, `VerifierAgent` or `IssuerAgent`, according to the nomenclature from the [W3C VC Data Model](https://w3c.github.io/vc-data-model/).
-
-Many classes define several constructor parameters, some of them with default values, to enable a simple form of dependency injection. Implementers are advised to specify the parameter names of arguments passed to increase readability and prepare for future extensions.
+For a contributor-oriented guide to module boundaries, implementation entry points, and refactoring strategy, see
+[ARCHITECTURE.md](ARCHITECTURE.md). For setup, building, testing, and publishing, see
+[DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Features
 
@@ -49,9 +40,9 @@ VC-K implements multiple credential formats to ensure maximum interoperability:
 - **SD-JWT (Selective Disclosure JWT)**: Privacy-preserving credential format with selective disclosure capabilities, see [SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) (including key binding JWT, JWT VC issuer metadata). We're also following [Selective Disclosure for JSON Web Tokens](https://www.rfc-editor.org/rfc/rfc9901.html), including features like key binding JWT and nested structures.
 - **ISO 18013-5 and 18013-7**: ISO standard defining Mobile Driving Licence and its generalization mDoc credentials as a CBOR-based credential format
 
-When using the plain JWT representation, the W3C VC `credentialSubject` is handled as `JsonElement`; legacy `CredentialSubject` subclasses remain available only as a deprecated compatibility layer. For ISO mDoc claims see `IssuerSignedItems` and related classes like `Document` and `MobileSecurityObject`. For SD-JWT claims see `SelectiveDisclosureItem` and `SdJwtSigned`.
+When using the plain JWT representation, the W3C VC `credentialSubject` is handled as `JsonElement`. For ISO mDoc claims see `IssuerSignedItems` and related classes like `Document` and `MobileSecurityObject`. For SD-JWT claims see `SelectiveDisclosureItem` and `SdJwtSigned`.
 
-Other libraries implementing credential schemes may call `LibraryInitializer.registerExtensionLibrary()` to register with this library. Custom `SerializersModule` registration is only needed for the deprecated `CredentialSubject` compatibility path. See our implementation of the [EU PID credential](https://github.com/a-sit-plus/eu-pid-credential) and our implementation of the [Mobile Driving Licence](https://github.com/a-sit-plus/mobile-driving-licence-credential/) for examples. We also maintain a comprehensive list of [all credentials powered by this library](https://github.com/a-sit-plus/credentials-collection).
+Other libraries implementing credential schemes may call `LibraryInitializer.registerExtensionLibrary()` to register with this library. See our implementation of the [EU PID credential](https://github.com/a-sit-plus/eu-pid-credential) and our implementation of the [Mobile Driving Licence](https://github.com/a-sit-plus/mobile-driving-licence-credential/) for examples. We also maintain a comprehensive list of [all credentials powered by this library](https://github.com/a-sit-plus/credentials-collection).
 
 ## OpenID Protocol Implementations
 
@@ -89,21 +80,24 @@ VC-K demonstrated very high **interoperability** with various implementations ac
 - Multiple wallet implementations
 - Various issuer systems
 - Different verifier platforms
-- Cross-vendor credential exchange scenarios´
+- Cross-vendor credential exchange scenarios
 
 
 ## Usage
 VC-K uses a modular structure to separate concerns. Hence, depending on the use cases you want to cover, you will need different artifacts:
 
 
-|       Artefact        | Info                                                                                                                                                                                                                                |
-|:---------------------:|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|         `vck`         | VC-K base functionality. Contains business logic for creating, issuing, presenting, and verifying credentials.                                                                                                                      |
-|     `vck-openid`      | OpenID protocol implementation, including OpenID4VCI. Contains client and server authentication business logic and the actual issuing protocol.                                                                                     |
-|   `vck-openid-ktor`   | Contains ktor-based OpenID4VCI client and OpenID4VP wallet implementations.                                                                                                                                                         |
-|  `dif-data-classes`   | [DIF Presentation Exchange v1.0.0](https://identity.foundation/presentation-exchange/spec/v1.0.0/#presentation-definition) data classes. **Does not depend on any other vck artefact** and can hence be used independently of VC-K! |
-| `openid-data-classes` | OpenID data classes. **Only depends on `dif-data-classes` and `csc-data-classes`** and can hence be used independently of VC-K!                                                                                                     |
-|  `csc-data-classes`   | [CSC](https://cloudsignatureconsortium.org/wp-content/uploads/2025/01/csc-api-2.1.0.1.pdf) data classes. **Does not depend on any other vck artefact** and can hence be used independently of VC-K!                                 |
+| Artefact               | Info                                                                                                                                                                                                                                |
+|:----------------------:|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `vck`                  | VC-K base functionality. Contains business logic for creating, issuing, presenting, and verifying credentials.                                                                                                                      |
+| `vck-openid`           | OpenID protocol implementation, including OpenID4VCI. Contains client and server authentication business logic and the actual issuing protocol.                                                                                     |
+| `vck-openid-ktor`      | Contains ktor-based OpenID4VCI client and OpenID4VP wallet implementations.                                                                                                                                                         |
+| `dif-data-classes`     | [DIF Presentation Exchange v1.0.0](https://identity.foundation/presentation-exchange/spec/v1.0.0/#presentation-definition) data classes. **Does not depend on any other vck artefact** and can hence be used independently of VC-K! |
+| `openid-data-classes`  | OpenID data classes. **Only depends on `dif-data-classes` and `csc-data-classes`** and can hence be used independently of VC-K!                                                                                                     |
+| `csc-data-classes`     | [CSC](https://cloudsignatureconsortium.org/wp-content/uploads/2025/01/csc-api-2.1.0.1.pdf) data classes. **Does not depend on any other vck artefact** and can hence be used independently of VC-K!                                 |
+| `etsi-data-classes`    | [ETSI TS 119 602](https://www.etsi.org/deliver/etsi_ts/119600_119699/119602/01.01.01_60/ts_119602v010101p.pdf) data classes. **Does not depend on any other vck artefact** and can hence be used independently of VC-K!             |
+| `rfc3986-uri-syntax`   | [RFC 3986 URI Syntax](https://datatracker.ietf.org/doc/html/rfc3986) data classes. **Does not depend on any other vck artefact** and can hence be used independently of VC-K!                                                       |
+| `sd-jwt-type-metadata` | [SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) type metadata data classes. **Only depends on `rfc3986-uri-syntax`** and can hence be used independently of VC-K!                                         |
 
 Simply declare the desired dependency to get going. This will usually be one of:
 
@@ -117,7 +111,6 @@ implementation("at.asitplus.wallet:vck-openid:$version")
 
 Everything else (serialization, crypto through Signum, …) will be taken care of.
 Therefore, **do not** manually add serialization dependencies! In case you are using this project in a codebase with dependencies on `kotlinx-serialization`, please use the `vck-versionCatalog` artefact to keep versions in sync.
-If you
 As discovered in [#226](https://github.com/a-sit-plus/vck/issues/226), using the deprecated `io.spring.dependency-management` will cause issues.
 
 The actual credentials are provided as discrete artefacts and are maintained separately [over here](https://github.com/a-sit-plus/credentials-collection).

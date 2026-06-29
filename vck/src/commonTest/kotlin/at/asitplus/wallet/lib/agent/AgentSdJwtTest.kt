@@ -1,10 +1,12 @@
 package at.asitplus.wallet.lib.agent
 
+import at.asitplus.catching
 import at.asitplus.data.NonEmptyList.Companion.toNonEmptyList
 import at.asitplus.dif.DifInputDescriptor
 import at.asitplus.dif.PresentationDefinition
 import at.asitplus.iso.sha256
 import at.asitplus.openid.CredentialFormatEnum
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.openid.dcql.DCQLClaimsQueryList
 import at.asitplus.openid.dcql.DCQLCredentialQueryIdentifier
@@ -13,9 +15,8 @@ import at.asitplus.openid.dcql.DCQLJsonClaimsQuery
 import at.asitplus.openid.dcql.DCQLQuery
 import at.asitplus.openid.dcql.DCQLSdJwtCredentialMetadataAndValidityConstraints
 import at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery
-import at.asitplus.signum.indispensable.josef.JwsSigned
-import at.asitplus.testballoon.invoke
-import at.asitplus.testballoon.withFixtureGenerator
+import at.asitplus.signum.indispensable.josef.JwsCompact
+import at.asitplus.testballoon.matrix.*
 import at.asitplus.wallet.lib.agent.validation.StatusListTokenResolver
 import at.asitplus.wallet.lib.agent.validation.TokenStatusResolverImpl
 import at.asitplus.wallet.lib.data.ConstantIndex
@@ -38,7 +39,7 @@ import at.asitplus.wallet.lib.jws.SignJwtFun
 import at.asitplus.wallet.lib.jws.VerifyStatusListTokenHAIP
 import at.asitplus.wallet.lib.randomCwtOrJwtResolver
 import com.benasher44.uuid.uuid4
-import de.infix.testBalloon.framework.core.testSuite
+import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
@@ -49,9 +50,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Clock
 
 
-val AgentSdJwtTest by testSuite {
+val AgentSdJwtTest by matrixSuite {
 
-    withFixtureGenerator(suspend {
+    fixture({ kotlinx.coroutines.runBlocking {
         val issuerCredentialStore = InMemoryIssuerCredentialStore()
         val holderCredentialStore = InMemorySubjectCredentialStore()
         val issuer = IssuerAgent(
@@ -92,7 +93,7 @@ val AgentSdJwtTest by testSuite {
             )
             val challenge = uuid4().toString()
         }
-    }) - {
+    } }) - {
 
         "keyBindingJws contains more JWK attributes, still verifies" {
             val credential = it.holderCredentialStore.getCredentials().getOrThrow()
@@ -442,7 +443,7 @@ private suspend fun createSdJwtPresentation(
     val issuerJwtPlusDisclosures = SdJwtSigned.sdHashInput(validSdJwtCredential, filteredDisclosures)
     val keyBinding = createKeyBindingJws(signKeyBindingJws, audienceId, challenge, issuerJwtPlusDisclosures)
     val sdJwtSerialized = validSdJwtCredential.vcSerialized.substringBefore("~")
-    val jwsFromIssuer = JwsSigned.deserialize(JsonObject.serializer(), sdJwtSerialized).getOrElse {
+    val jwsFromIssuer = catching { JwsCompact(sdJwtSerialized) }.getOrElse {
         throw PresentationException(it)
     }
     val sdJwt = SdJwtSigned.presented(jwsFromIssuer, filteredDisclosures, keyBinding)
@@ -454,7 +455,7 @@ private suspend fun createKeyBindingJws(
     audienceId: String,
     challenge: String,
     issuerJwtPlusDisclosures: String,
-): JwsSigned<KeyBindingJws> = signKeyBindingJws(
+): JwsCompactTyped<KeyBindingJws> = signKeyBindingJws(
     JwsContentTypeConstants.KB_JWT,
     KeyBindingJws(
         issuedAt = Clock.System.now(),

@@ -2,15 +2,15 @@ package at.asitplus.wallet.lib.data
 
 import at.asitplus.KmmResult
 import at.asitplus.signum.supreme.sign.Verifier
-import at.asitplus.testballoon.invoke
-import at.asitplus.testballoon.minus
+import at.asitplus.signum.indispensable.josef.JwsCompact
+import at.asitplus.testballoon.matrix.*
 import at.asitplus.wallet.lib.agent.StatusListAgent
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListInfo
-import de.infix.testBalloon.framework.core.testSuite
+import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 
-val StatusListTokenTypeValidationTest by testSuite {
+val StatusListTokenTypeValidationTest by matrixSuite {
     "jwt status list token type validation" - {
         "accepts typ=statuslist+jwt" {
             val issued = StatusListAgent().issueStatusListJwt()
@@ -27,7 +27,11 @@ val StatusListTokenTypeValidationTest by testSuite {
             val issued = StatusListAgent().issueStatusListJwt()
             val statusListToken = StatusListJwt(
                 value = issued.copy(
-                    header = issued.header.copy(type = MediaTypes.Application.STATUSLIST_JWT)
+                    jws = JwsCompact(
+                        protectedHeader = issued.jws.jwsHeader.copy(type = MediaTypes.Application.STATUSLIST_JWT),
+                        payload = issued.jws.plainPayload,
+                        signer = { issued.jws.plainSignature },
+                    )
                 ),
                 resolvedAt = null,
             )

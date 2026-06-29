@@ -19,6 +19,7 @@ import at.asitplus.openid.OpenIdConstants.AUTH_METHOD_ATTEST_JWT_CLIENT_AUTH
 import at.asitplus.openid.PushedAuthenticationResponseParameters
 import at.asitplus.openid.RequestObjectParameters
 import at.asitplus.openid.RequestParameters
+import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.openid.SignatureRequestParameters
 import at.asitplus.openid.TokenIntrospectionJwtResponse
 import at.asitplus.openid.TokenIntrospectionRequest
@@ -55,7 +56,6 @@ import io.github.aakira.napier.Napier
 import io.ktor.http.*
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlinx.serialization.json.JsonObject
-import kotlin.jvm.JvmOverloads
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
@@ -126,7 +126,8 @@ class SimpleAuthorizationService
     /** Handles client authentication in [par] and [token]. */
     private val clientAuthenticationService: ClientAuthenticationService = ClientAuthenticationService(
         enforceClientAuthentication = false,
-        verifyClientAttestationJwt = { true }
+        verifyClientAttestationJwt = { true },
+        issuerIdentifier = publicContext
     ),
     /** Used to parse requests from clients, e.g., when using JWT-Secured Authorization Requests (RFC 9101) */
     private val requestParser: RequestParser = RequestParser(
@@ -151,6 +152,8 @@ class SimpleAuthorizationService
     private val requestObjectSigningAlgorithms: Set<JwsAlgorithm.Signature>? = setOf(JwsAlgorithm.Signature.ES256),
     /** Used for [OAuth2AuthorizationServerMetadata.clientAttestationSigningAlgValuesSupportedStrings] */
     private val supportedSigningAlgorithms: Set<JwsAlgorithm.Signature> = DEFAULT_WALLET_ATTESTATION_ALGORITHMS,
+    /** Used for [OAuth2AuthorizationServerMetadata.preferredClientStatusPeriod]. */
+    private val preferredClientStatusPeriod: Duration? = 31.days,
     /** Used to sign JWT introspection responses (RFC 9701). */
     private val signIntrospectionJwt: SignJwtFun<TokenIntrospectionResponse> =
         SignJwt(EphemeralKeyWithoutCert(), JwsHeaderCertOrJwk()),
@@ -179,6 +182,7 @@ class SimpleAuthorizationService
                 .map { it.identifier }.toSet(),
             clientAttestationPopSigningAlgValuesSupportedStrings = supportedSigningAlgorithms
                 .map { it.identifier }.toSet(),
+            preferredClientStatusPeriod = preferredClientStatusPeriod,
             dpopSigningAlgValuesSupportedStrings = tokenService.dpopSigningAlgValuesSupportedStrings,
             requestObjectSigningAlgorithmsSupportedStrings = requestObjectSigningAlgorithms
                 ?.map { it.identifier }?.toSet(),
@@ -405,6 +409,8 @@ class SimpleAuthorizationService
 
         is RequestObjectParameters -> throw InvalidRequest("could not parse request object from request")
         is SignatureRequestParameters -> throw InvalidRequest("could not parse request object from request")
+        is RequestParametersFrom.IsoMdocDcApi.IsoMdocRequestWrapper ->
+            throw InvalidRequest("could not parse request object from request")
     }
 
     /**
@@ -675,7 +681,7 @@ class SimpleAuthorizationService
                     JwsContentTypeConstants.TOKEN_INTROSPECTION_JWT,
                     response,
                     TokenIntrospectionResponse.serializer()
-                ).getOrThrow().serialize()
+                ).getOrThrow().toString()
             )
 
             else -> response

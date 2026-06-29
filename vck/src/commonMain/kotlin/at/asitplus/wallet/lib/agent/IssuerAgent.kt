@@ -109,7 +109,7 @@ class IssuerAgent
             .getOrElse { throw IllegalStateException("Could not create subject COSE key", it) }
         val deviceKeyInfo = DeviceKeyInfo(coseKey)
 
-        val credentialStatus = when(credential.revocationKind) {
+        val credentialStatus = when (credential.revocationKind) {
             RevocationList.Kind.STATUS_LIST -> StatusListInfo(
                 index = reference.statusListIndex,
                 uri = UniformResourceIdentifier(getStatusListUrlFor(timePeriod)),
@@ -241,7 +241,7 @@ class IssuerAgent
         ).getOrElse {
             throw IllegalStateException("Could not sign SD-JWT", it)
         }
-        val sdJwtSigned = SdJwtSigned.issued(jws, disclosures.toList())
+        val sdJwtSigned = SdJwtSigned.issued(jws.jws, disclosures.toList())
             .also { Napier.i("issueVcSd: $it") }
         return Issuer.IssuedCredential.VcSdJwt(
             sdJwtVc = vcSdJwt,
@@ -257,6 +257,7 @@ class IssuerAgent
     private fun getStatusListUrlFor(timePeriod: Int) = statusListBaseUrl.let {
         it + (if (!it.endsWith('/')) "/" else "") + timePeriod
     }
+
     private fun getIdentifierListUrlFor(timePeriod: Int) = identifierListBaseUrl.let {
         it + (if (!it.endsWith('/')) "/" else "") + timePeriod
     }

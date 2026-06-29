@@ -1,15 +1,14 @@
 package at.asitplus.wallet.lib.openid
 
-import at.asitplus.dcapi.request.DCAPIWalletRequest
 import at.asitplus.openid.AuthenticationRequestParameters
-import at.asitplus.openid.JarRequestParameters
 import at.asitplus.openid.RequestParametersFrom
-import at.asitplus.signum.indispensable.josef.JwsSigned
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
+import at.asitplus.signum.indispensable.josef.JwsTyped
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.invoke
-import at.asitplus.testballoon.withFixtureGenerator
+import at.asitplus.signum.indispensable.josef.toJwsFlattened
+import at.asitplus.testballoon.matrix.*
 import at.asitplus.wallet.lib.oidvci.encodeToParameters
-import de.infix.testBalloon.framework.core.testSuite
+import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -19,7 +18,7 @@ import io.ktor.http.*
 import kotlinx.serialization.json.JsonObject
 
 
-val OpenIdRequestParserTests by testSuite {
+val OpenIdRequestParserTests by matrixSuite {
 
     // https://verifier.funke.wwwallet.org/verifier/public/definitions/presentation-request/PID
     val jws = """
@@ -88,11 +87,11 @@ val OpenIdRequestParserTests by testSuite {
             m0LQZeO-00GBYNI0PQ
         """.trimIndent().replace("\n", "")
 
-    val authnRequest = JwsSigned.deserialize(JsonObject.serializer(), jws).getOrThrow().payload
+    val authnRequest = JwsCompactTyped<JsonObject>(jws).payload
 
     val authnRequestSerialized = joseCompliantSerializer.encodeToString(authnRequest)
 
-    withFixtureGenerator {
+    fixture {
         RequestParser()
     } - {
 
@@ -131,8 +130,8 @@ val OpenIdRequestParserTests by testSuite {
         "signed request directly" { requestParser ->
             requestParser.parseRequestParameters(jws).getOrThrow().apply {
                 shouldBeInstanceOf<RequestParametersFrom<AuthenticationRequestParameters>>()
-                shouldBeInstanceOf<RequestParametersFrom.JwsSigned<*>>()
-                jwsSigned.serialize() shouldBe jws
+                shouldBeInstanceOf<RequestParametersFrom.Jws<*>>()
+                this.jws.toString() shouldBe jws
                 parameters.assertParams()
 
                 joseCompliantSerializer.decodeFromString<RequestParametersFrom<AuthenticationRequestParameters>>(
@@ -143,12 +142,12 @@ val OpenIdRequestParserTests by testSuite {
 
 
         "signed request by value" { requestParser ->
-            val input = "https://example.com?request=$jws"
+            val input = "https://example.com?request=$jws&client_id=s6BhdRkqt3"
 
             requestParser.parseRequestParameters(input).getOrThrow().apply {
                 shouldBeInstanceOf<RequestParametersFrom<AuthenticationRequestParameters>>()
-                shouldBeInstanceOf<RequestParametersFrom.JwsSigned<*>>()
-                jwsSigned.serialize() shouldBe jws
+                shouldBeInstanceOf<RequestParametersFrom.Jws<*>>()
+                this.jws.toString() shouldBe jws
                 parent.toString() shouldBe input
                 parameters.assertParams()
 
@@ -159,8 +158,9 @@ val OpenIdRequestParserTests by testSuite {
         }
 
         "signed request from DCAPI" { requestParser ->
-            val input = DCAPIWalletRequest.OpenId4VpSigned(
-                request = JarRequestParameters(request = jws),
+            val input = RequestParametersFrom.OpenId4VpDcApiSigned(
+                jwsTyped = JwsTyped<AuthenticationRequestParameters>(jws),
+                verified = false,
                 credentialIds = listOf("1"),
                 callingPackageName = "com.example.app",
                 callingOrigin = "https://example.com"
@@ -168,8 +168,8 @@ val OpenIdRequestParserTests by testSuite {
 
             requestParser.parseRequestParameters(input).getOrThrow().apply {
                 shouldBeInstanceOf<RequestParametersFrom<AuthenticationRequestParameters>>()
-                shouldBeInstanceOf<RequestParametersFrom.DcApiSigned<*>>()
-                jwsSigned.serialize() shouldBe jws
+                val dcApiRequest = shouldBeInstanceOf<RequestParametersFrom.OpenId4VpDcApiSigned>()
+                dcApiRequest.jwsTyped.toString() shouldBe jws
                 parameters.assertParams()
 
                 joseCompliantSerializer.decodeFromString<RequestParametersFrom<AuthenticationRequestParameters>>(
@@ -179,17 +179,39 @@ val OpenIdRequestParserTests by testSuite {
         }
 
         "unsigned request from DCAPI" { requestParser ->
-            val input = DCAPIWalletRequest.OpenId4VpUnsigned(
-                    request = joseCompliantSerializer.decodeFromString(authnRequestSerialized),
-                    credentialIds = listOf("1"),
-                    callingPackageName = "com.example.app",
-                    callingOrigin = "https://example.com"
-                )
+            val input = RequestParametersFrom.OpenId4VpDcApiUnsigned(
+                parameters = joseCompliantSerializer.decodeFromString(authnRequestSerialized),
+                jsonString = authnRequestSerialized,
+                credentialIds = listOf("1"),
+                callingPackageName = "com.example.app",
+                callingOrigin = "https://example.com"
+            )
 
             requestParser.parseRequestParameters(input).getOrThrow().apply {
                 shouldBeInstanceOf<RequestParametersFrom<AuthenticationRequestParameters>>()
-                shouldBeInstanceOf<RequestParametersFrom.DcApiUnsigned<*>>()
+                shouldBeInstanceOf<RequestParametersFrom.OpenId4VpDcApiUnsigned>()
                 //jsonString shouldBe authnRequestSerialized // TODO Don't know why this is not the same
+                parameters.assertParams()
+
+                joseCompliantSerializer.decodeFromString<RequestParametersFrom<AuthenticationRequestParameters>>(
+                    joseCompliantSerializer.encodeToString<RequestParametersFrom<AuthenticationRequestParameters>>(this)
+                ).shouldBe(this)
+            }
+        }
+
+        "multisigned request from DCAPI" { requestParser ->
+            val compactTyped = JwsCompactTyped<AuthenticationRequestParameters>(jws)
+            val input = RequestParametersFrom.OpenId4VpDcApiMultiSigned(
+                jwsTyped = JwsTyped<AuthenticationRequestParameters>(listOf(compactTyped.jws.toJwsFlattened())),
+                verified = false,
+                credentialIds = listOf("1"),
+                callingPackageName = "com.example.app",
+                callingOrigin = "https://example.com"
+            )
+
+            requestParser.parseRequestParameters(input).getOrThrow().apply {
+                shouldBeInstanceOf<RequestParametersFrom<AuthenticationRequestParameters>>()
+                shouldBeInstanceOf<RequestParametersFrom.OpenId4VpDcApiMultiSigned>()
                 parameters.assertParams()
 
                 joseCompliantSerializer.decodeFromString<RequestParametersFrom<AuthenticationRequestParameters>>(
@@ -199,7 +221,7 @@ val OpenIdRequestParserTests by testSuite {
         }
     }
 
-    withFixtureGenerator {
+    fixture {
         RequestParser(
             remoteResourceRetriever = {
                 if (it.url == "https://client.example.org/req/1234567890") authnRequestSerialized else null
@@ -208,7 +230,7 @@ val OpenIdRequestParserTests by testSuite {
     } - {
 
         "plain request by reference" { requestParser ->
-            val input = "https://example.com?request_uri=https%3A%2F%2Fclient.example.org%2Freq%2F1234567890"
+            val input = "https://example.com?request_uri=https%3A%2F%2Fclient.example.org%2Freq%2F1234567890&client_id=s6BhdRkqt3"
 
             requestParser.parseRequestParameters(input).getOrThrow().apply {
                 shouldBeInstanceOf<RequestParametersFrom<AuthenticationRequestParameters>>()
@@ -224,7 +246,7 @@ val OpenIdRequestParserTests by testSuite {
         }
 
     }
-    withFixtureGenerator {
+    fixture {
         RequestParser(
             remoteResourceRetriever = {
                 if (it.url == "https://client.example.org/req/1234567890") jws else null
@@ -232,12 +254,12 @@ val OpenIdRequestParserTests by testSuite {
         )
     } - {
         "signed request by reference" { requestParser ->
-            val input = "https://example.com?request_uri=https%3A%2F%2Fclient.example.org%2Freq%2F1234567890"
+            val input = "https://example.com?request_uri=https%3A%2F%2Fclient.example.org%2Freq%2F1234567890&client_id=s6BhdRkqt3"
 
             requestParser.parseRequestParameters(input).getOrThrow().apply {
                 shouldBeInstanceOf<RequestParametersFrom<AuthenticationRequestParameters>>()
-                shouldBeInstanceOf<RequestParametersFrom.JwsSigned<*>>()
-                jwsSigned.serialize() shouldBe jws
+                shouldBeInstanceOf<RequestParametersFrom.Jws<*>>()
+                this.jws.toString() shouldBe jws
                 parent.toString() shouldBe input
                 parameters.assertParams()
 

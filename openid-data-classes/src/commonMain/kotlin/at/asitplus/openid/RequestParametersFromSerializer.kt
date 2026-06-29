@@ -1,192 +1,199 @@
 package at.asitplus.openid
 
-import at.asitplus.dcapi.request.DCAPIWalletRequest
-import at.asitplus.openid.RequestParametersFrom.SerialNames.DC_API_REQUEST
+import at.asitplus.dcapi.request.ExchangeProtocolIdentifier
 import at.asitplus.openid.RequestParametersFrom.SerialNames.JSON_STRING
-import at.asitplus.openid.RequestParametersFrom.SerialNames.JWS_SIGNED
+import at.asitplus.openid.RequestParametersFrom.SerialNames.JWS
 import at.asitplus.openid.RequestParametersFrom.SerialNames.PARAMETERS
 import at.asitplus.openid.RequestParametersFrom.SerialNames.PARENT
-import at.asitplus.openid.RequestParametersFrom.SerialNames.TYPE_DCAPI_SIGNED
-import at.asitplus.openid.RequestParametersFrom.SerialNames.TYPE_DCAPI_UNSIGNED
-import at.asitplus.openid.RequestParametersFrom.SerialNames.TYPE_JSON
-import at.asitplus.openid.RequestParametersFrom.SerialNames.TYPE_JWS_SIGNED
-import at.asitplus.openid.RequestParametersFrom.SerialNames.TYPE_URI
 import at.asitplus.openid.RequestParametersFrom.SerialNames.URL
 import at.asitplus.openid.RequestParametersFrom.SerialNames.VERIFIED
-import at.asitplus.signum.indispensable.josef.JwsSigned
+import at.asitplus.signum.indispensable.io.TransformingSerializerTemplate
+import at.asitplus.signum.indispensable.josef.JWS
+import at.asitplus.signum.indispensable.josef.JwsCompact
+import at.asitplus.signum.indispensable.josef.JwsFlattened
+import at.asitplus.signum.indispensable.josef.JwsGeneral
+import at.asitplus.signum.indispensable.josef.JwsTyped
+import io.ktor.http.*
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.descriptors.buildClassSerialDescriptor
-import kotlinx.serialization.descriptors.element
-import kotlinx.serialization.encoding.Decoder
-import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonDecoder
-import kotlinx.serialization.json.JsonEncoder
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 
 /**
- * In order to de-/serialize generic types we need a kind of factory approach
- * Because we deal with a sealed class we can use an intermediary jsonSerializer,
- * find the correct object and the specific type of the generic type and
- * then finalize the serialization
+ * In order to de-/serialize generic types we need a kind of factory approach.
+ * Because we deal with a sealed class we use an intermediary surrogate,
+ * keeping the generic parameters and the fields identifying the concrete
+ * [RequestParametersFrom] subtype.
  *
- * In order to de-/serialize JwsSigned which itself is again a generic class
- * we use the fact that we can find the class of parameters before we need to know the
- * generic class of JwsSigned. To serialize we use [JwsSignedSerializer].
+ * During serialization, the subtype is flattened into that surrogate. During
+ * deserialization, the field combination determines the subtype again. DC API
+ * request metadata is represented directly on the surrogate, matching
+ * [RequestParametersFrom.DcApiRequest]. Plain JSON, JWS, and URI requests are
+ * selected from their respective fields.
+ * Missing [RequestParametersFrom.RequestParametersSigned.verified] values
+ * default to `false`; [JwsFlattened] is recognized but not implemented.
  */
 class RequestParametersFromSerializer<T : RequestParameters>(
-    private val parameterSerializer: KSerializer<T>,
-) : KSerializer<RequestParametersFrom<T>> {
-    val signedDcApiRequestSerializer = DCAPIWalletRequest.OpenId4VpSigned.serializer()
-    val unsignedDcApiRequestSerializer = DCAPIWalletRequest.OpenId4VpUnsigned.serializer()
-    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("RequestParametersFrom") {
-        element(TYPE_JWS_SIGNED, buildClassSerialDescriptor(TYPE_JWS_SIGNED) {
-            element(JWS_SIGNED, JwsSignedSerializer.descriptor)
-            element(PARAMETERS, parameterSerializer.descriptor)
-            element<Boolean>(VERIFIED)
-            element(PARENT, UrlSerializer.descriptor)
-        })
-        element(TYPE_DCAPI_SIGNED, buildClassSerialDescriptor(TYPE_DCAPI_SIGNED) {
-            element(DC_API_REQUEST, signedDcApiRequestSerializer.descriptor)
-            element(PARAMETERS, parameterSerializer.descriptor)
-            element(JWS_SIGNED, JwsSignedSerializer.descriptor)
-        })
-        element(TYPE_DCAPI_UNSIGNED, buildClassSerialDescriptor(TYPE_DCAPI_UNSIGNED) {
-            element(DC_API_REQUEST, unsignedDcApiRequestSerializer.descriptor)
-            element(PARAMETERS, parameterSerializer.descriptor)
-            element<String>(JSON_STRING)
-        })
-        element(TYPE_URI, buildClassSerialDescriptor(TYPE_URI) {
-            element(URL, UrlSerializer.descriptor)
-            element(PARAMETERS, parameterSerializer.descriptor)
-        })
-        element(TYPE_JSON, buildClassSerialDescriptor(TYPE_JSON) {
-            element<String>(JSON_STRING)
-            element(PARAMETERS, parameterSerializer.descriptor)
-            element(PARENT, UrlSerializer.descriptor)
-        })
+    parameterSerializer: KSerializer<T>,
+) : KSerializer<RequestParametersFrom<T>> by TransformingSerializerTemplate(
+    parent = RequestParametersFromSurrogate.serializer(parameterSerializer),
+    encodeAs = { RequestParametersFromSurrogate(it) },
+    decodeAs = { it.toRequestParametersFrom() }
+)
+
+@Serializable
+private data class RequestParametersFromSurrogate<T : RequestParameters>(
+    @SerialName(PARAMETERS)
+    val parameters: T,
+    @SerialName(JWS)
+    val jws: JWS? = null,
+    @SerialName(JSON_STRING)
+    val jsonString: String? = null,
+    @Serializable(UrlSerializer::class)
+    @SerialName(URL)
+    val url: Url? = null,
+    @Serializable(UrlSerializer::class)
+    @SerialName(PARENT)
+    val parent: Url? = null,
+    @SerialName(VERIFIED)
+    val verified: Boolean? = null,
+    @SerialName(PROTOCOL)
+    val protocol: ExchangeProtocolIdentifier? = null,
+    @SerialName(CREDENTIAL_IDS)
+    val credentialIds: Collection<String>? = null,
+    @SerialName(CALLING_PACKAGE_NAME)
+    val callingPackageName: String? = null,
+    @SerialName(CALLING_ORIGIN)
+    val callingOrigin: String? = null,
+) {
+    constructor(value: RequestParametersFrom<T>) : this(
+        parameters = value.parameters,
+        jws = when (value) {
+            is RequestParametersFrom.Jws -> value.jws
+            is RequestParametersFrom.RequestParametersSigned -> value.jwsTyped.jws
+            else -> null
+        },
+        jsonString = when (value) {
+            is RequestParametersFrom.OpenId4VpDcApiUnsigned -> value.jsonString
+            is RequestParametersFrom.IsoMdocDcApi -> value.jsonString
+            is RequestParametersFrom.Json -> value.jsonString
+            else -> null
+        },
+        url = (value as? RequestParametersFrom.Uri<*>)?.url,
+        parent = when (value) {
+            is RequestParametersFrom.Jws -> value.parent
+            is RequestParametersFrom.Json -> value.parent
+            else -> null
+        },
+        verified = (value as? RequestParametersFrom.RequestParametersSigned<*>)?.verified,
+        protocol = when (value) {
+            is RequestParametersFrom.OpenId4VpDcApiMultiSigned -> ExchangeProtocolIdentifier.OpenId4VpV1Multisigned
+            is RequestParametersFrom.OpenId4VpDcApiSigned -> ExchangeProtocolIdentifier.OpenId4VpV1Signed
+            is RequestParametersFrom.OpenId4VpDcApiUnsigned -> ExchangeProtocolIdentifier.OpenId4VpV1Unsigned
+            is RequestParametersFrom.IsoMdocDcApi -> ExchangeProtocolIdentifier.IsoMdocAnnexC
+            else -> null
+        },
+        credentialIds = (value as? RequestParametersFrom.DcApiRequest)?.credentialIds,
+        callingPackageName = (value as? RequestParametersFrom.DcApiRequest)?.callingPackageName,
+        callingOrigin = (value as? RequestParametersFrom.DcApiRequest)?.callingOrigin,
+    )
+
+    fun toRequestParametersFrom(): RequestParametersFrom<T> = when {
+        protocol == ExchangeProtocolIdentifier.OpenId4VpV1Multisigned ->
+            RequestParametersFrom.OpenId4VpDcApiMultiSigned(
+                jwsTyped = JwsTyped(requireJwsGeneral(), requireAuthenticationRequestParameters()),
+                verified = verified ?: false,
+                credentialIds = requireCredentialIds(),
+                callingPackageName = requireCallingPackageName(),
+                callingOrigin = requireCallingOrigin(),
+            ).cast()
+
+        protocol == ExchangeProtocolIdentifier.OpenId4VpV1Signed ->
+            RequestParametersFrom.OpenId4VpDcApiSigned(
+                jwsTyped = JwsTyped(requireJwsCompact(), requireAuthenticationRequestParameters()),
+                verified = verified ?: false,
+                credentialIds = requireCredentialIds(),
+                callingPackageName = requireCallingPackageName(),
+                callingOrigin = requireCallingOrigin(),
+            ).cast()
+
+        protocol == ExchangeProtocolIdentifier.OpenId4VpV1Unsigned ->
+            RequestParametersFrom.OpenId4VpDcApiUnsigned(
+                parameters = requireAuthenticationRequestParameters(),
+                jsonString = requireJsonString(),
+                credentialIds = requireCredentialIds(),
+                callingPackageName = requireCallingPackageName(),
+                callingOrigin = requireCallingOrigin(),
+            ).cast()
+
+        protocol == ExchangeProtocolIdentifier.IsoMdocAnnexC ->
+            RequestParametersFrom.IsoMdocDcApi(
+                parameters = requireIsoMdocRequestWrapper(),
+                jsonString = requireJsonString(),
+                credentialIds = credentialIds,
+                callingPackageName = callingPackageName,
+                callingOrigin = requireCallingOrigin(),
+            ).cast()
+
+        jws is JwsFlattened -> throw UnsupportedOperationException("Not implemented yet")
+
+        jsonString != null ->
+            RequestParametersFrom.Json(
+                jsonString = jsonString,
+                parameters = parameters,
+                parent = parent,
+            )
+
+        jws != null ->
+            RequestParametersFrom.Jws(
+                jws = jws,
+                parameters = parameters,
+                verified = verified ?: false,
+                parent = parent,
+            )
+
+        url != null ->
+            RequestParametersFrom.Uri(
+                url = url,
+                parameters = parameters,
+            )
+
+        else -> throw SerializationException("Unknown RequestParametersFrom surrogate. Input: $this")
     }
 
-    override fun deserialize(decoder: Decoder): RequestParametersFrom<T> {
-        require(decoder is JsonDecoder) // this class can be decoded only by Json
+    private fun requireAuthenticationRequestParameters(): AuthenticationRequestParameters =
+        parameters as? AuthenticationRequestParameters
+            ?: throw SerializationException("Expected AuthenticationRequestParameters for protocol $protocol")
 
-        val element = decoder.decodeJsonElement()
-        return when {
-            JWS_SIGNED in element.jsonObject && DC_API_REQUEST in element.jsonObject -> run {
-                val dcApiRequest =
-                    decoder.json.decodeFromJsonElement(signedDcApiRequestSerializer, element.jsonObject[DC_API_REQUEST]!!)
-                val parameters =
-                    decoder.json.decodeFromJsonElement(parameterSerializer, element.jsonObject[PARAMETERS]!!)
-                val jwsString = decoder.json.decodeFromJsonElement<String>(element.jsonObject[JWS_SIGNED]!!)
-                val jwsGeneric = JwsSigned.deserialize(jwsString).getOrThrow()
-                RequestParametersFrom.DcApiSigned(
-                    dcApiRequest = dcApiRequest,
-                    parameters = parameters,
-                    jwsSigned = JwsSigned<T>(
-                        jwsGeneric.header,
-                        parameters,
-                        jwsGeneric.signature,
-                        jwsGeneric.plainSignatureInput
-                    ),
-                )
-            }
+    private fun requireIsoMdocRequestWrapper(): RequestParametersFrom.IsoMdocDcApi.IsoMdocRequestWrapper =
+        parameters as? RequestParametersFrom.IsoMdocDcApi.IsoMdocRequestWrapper
+            ?: throw SerializationException("Expected IsoMdocRequestWrapper for protocol $protocol")
 
-            JSON_STRING in element.jsonObject && DC_API_REQUEST in element.jsonObject ->
-                RequestParametersFrom.DcApiUnsigned(
-                    dcApiRequest = decoder.json.decodeFromJsonElement(
-                        unsignedDcApiRequestSerializer,
-                        element.jsonObject[DC_API_REQUEST]!!
-                    ),
-                    parameters = decoder.json.decodeFromJsonElement(
-                        parameterSerializer,
-                        element.jsonObject[PARAMETERS]!!
-                    ),
-                    jsonString = decoder.json.decodeFromJsonElement<String>(element.jsonObject[JSON_STRING]!!),
-                )
+    private fun requireJwsCompact(): JwsCompact =
+        jws as? JwsCompact
+            ?: throw SerializationException("Expected compact JWS for protocol $protocol")
 
-            JSON_STRING in element.jsonObject && DC_API_REQUEST !in element.jsonObject ->
-                RequestParametersFrom.Json(
-                    jsonString = decoder.json.decodeFromJsonElement<String>(element.jsonObject[JSON_STRING]!!),
-                    parameters = decoder.json.decodeFromJsonElement(
-                        parameterSerializer,
-                        element.jsonObject[PARAMETERS]!!
-                    ),
-                    parent = element.jsonObject[PARENT]?.takeIf { it !is JsonNull }?.let {
-                        decoder.json.decodeFromJsonElement(UrlSerializer, it)
-                    },
-                )
+    private fun requireJwsGeneral(): JwsGeneral =
+        jws as? JwsGeneral
+            ?: throw SerializationException("Expected general JWS for protocol $protocol")
 
-            JWS_SIGNED in element.jsonObject && DC_API_REQUEST !in element.jsonObject -> run {
-                val parameters =
-                    decoder.json.decodeFromJsonElement(parameterSerializer, element.jsonObject[PARAMETERS]!!)
-                val jwsString = decoder.json.decodeFromJsonElement<String>(element.jsonObject[JWS_SIGNED]!!)
-                val jwsGeneric = JwsSigned.deserialize(jwsString).getOrThrow()
-                val verified = element.jsonObject[VERIFIED]?.let { decoder.json.decodeFromJsonElement<Boolean>(it) }
-                    ?: false
-                val parent = element.jsonObject[PARENT]?.takeIf { it !is JsonNull }?.let {
-                    decoder.json.decodeFromJsonElement(UrlSerializer, it)
-                }
+    private fun requireJsonString(): String =
+        jsonString ?: throw SerializationException("Missing $JSON_STRING for protocol $protocol")
 
-                RequestParametersFrom.JwsSigned(
-                    jwsSigned = JwsSigned(
-                        jwsGeneric.header,
-                        parameters,
-                        jwsGeneric.signature,
-                        jwsGeneric.plainSignatureInput
-                    ),
-                    parameters = parameters,
-                    verified = verified,
-                    parent = parent,
-                )
-            }
+    private fun requireCredentialIds(): Collection<String> =
+        credentialIds ?: throw SerializationException("Missing $CREDENTIAL_IDS for protocol $protocol")
 
-            URL in element.jsonObject ->
-                RequestParametersFrom.Uri(
-                    decoder.json.decodeFromJsonElement(UrlSerializer, element.jsonObject[URL]!!),
-                    decoder.json.decodeFromJsonElement(parameterSerializer, element.jsonObject[PARAMETERS]!!)
-                )
+    private fun requireCallingPackageName(): String =
+        callingPackageName ?: throw SerializationException("Missing $CALLING_PACKAGE_NAME for protocol $protocol")
 
-            else -> throw NotImplementedError("Unknown RequestParametersFrom subclass. Input: $element")
-        }
-    }
+    private fun requireCallingOrigin(): String =
+        callingOrigin ?: throw SerializationException("Missing $CALLING_ORIGIN for protocol $protocol")
 
-    override fun serialize(encoder: Encoder, value: RequestParametersFrom<T>) {
-        require(encoder is JsonEncoder) // this class can be decoded only by Json
-        val element = when (value) {
-            is RequestParametersFrom.JwsSigned -> buildJsonObject {
-                put(JWS_SIGNED, encoder.json.encodeToJsonElement(value.jwsSigned.serialize()))
-                put(PARAMETERS, encoder.json.encodeToJsonElement(parameterSerializer, value.parameters))
-                put(VERIFIED, encoder.json.encodeToJsonElement(value.verified))
-                value.parent?.let { put(PARENT, encoder.json.encodeToJsonElement(it)) }
-            }
-
-            is RequestParametersFrom.DcApiSigned<*> -> buildJsonObject {
-                put(DC_API_REQUEST, encoder.json.encodeToJsonElement(signedDcApiRequestSerializer, value.dcApiRequest))
-                put(PARAMETERS, encoder.json.encodeToJsonElement(parameterSerializer, value.parameters))
-                put(JWS_SIGNED, encoder.json.encodeToJsonElement(value.jwsSigned.serialize()))
-            }
-
-            is RequestParametersFrom.DcApiUnsigned<*> -> buildJsonObject {
-                put(DC_API_REQUEST, encoder.json.encodeToJsonElement(unsignedDcApiRequestSerializer, value.dcApiRequest))
-                put(PARAMETERS, encoder.json.encodeToJsonElement(parameterSerializer, value.parameters))
-                put(JSON_STRING, encoder.json.encodeToJsonElement(value.jsonString))
-            }
-
-            is RequestParametersFrom.Uri -> buildJsonObject {
-                put(URL, encoder.json.encodeToJsonElement(UrlSerializer, value.url))
-                put(PARAMETERS, encoder.json.encodeToJsonElement(parameterSerializer, value.parameters))
-            }
-
-            is RequestParametersFrom.Json -> buildJsonObject {
-                put(JSON_STRING, encoder.json.encodeToJsonElement(value.jsonString))
-                put(PARAMETERS, encoder.json.encodeToJsonElement(parameterSerializer, value.parameters))
-                value.parent?.let { put(PARENT, encoder.json.encodeToJsonElement(it)) }
-            }
-        }
-        encoder.encodeJsonElement(element)
-    }
+    @Suppress("UNCHECKED_CAST")
+    private fun RequestParametersFrom<*>.cast(): RequestParametersFrom<T> = this as RequestParametersFrom<T>
 }
+
+private const val PROTOCOL = "protocol"
+private const val CREDENTIAL_IDS = "credentialIds"
+private const val CALLING_PACKAGE_NAME = "callingPackageName"
+private const val CALLING_ORIGIN = "callingOrigin"

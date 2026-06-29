@@ -7,7 +7,9 @@ import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenIntrospectionResponse
 import at.asitplus.openid.TokenResponseParameters
 import at.asitplus.signum.indispensable.josef.JsonWebToken
-import at.asitplus.testballoon.withFixtureGenerator
+import at.asitplus.signum.indispensable.josef.JwsAlgorithm
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
+import at.asitplus.testballoon.matrix.*
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
@@ -21,7 +23,7 @@ import at.asitplus.wallet.lib.oidvci.randomString
 import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.DummyUserProvider.user
 import com.benasher44.uuid.uuid4
-import de.infix.testBalloon.framework.core.testSuite
+import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -29,9 +31,9 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.ktor.http.*
 
-val OAuth2ClientAuthenticationTest by testSuite {
+val OAuth2ClientAuthenticationTest by matrixSuite {
 
-    withFixtureGenerator(suspend {
+    fixture({ kotlinx.coroutines.runBlocking {
         val attesterBackend = SignJwt<JsonWebToken>(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk())
         val clientKey = EphemeralKeyWithSelfSignedCert()
         val client = OAuth2Client()
@@ -73,14 +75,19 @@ val OAuth2ClientAuthenticationTest by testSuite {
                     url = "https://example.com/",
                     method = HttpMethod.Post,
                     dpop = null,
-                    clientAttestation = this.clientAttestation.serialize(),
-                    clientAttestationPop = clientAttestationPop.serialize()
+                    clientAttestation = this.clientAttestation,
+                    clientAttestationPop = clientAttestationPop
                 )
             ).getOrThrow()
         }
-    }) - {
+    } }) - {
 
         test("pushed authorization request") {
+            it.clientAttestation.payload.issuer.shouldBeNull()
+            it.clientAttestation.payload.walletVersion.shouldNotBeNull()
+            it.clientAttestation.payload.walletSolutionCertificationInformation.shouldNotBeNull()
+            it.clientAttestation.payload.clientStatus.shouldNotBeNull()
+
             val state = uuid4().toString()
             val authnRequest = it.client.createAuthRequestJar(
                 state = state,
@@ -91,8 +98,8 @@ val OAuth2ClientAuthenticationTest by testSuite {
                 RequestInfo(
                     url = "https://example.com/",
                     method = HttpMethod.Post,
-                    clientAttestation = it.clientAttestation.serialize(),
-                    clientAttestationPop = it.clientAttestationPop.serialize()
+                    clientAttestation = it.clientAttestation,
+                    clientAttestationPop = it.clientAttestationPop
                 )
             ).getOrThrow()
                 .shouldBeInstanceOf<PushedAuthenticationResponseParameters>()
@@ -112,8 +119,8 @@ val OAuth2ClientAuthenticationTest by testSuite {
                     url = "https://example.com/",
                     method = HttpMethod.Get,
                     dpop = null,
-                    clientAttestation = it.clientAttestation.serialize(),
-                    clientAttestationPop = it.clientAttestationPop.serialize()
+                    clientAttestation = it.clientAttestation,
+                    clientAttestationPop = it.clientAttestationPop
                 )
             ).getOrThrow()
                 .shouldBeInstanceOf<TokenIntrospectionResponse>()
@@ -140,8 +147,8 @@ val OAuth2ClientAuthenticationTest by testSuite {
                     RequestInfo(
                         url = "https://example.com/",
                         method = HttpMethod.Post,
-                        clientAttestation = it.clientAttestation.serialize(),
-                        clientAttestationPop = it.clientAttestationPop.serialize()
+                        clientAttestation = it.clientAttestation,
+                        clientAttestationPop = it.clientAttestationPop
                     )
                 ).getOrThrow()
             }
@@ -168,8 +175,28 @@ val OAuth2ClientAuthenticationTest by testSuite {
                     RequestInfo(
                         url = "https://example.com/",
                         method = HttpMethod.Post,
-                        clientAttestation = it.clientAttestation.serialize(),
-                        clientAttestationPop = it.clientAttestationPop.serialize()
+                        clientAttestation = it.clientAttestation,
+                        clientAttestationPop = it.clientAttestationPop
+                    )
+                ).getOrThrow()
+            }
+        }
+
+        test("pushed authorization request with unsupported client attestation algorithm") {
+            val state = uuid4().toString()
+            val authnRequest = it.client.createAuthRequestJar(
+                state = state,
+                scope = it.scope,
+            )
+
+            shouldThrow<OAuth2Exception> {
+                it.server.par(
+                    authnRequest,
+                    RequestInfo(
+                        url = "https://example.com/",
+                        method = HttpMethod.Post,
+                        clientAttestation = it.clientAttestation.withHeaderAlg(JwsAlgorithm.Signature.RS256),
+                        clientAttestationPop = it.clientAttestationPop
                     )
                 ).getOrThrow()
             }
@@ -210,8 +237,8 @@ val OAuth2ClientAuthenticationTest by testSuite {
                     url = "https://example.com/",
                     method = HttpMethod.Get,
                     dpop = null,
-                    clientAttestation = it.clientAttestation.serialize(),
-                    clientAttestationPop = it.clientAttestationPop.serialize()
+                    clientAttestation = it.clientAttestation,
+                    clientAttestationPop = it.clientAttestationPop
                 )
             ).getOrThrow()
                 .shouldBeInstanceOf<TokenIntrospectionResponse>()
@@ -241,3 +268,8 @@ val OAuth2ClientAuthenticationTest by testSuite {
         }
     }
 }
+
+private suspend fun JwsCompactTyped<JsonWebToken>.withHeaderAlg(alg: JwsAlgorithm.Signature) =
+    JwsCompactTyped<JsonWebToken>(jws.jwsHeader.copy(algorithm = alg), jws.getPayload<JsonWebToken>().getOrThrow()) {
+        jws.signature.rawByteArray
+    }

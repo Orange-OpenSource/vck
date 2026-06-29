@@ -1,6 +1,7 @@
 package at.asitplus.wallet.lib.openid
 
 import at.asitplus.catchingUnwrapped
+import at.asitplus.dcapi.OpenId4VpResponseMultiSigned
 import at.asitplus.dcapi.OpenId4VpResponseSigned
 import at.asitplus.dcapi.OpenId4VpResponseUnsigned
 import at.asitplus.openid.AuthenticationRequestParameters
@@ -47,11 +48,15 @@ internal class AuthenticationResponseFactory(
         response: AuthenticationResponse,
     ) = AuthenticationResponseResult.DcApi(
         when (request) {
-            is RequestParametersFrom.DcApiUnsigned<*> -> OpenId4VpResponseUnsigned(
+            is RequestParametersFrom.OpenId4VpDcApiUnsigned -> OpenId4VpResponseUnsigned(
                 buildResponseParametersDcApi(request, response),
             )
 
-            is RequestParametersFrom.DcApiSigned<*> -> OpenId4VpResponseSigned(
+            is RequestParametersFrom.OpenId4VpDcApiSigned -> OpenId4VpResponseSigned(
+                buildResponseParametersDcApi(request, response)
+            )
+
+            is RequestParametersFrom.OpenId4VpDcApiMultiSigned -> OpenId4VpResponseMultiSigned(
                 buildResponseParametersDcApi(request, response)
             )
 

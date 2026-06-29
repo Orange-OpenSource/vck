@@ -7,7 +7,6 @@ import at.asitplus.openid.OAuth2AuthorizationServerMetadata
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenRequestParameters
-import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.wallet.eupid.EuPidScheme
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
@@ -44,7 +43,7 @@ import at.asitplus.wallet.lib.oidvci.WalletService
 import at.asitplus.wallet.lib.oidvci.decodeFromPostBody
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
 import com.benasher44.uuid.uuid4
-import de.infix.testBalloon.framework.core.testSuite
+import at.asitplus.testballoon.matrix.matrixSuite
 import io.github.aakira.napier.Napier
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -58,11 +57,10 @@ import kotlin.time.Duration.Companion.minutes
 /**
  * Tests [OpenId4VciClient] against [CredentialIssuer] with our own internal [SimpleAuthorizationService].
  */
-val OpenId4VciClientWithEncryptionTest by testSuite {
+val OpenId4VciClientWithEncryptionTest by matrixSuite {
 
     data class Context(
         val credentialKeyMaterial: KeyMaterial,
-        val dpopKeyMaterial: KeyMaterial,
         val clientAuthKeyMaterial: KeyMaterial,
         val mockEngine: MockEngine,
         val credentialIssuer: CredentialIssuer,
@@ -76,7 +74,6 @@ val OpenId4VciClientWithEncryptionTest by testSuite {
         attributes: Map<String, String>,
     ): Context {
         val credentialKeyMaterial = EphemeralKeyWithoutCert()
-        val dpopKeyMaterial = EphemeralKeyWithoutCert()
         val clientAuthKeyMaterial = EphemeralKeyWithoutCert()
         val credentialSchemes = setOf(scheme)
         val authorizationEndpointPath = "/authorize"
@@ -185,7 +182,6 @@ val OpenId4VciClientWithEncryptionTest by testSuite {
 
         return Context(
             credentialKeyMaterial = credentialKeyMaterial,
-            dpopKeyMaterial = dpopKeyMaterial,
             clientAuthKeyMaterial = clientAuthKeyMaterial,
             mockEngine = mockEngine,
             credentialIssuer = credentialIssuer,
@@ -194,23 +190,11 @@ val OpenId4VciClientWithEncryptionTest by testSuite {
                 engine = mockEngine,
                 oid4vciService = WalletService(
                     clientId = clientId,
-                    loadUnitAttestationPop = { input ->
-                        catching {
-                            SignJwt<JsonWebToken>(
-                                credentialKeyMaterial
-                            ) { header, material ->
-                                header.copy(jsonWebKey = material.jsonWebKey)
-                            }.invoke(
-                                input.type,
-                                input.payload,
-                                JsonWebToken.serializer(),
-                            ).getOrThrow()
-                        }
-                    }
+                    keyMaterial = credentialKeyMaterial,
                 ),
                 oauth2Client = OAuth2KtorClient(
                     engine = mockEngine,
-                    loadInstanceAttestation = {
+                    loadInstanceAttestation = { _ ->
                         catching {
                             BuildClientAttestationJwt(
                                 SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
@@ -220,17 +204,7 @@ val OpenId4VciClientWithEncryptionTest by testSuite {
                             )
                         }
                     },
-                    loadInstanceAttestationPop = {
-                        catching {
-                            BuildClientAttestationPoPJwt(
-                                SignJwt(clientAuthKeyMaterial, JwsHeaderNone()),
-                                clientId = clientId,
-                                audience = publicContext,
-                                lifetime = 10.minutes,
-                            )
-                        }
-                    },
-                    signDpop = SignJwt(dpopKeyMaterial, JwsHeaderCertOrJwk()),
+                    keyMaterial = clientAuthKeyMaterial,
                     oAuth2Client = OAuth2Client(clientId = clientId),
                     randomSource = RandomSource.Default,
                 )

@@ -1,80 +1,55 @@
+@file:Suppress("DEPRECATION")
+
 package at.asitplus.dcapi.request
 
-import at.asitplus.openid.RequestParameters
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonClassDiscriminator
+import at.asitplus.openid.RequestParametersFrom
 
-/**
- * Abstract base class for requests received by the wallet via the Digital Credentials API.
- */
-@Serializable
-@JsonClassDiscriminator("protocol")
-sealed interface DCAPIWalletRequest {
-    val protocol: ExchangeProtocolIdentifier
+@Deprecated(
+    message = "Use RequestParametersFrom.DcApiRequest instead.",
+    replaceWith = ReplaceWith(
+        expression = "RequestParametersFrom.DcApiRequest",
+        imports = ["at.asitplus.openid.RequestParametersFrom"]
+    ),
+    level = DeprecationLevel.WARNING
+)
+typealias DCAPIWalletRequest = RequestParametersFrom.DcApiRequest
 
-    /** The credential IDs of the credentials the user has chosen in the UI provided by the system.
-    Not available on iOS. */
-    val credentialIds: Collection<String>?
+@Deprecated(
+    message = "Use RequestParametersFrom.OpenId4VpSigned instead.",
+    replaceWith = ReplaceWith(
+        expression = "RequestParametersFrom.OpenId4VpDcApiSigned",
+        imports = ["at.asitplus.openid.RequestParametersFrom"]
+    ),
+    level = DeprecationLevel.WARNING
+)
+typealias DCAPIWalletOpenId4VpSigned = RequestParametersFrom.OpenId4VpDcApiSigned
 
-    /** The package name of the calling (browser) application providing the calling origin. Not available on iOS. */
-    val callingPackageName: String?
-    val callingOrigin: String
+@Deprecated(
+    message = "Use RequestParametersFrom.OpenId4VpMultiSigned instead.",
+    replaceWith = ReplaceWith(
+        expression = "RequestParametersFrom.OpenId4VpDcApiMultiSigned",
+        imports = ["at.asitplus.openid.RequestParametersFrom"]
+    ),
+    level = DeprecationLevel.WARNING
+)
+typealias DCAPIWalletOpenId4VpMultiSigned = RequestParametersFrom.OpenId4VpDcApiMultiSigned
 
-    @Serializable
-    data class IsoMdoc(
-        @SerialName("isoMdocRequest")
-        val isoMdocRequest: IsoMdocRequest,
-        @SerialName("credentialIds")
-        override val credentialIds: Collection<String>? = null,
-        @SerialName("callingPackageName")
-        override val callingPackageName: String? = null,
-        @SerialName("callingOrigin")
-        override val callingOrigin: String,
-    ) : DCAPIWalletRequest {
+@Deprecated(
+    message = "Use RequestParametersFrom.OpenId4VpUnsigned instead.",
+    replaceWith = ReplaceWith(
+        expression = "RequestParametersFrom.OpenId4VpDcApiUnsigned",
+        imports = ["at.asitplus.openid.RequestParametersFrom"]
+    ),
+    level = DeprecationLevel.WARNING
+)
+typealias DCAPIWalletOpenId4VpUnsigned = RequestParametersFrom.OpenId4VpDcApiUnsigned
 
-        override val protocol: ExchangeProtocolIdentifier
-            get() = ExchangeProtocolIdentifier.ISO_MDOC_ANNEX_C
-    }
-
-
-    sealed class OpenId4Vp {
-        abstract val protocol: ExchangeProtocolIdentifier
-        abstract val request: RequestParameters
-    }
-
-    @Serializable
-    data class OpenId4VpSigned(
-        @SerialName("request")
-        override val request: RequestParameters,
-        @SerialName("credentialIds")
-        override val credentialIds: Collection<String>,
-        @SerialName("callingPackageName")
-        override val callingPackageName: String,
-        @SerialName("callingOrigin")
-        override val callingOrigin: String,
-    ) : DCAPIWalletRequest, OpenId4Vp() {
-
-        override val protocol: ExchangeProtocolIdentifier
-            get() = ExchangeProtocolIdentifier.OPENID4VP_V1_SIGNED
-    }
-
-
-    @Serializable
-    data class OpenId4VpUnsigned(
-        @SerialName("request")
-        override val request: RequestParameters,
-        @SerialName("credentialIds")
-        override val credentialIds: Collection<String>,
-        @SerialName("callingPackageName")
-        override val callingPackageName: String,
-        @SerialName("callingOrigin")
-        override val callingOrigin: String,
-    ) : DCAPIWalletRequest, OpenId4Vp() {
-
-        override val protocol: ExchangeProtocolIdentifier
-            get() = ExchangeProtocolIdentifier.OPENID4VP_V1_UNSIGNED
-
-    }
-
-}
+@Deprecated(
+    message = "Use RequestParametersFrom.IsoMdoc instead.",
+    replaceWith = ReplaceWith(
+        expression = "RequestParametersFrom.IsoMdocDcApi",
+        imports = ["at.asitplus.openid.RequestParametersFrom"]
+    ),
+    level = DeprecationLevel.WARNING
+)
+typealias DCAPIWalletIsoMdoc = RequestParametersFrom.IsoMdocDcApi

@@ -5,10 +5,10 @@ import at.asitplus.openid.CredentialOffer
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.invoke
+import at.asitplus.testballoon.matrix.*
 import at.asitplus.wallet.lib.RemoteResourceRetrieverInput
 import at.asitplus.wallet.lib.oidvci.WalletService
-import de.infix.testBalloon.framework.core.testSuite
+import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.ktor.http.*
@@ -27,7 +27,7 @@ private class FakeRemoteResourceRetriever(
     }
 }
 
-val RemoteResourceRetrieverFunctionTest by testSuite {
+val RemoteResourceRetrieverFunctionTest by matrixSuite {
     val requestUri = "https://client.example.org/request"
     val authnRequest = AuthenticationRequestParameters(
         responseType = "vp_token",
@@ -49,6 +49,7 @@ val RemoteResourceRetrieverFunctionTest by testSuite {
         val parser = RequestParser(remoteResourceRetriever = retriever::invoke)
         val input = URLBuilder("https://example.com").apply {
             parameters.append("request_uri", requestUri)
+            parameters.append("client_id", "somevalue")
         }.buildString()
 
         parser.parseRequestParameters(input).getOrThrow().apply {

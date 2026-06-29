@@ -1,15 +1,57 @@
 # Changelog
 
-Release 5.13.0:
+Release 6.0.0:
+ - JWS:
+   - BREAKING: Replace `JwsSigned` with `JwsCompact` and `JwsCompactTyped` in signing, verification, OpenID request/response, OAuth 2.0 DPoP/client attestation, OID4VCI proof, JWT VC, status list JWT, and SD-JWT APIs
+   - BREAKING: Refactor `RequestParametersFromSigned.jwsSigned` from `JwsSigned` to `JWS` to allow multisigned use-cases
+   - Remove `JwsSignedSerializer`, use `JwsCompactStringSerializer`
+ - SD-JWT:
+   - BREAKING CHANGE: Removed dot-notation shorthand for nested claims in `ClaimToBeIssued`. Claims with dots in their names (e.g. `address.region`) are now issued as flat claims with a literal dot in the key. Use a `Collection<ClaimToBeIssued>` in `value` to create nested structures.
+   - Change: `String.toDigest()` annotated with `@Throws`
+   - Change: `Digest.toIanaName()` annotated with `@Throws`
+   - Change: `SdJwtDecoded` throws if payload is not a valid `JsonObject`
+   - Change: `SdJwtSigned` now stores the issuer JWS as `JwsCompact` and key binding JWS as `JwsCompactTyped<KeyBindingJws>`
+   - Deprecate `SdJwtSigned.getPayloadAsVerifiableCredentialSdJwt()` and `SdJwtSigned.getPayloadAsJsonObject()`, use `SdJwtSigned.jws.getPayload<...>()`
+ - OpenID for Verifiable Presentations:
+   - BREAKING: Integrate DC API request wrappers into `RequestParametersFrom` as `OpenId4VpDcApiUnsigned`, `OpenId4VpDcApiSigned`, `OpenId4VpDcApiMultiSigned`, and `IsoMdocDcApi`; DC API metadata such as `protocol`, `credentialIds`, `callingPackageName`, and `callingOrigin` is now represented directly on `RequestParametersFrom.DcApiRequest`
+   - Change: Signed and multisigned DC API requests are now rejected unless `expected_origins` is set, as required by OpenID4VP for signed requests over the Digital Credentials API
+   - Fix: Unsigned DC API requests are no longer rejected when a `client_id` is present; per [OpenID4VP](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html#name-request) the Wallet MUST ignore any `client_id` parameter in an unsigned request
+   - Add `attributePaths` and `optionalAttributePaths` to `RequestOptionsCredential` for requesting literal claim names containing dots with `DCQLClaimsPathPointer`, while keeping the deprecated string attributes as nested dot-notation shorthand. ISO mdoc requests also accept explicit namespace/name paths and prefix single claim names with the credential scheme namespace.
+   - Change: `RequestInfo.dpop`/`RequestInfo.clientAttestation`/`RequestInfo.clientAttestationDpop` now `JwsCompactTyped` instead of `String`
+   - Change: `BuildDPoPHeader`/`BuildClientAttestationJwt`/`BuildClientAttestationPoPJwt` objects now return `JwsCompactTyped` instead of `String`
+   - Change `JarRequestParameter.clientId` from optional to mandatory to enforce RFC9101 definition.
+ - Digital Credentials API:
+   - Deprecate `DCAPIWalletRequest` in favor of `RequestParametersFrom.DcApiRequest`; compatibility type aliases are provided for the old wallet request names
+   - BREAKING: Refactor `DigitalCredentialGetRequest.OpenId4Vp`
+     - Renamed `request` to `data` to reflect serial name
+     - Introduced `SignedDataElement` `MultiSignedDataElement` wrapper to keep serialization shape
+ - OpenID for Verifiable Credential Issuance:
+   - Update Wallet Instance Attestation and Key Attestation to [EUDI Wallet TS3](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md) from 2026-05-08
+   - Add `WalletService.KeyAttestationInput`
+   - Add `OAuth2KtorClient.LoadInstanceAttestationInput`
+   - Update `loadInstanceAttestation` and `loadKeyAttestation` to use input parameter
+   - JWT proof creation only loads/attaches a key attestation when issuer metadata requires it
+   - Reject Wallet Instance Attestations, attestation proofs, JWT proofs, and Key Attestations that use signing algorithms outside the TS3 ES256/ES384/ES512 set
+   - Change: Add typed subclasses for `SupportedCredentialFormat` for every credential representation 
+   - Change: In `SupportedCredentialFormat` replace `List<String>` with `OpenId4VciClaimsPathPointer` for claim definitions
  - Deprecations:
    - Remove code deprecated in 5.12.0, e.g. `CredentialSubject` as base class for JWT VC
    - Deprecate `vckJsonSerializer`, should be replaced with `joseCompliantSerializer` (Signum)
+   - Deprecate `signDpop` in `OAuth2KtorClient` because DPoP need same key as instance attestation [EUDI Wallet TS3](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md)
+ - New modules:
+   - `etsi-data-classes` implements list of trusted entities from [ETSI TS 119 602](https://www.etsi.org/deliver/etsi_ts/119600_119699/119602/01.01.01_60/ts_119602v010101p.pdf)
+   - `sd-jwt-type-metadata` implements SD-JWT VC Type Metadata from [draft-ietf-oauth-sd-jwt-vc-16](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/):
+     - `SdJwtTypeMetadataDocument`: stores and verifies raw document bytes for W3C SRI integrity checks (integrity is computed over the original response bytes, not re-serialized JSON)
+     - `KtorSdJwtTypeMetadataDocumentRetriever`: HTTP retrieval with two-tier caching (static/indefinite for integrity-pinned documents; Cache-Control–based TTL otherwise); integrity-pinned lookups bypass the dynamic cache and vice versa; integrity and `vct` are validated before a fetched document enters the static cache
+     - `DelegatingSdJwtTypeMetadataDocumentResolver`: resolves full inheritance chains, merging display and claim metadata from all ancestors
+   - `rfc3986-uri-syntax` implements [RFC 3986 URI Syntax](https://datatracker.ietf.org/doc/html/rfc3986)
  - Dependencies:
-   - Update to [Signum 3.22.0](https://github.com/a-sit-plus/signum/releases/tag/3.22.0)
- - SD-JWT:
-   - BREAKING CHANGE: Removed dot-notation shorthand for nested claims in `ClaimToBeIssued`. Claims with dots in their names (e.g. `address.region`) are now issued as flat claims with a literal dot in the key. Use a `Collection<ClaimToBeIssued>` in `value` to create nested structures.
- - OpenID for Verifiable Presentations:
-   - Add `attributePaths` and `optionalAttributePaths` to `RequestOptionsCredential` for requesting literal claim names containing dots with `DCQLClaimsPathPointer`, while keeping the deprecated string attributes as nested dot-notation shorthand. ISO mdoc requests also accept explicit namespace/name paths and prefix single claim names with the credential scheme namespace.
+   - Update to [Signum 3.23.0](https://github.com/a-sit-plus/signum/releases/tag/3.23.0)
+   - Update to [Supreme 0.14.0](https://github.com/a-sit-plus/signum/pull/451)
+   - Update to Ktor 3.5.0
+   - Update Bouncy Castle 1.84
+   - Update to kotlinx.coroutines 1.11.0
+ - Matrix testing
 
 Release 5.12.0:
  - W3C JWT VC:

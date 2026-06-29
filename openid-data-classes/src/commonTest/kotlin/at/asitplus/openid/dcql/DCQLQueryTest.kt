@@ -4,12 +4,8 @@ import at.asitplus.data.NonEmptyList.Companion.nonEmptyListOf
 import at.asitplus.data.NonEmptyList.Companion.toNonEmptyList
 import at.asitplus.openid.CredentialFormatEnum
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
-import at.asitplus.testballoon.invoke
-import at.asitplus.testballoon.minus
-import at.asitplus.testballoon.withData
-import at.asitplus.testballoon.withDataSuites
+import at.asitplus.testballoon.matrix.matrixSuite
 import com.benasher44.uuid.uuid4
-import de.infix.testBalloon.framework.core.testSuite
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldHaveSize
@@ -25,7 +21,7 @@ import kotlinx.serialization.json.put
 import kotlin.random.Random
 
 @Suppress("unused")
-val DCQLQueryTest by testSuite {
+val DCQLQueryTest by matrixSuite {
     "specification" - {
         "serial names" {
             DCQLQuery.SerialNames.CREDENTIALS shouldBe "credentials"
@@ -82,7 +78,7 @@ val DCQLQueryTest by testSuite {
             }
 
             "failing" - {
-                withData(
+                data(
                     mapOf(
                         "empty database" to listOf<TestCredential>(),
                         "iso mdoc database" to listOf<TestCredential>(
@@ -129,7 +125,8 @@ val DCQLQueryTest by testSuite {
                             ),
                         ),
                     ),
-                ) {
+                    nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(
                         it,
                     ) shouldBe false
@@ -137,7 +134,7 @@ val DCQLQueryTest by testSuite {
             }
 
             "success" - {
-                withData(
+                data(
                     mapOf(
                         "single credential" to listOf<TestCredential>(
                             TestCredential.SdJwtCredential(
@@ -215,8 +212,9 @@ val DCQLQueryTest by testSuite {
                                 satisfiesCryptographicHolderBinding = true,
                             ),
                         ),
-                    )
-                ) {
+                    ),
+                    nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     val result = TestCredentialQueryAdapter(dcqlQuery).execute(it)
                     result.credentialQueryMatches shouldHaveSize 1
                     result.credentialQueryMatches.values.first() shouldHaveSize 1
@@ -249,7 +247,7 @@ val DCQLQueryTest by testSuite {
             }
 
             "failing" - {
-                withData(
+                data(
                     mapOf(
                         "empty database" to listOf<TestCredential>(),
                         "iso mdoc database with only partial matches" to listOf<TestCredential>(
@@ -298,14 +296,14 @@ val DCQLQueryTest by testSuite {
                                 satisfiesCryptographicHolderBinding = true,
                             ),
                         ),
-                    ),
-                ) {
+                    ), nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
             "success" - {
-                withData(
+                data(
                     mapOf(
                         "empty database" to listOf<TestCredential>(
                             TestCredential.MdocCredential(
@@ -379,8 +377,8 @@ val DCQLQueryTest by testSuite {
                                 satisfiesCryptographicHolderBinding = true,
                             ),
                         ),
-                    )
-                ) {
+                    ), nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     val result = TestCredentialQueryAdapter(dcqlQuery).execute(it)
                     result.credentialQueryMatches shouldHaveSize 1
                     result.credentialQueryMatches.values.first() shouldHaveSize 1
@@ -426,7 +424,7 @@ val DCQLQueryTest by testSuite {
             }
 
             "failing" - {
-                withData(
+                data(
                     mapOf(
                         "empty database" to listOf<TestCredential>(),
                         "database with only one matching credential 1" to listOf<TestCredential>(
@@ -456,14 +454,14 @@ val DCQLQueryTest by testSuite {
                                 satisfiesCryptographicHolderBinding = true,
                             ),
                         ),
-                    ),
-                ) {
+                    ), nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
             "success" - {
-                withData(
+                data(
                     mapOf(
                         "database with both matching credentials" to listOf<TestCredential>(
                             TestCredential.MdocCredential(
@@ -490,8 +488,8 @@ val DCQLQueryTest by testSuite {
                                 satisfiesCryptographicHolderBinding = true,
                             ),
                         ),
-                    )
-                ) {
+                    ), nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     val result = TestCredentialQueryAdapter(dcqlQuery).execute(it)
                     result.credentialQueryMatches shouldHaveSize 2
                     result.credentialQueryMatches.values.first() shouldHaveSize 1
@@ -629,7 +627,7 @@ val DCQLQueryTest by testSuite {
             )
 
             "failing" - {
-                withData(
+                data(
                     mapOf(
                         "empty database" to listOf<TestCredential>(),
                         "database without reduced 2" to listOf(
@@ -646,14 +644,14 @@ val DCQLQueryTest by testSuite {
                             reducedCred2,
                             niceToHaveCredential,
                         ),
-                    ),
-                ) {
+                    ), nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
             "success" - {
-                withData(
+                data(
                     mapOf(
                         "database with pid" to listOf(
                             pidCredential,
@@ -678,8 +676,8 @@ val DCQLQueryTest by testSuite {
                             reducedCred2,
                             niceToHaveCredential,
                         ),
-                    )
-                ) {
+                    ), nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe true
                 }
             }
@@ -856,21 +854,21 @@ val DCQLQueryTest by testSuite {
             )
 
             "failing" - {
-                withData(
+                data(
                     mapOf(
                         "empty database" to listOf<TestCredential>(),
                         "only addresses" to listOf(
                             mdlAddressCred,
                             photoCardAddress,
                         ),
-                    ),
-                ) {
+                    ), nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
             "success" - {
-                withData(
+                data(
                     mapOf(
                         "database with mdl id" to listOf(
                             mdlIdCred
@@ -938,9 +936,9 @@ val DCQLQueryTest by testSuite {
                             mdlAddressCred,
                             photoCardAddress,
                         ),
-                    )
-                ) {
-                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe true
+                    ),
+                    nameFn = { (name, _) -> name }) test { (_, value) ->
+                    TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(value) shouldBe true
                 }
             }
         }
@@ -1065,7 +1063,7 @@ val DCQLQueryTest by testSuite {
             )
 
             "failing" - {
-                withData(
+                data(
                     mapOf(
                         "empty database" to listOf<TestCredential>(),
                         "missing claims" to listOf(
@@ -1077,14 +1075,14 @@ val DCQLQueryTest by testSuite {
                             aeCred,
                             abCred,
                         ),
-                    ),
-                ) {
+                    ), nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
             "success" - {
-                withData(
+                data(
                     mapOf(
                         "abeCred" to listOf(
                             abeCred
@@ -1103,8 +1101,8 @@ val DCQLQueryTest by testSuite {
                             abcdeCred,
                             abcdeCred,
                         ),
-                    )
-                ) {
+                    ), nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe true
                 }
             }
@@ -1245,7 +1243,7 @@ val DCQLQueryTest by testSuite {
             )
 
             "failing" - {
-                withData(
+                data(
                     mapOf(
                         "empty database" to listOf<TestCredential>(),
                         "missing claims" to listOf(
@@ -1257,19 +1255,19 @@ val DCQLQueryTest by testSuite {
                             wrongPostalCodeType,
                             wrongPostalCodeTypeAndValue,
                         ),
-                    ),
-                ) {
+                    ), nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe false
                 }
             }
 
             "success" - {
-                withData(
+                data(
                     mapOf(
                         "valid1" to listOf(valid1),
                         "valid2" to listOf(valid2),
-                    )
-                ) {
+                    ), nameFn = { (name, _) -> name }
+                ) test { (_, it) ->
                     TestCredentialQueryAdapter(dcqlQuery).isSatisfiable(it) shouldBe true
                 }
             }
@@ -1277,7 +1275,7 @@ val DCQLQueryTest by testSuite {
     }
     "Manual written examples" - {
         "values" - {
-            withDataSuites(
+            data(
                 mapOf(
                     // expected values json array, list of valid values, list of invalid values
                     "strings1" to Triple<String, List<Any?>, List<Any?>>(
@@ -1332,8 +1330,8 @@ val DCQLQueryTest by testSuite {
                             "true",
                         ),
                     )
-                ),
-            ) { testVector ->
+                ), nameFn = { (name, _) -> name }
+            ) - { (_, testVector) ->
                 val sdJwtDcqlQuery = """ 
                     {
                       "credentials": [
@@ -1411,23 +1409,23 @@ val DCQLQueryTest by testSuite {
                     )
                 }
 
-                withData(testVector.second) {
+                data(testVector.second) test {
                     val test = buildSdJwtValueCredential(it)
                     TestCredentialQueryAdapter(sdJwtDcqlQuery).isSatisfiable(
                         listOf(test)
                     ) shouldBe true
                 }
-                withData(testVector.second) {
+                data(testVector.second) test {
                     TestCredentialQueryAdapter(mdocDcqlQuery).isSatisfiable(
                         listOf(buildMdocValueCredential(it))
                     ) shouldBe true
                 }
-                withData(testVector.third) {
+                data(testVector.third) test {
                     TestCredentialQueryAdapter(sdJwtDcqlQuery).isSatisfiable(
                         listOf(buildSdJwtValueCredential(it))
                     ) shouldBe false
                 }
-                withData(testVector.third) {
+                data(testVector.third) test {
                     TestCredentialQueryAdapter(mdocDcqlQuery).isSatisfiable(
                         listOf(buildMdocValueCredential(it))
                     ) shouldBe false
@@ -1449,7 +1447,7 @@ val DCQLQueryTest by testSuite {
                     ).toNonEmptyList()
                 )
             )
-            withData(true, false) {
+            listOf(true, false).asData() test {
                 val credentials = listOf(
                     TestCredential.SdJwtCredential(
                         type = "my_credential",
@@ -1475,7 +1473,7 @@ val DCQLQueryTest by testSuite {
                     ).toNonEmptyList()
                 )
             )
-            withData(true, false) {
+            listOf(true, false).asData() test {
                 val credentials = listOf(
                     TestCredential.MdocCredential(
                         documentType = "testDocType",
@@ -1509,12 +1507,12 @@ val DCQLQueryTest by testSuite {
                     )
                 )
             )
-            withData(
+            data(
                 mapOf(
                     "no identifiers" to listOf(),
                     "with matching identifier" to listOf(dummyBase64String),
-                )
-            ) {
+                ),  nameFn = { (name, _) -> name }
+            ) test { (_, it) ->
                 val credentials = listOf(
                     TestCredential.SdJwtCredential(
                         type = "my_credential",
@@ -1547,12 +1545,12 @@ val DCQLQueryTest by testSuite {
                     )
                 )
             )
-            withData(
+            data(
                 mapOf(
                     "no identifiers" to listOf(),
                     "with matching identifier" to listOf(dummyBase64String),
-                )
-            ) {
+                ),  nameFn = { (name, _) -> name }
+            ) test { (_, it) ->
                 val credentials = listOf(
                     TestCredential.MdocCredential(
                         documentType = "testDocType",

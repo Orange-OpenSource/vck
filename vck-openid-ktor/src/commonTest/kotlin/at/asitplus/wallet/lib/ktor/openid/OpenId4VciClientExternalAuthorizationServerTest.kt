@@ -10,7 +10,6 @@ import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenRequestParameters
-import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.wallet.eupid.EuPidScheme
 import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
@@ -49,7 +48,7 @@ import at.asitplus.wallet.lib.oidvci.WalletService
 import at.asitplus.wallet.lib.oidvci.decodeFromPostBody
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
 import com.benasher44.uuid.uuid4
-import de.infix.testBalloon.framework.core.testSuite
+import at.asitplus.testballoon.matrix.matrixSuite
 import io.github.aakira.napier.Napier
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -66,14 +65,12 @@ import kotlin.time.Duration.Companion.minutes
  * Tests [OpenId4VciClient] against [CredentialIssuer] that uses [RemoteOAuth2AuthorizationServerAdapter]
  * to simulate an external OAuth2.0 Authorization Server (which is still our own internal [SimpleAuthorizationService]).
  */
-val OpenId4VciClientExternalAuthorizationServerTest by testSuite {
+val OpenId4VciClientExternalAuthorizationServerTest by matrixSuite {
 
     data class Context(
         val credentialKeyMaterial: KeyMaterial,
-        val walletDpopKeyMaterial: KeyMaterial,
         val walletClientAuthKeyMaterial: KeyMaterial,
         val mockEngine: MockEngine,
-        val issuerDpopKeyMaterial: KeyMaterial,
         val issuerPublicContext: String,
         val issuerClientAuthKeyMaterial: KeyMaterial,
         val credentialIssuer: CredentialIssuer,
@@ -85,11 +82,10 @@ val OpenId4VciClientExternalAuthorizationServerTest by testSuite {
         scheme: ConstantIndex.CredentialScheme,
         representation: ConstantIndex.CredentialRepresentation,
         attributes: Map<String, String>,
+        validatePopAudience: Boolean = false,
     ): Context {
         val credentialKeyMaterial = EphemeralKeyWithoutCert()
-        val walletDpopKeyMaterial = EphemeralKeyWithoutCert()
         val walletClientAuthKeyMaterial = EphemeralKeyWithoutCert()
-        val issuerDpopKeyMaterial = EphemeralKeyWithoutCert()
         val issuerClientAuthKeyMaterial = EphemeralKeyWithoutCert()
         val credentialDataProvider = CredentialDataProviderFun {
             catching {
@@ -142,6 +138,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by testSuite {
             introspectionEndpointPath = introspectionEndpointPath,
             clientAuthenticationService = ClientAuthenticationService(
                 enforceClientAuthentication = true,
+                issuerIdentifier = if (validatePopAudience) authServerPublicContext else null,
             ),
             tokenService = tokenService,
         )
@@ -241,7 +238,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by testSuite {
                 engine = mockEngine,
                 oauth2Client = OAuth2KtorClient(
                     engine = mockEngine,
-                    loadInstanceAttestation = {
+                    loadInstanceAttestation = { _ ->
                         catching {
                             BuildClientAttestationJwt(
                                 SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
@@ -251,17 +248,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by testSuite {
                             )
                         }
                     },
-                    loadInstanceAttestationPop = {
-                        catching {
-                            BuildClientAttestationPoPJwt(
-                                SignJwt(issuerClientAuthKeyMaterial, JwsHeaderNone()),
-                                clientId = issuerPublicContext,
-                                audience = issuerPublicContext,
-                                lifetime = 10.minutes,
-                            )
-                        }
-                    },
-                    signDpop = SignJwt(issuerDpopKeyMaterial, JwsHeaderCertOrJwk()),
+                    keyMaterial = issuerClientAuthKeyMaterial,
                     oAuth2Client = OAuth2Client(clientId = issuerPublicContext),
                     randomSource = RandomSource.Default,
                 ),
@@ -275,10 +262,8 @@ val OpenId4VciClientExternalAuthorizationServerTest by testSuite {
         )
         return Context(
             credentialKeyMaterial = credentialKeyMaterial,
-            walletDpopKeyMaterial = walletDpopKeyMaterial,
             walletClientAuthKeyMaterial = walletClientAuthKeyMaterial,
             mockEngine = mockEngine,
-            issuerDpopKeyMaterial = issuerDpopKeyMaterial,
             issuerPublicContext = issuerPublicContext,
             issuerClientAuthKeyMaterial = issuerClientAuthKeyMaterial,
             credentialIssuer = credentialIssuer,
@@ -287,23 +272,11 @@ val OpenId4VciClientExternalAuthorizationServerTest by testSuite {
                 engine = mockEngine,
                 oid4vciService = WalletService(
                     clientId = walletClientId,
-                    loadUnitAttestationPop = { input ->
-                        catching {
-                            SignJwt<JsonWebToken>(
-                                credentialKeyMaterial
-                            ) { header, material ->
-                                header.copy(jsonWebKey = material.jsonWebKey)
-                            }.invoke(
-                                input.type,
-                                input.payload,
-                                JsonWebToken.serializer(),
-                            ).getOrThrow()
-                        }
-                    }
+                    keyMaterial = credentialKeyMaterial,
                 ),
                 oauth2Client = OAuth2KtorClient(
                     engine = mockEngine,
-                    loadInstanceAttestation = {
+                    loadInstanceAttestation = { _ ->
                         catching {
                             BuildClientAttestationJwt(
                                 SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
@@ -313,17 +286,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by testSuite {
                             )
                         }
                     },
-                    loadInstanceAttestationPop = {
-                        catching {
-                            BuildClientAttestationPoPJwt(
-                                SignJwt(walletClientAuthKeyMaterial, JwsHeaderNone()),
-                                clientId = walletClientId,
-                                audience = issuerPublicContext,
-                                lifetime = 10.minutes,
-                            )
-                        }
-                    },
-                    signDpop = SignJwt(walletDpopKeyMaterial, JwsHeaderCertOrJwk()),
+                    keyMaterial = walletClientAuthKeyMaterial,
                     oAuth2Client = OAuth2Client(clientId = walletClientId),
                     randomSource = RandomSource.Default,
                 )
@@ -366,6 +329,41 @@ val OpenId4VciClientExternalAuthorizationServerTest by testSuite {
                     expectedAttributeValue,
                     credentialKeyMaterial.publicKey
                 )
+            }
+        }
+    }
+
+    test("WIA PoP audience matches AS issuer for auth code and refresh token flows") {
+        // The AS enforces that aud in the WIA PoP equals its own issuer identifier (authServerPublicContext),
+        // not the credential issuer URL (issuerPublicContext). Without the fix, both token calls send
+        // aud = issuerPublicContext and the AS rejects them with InvalidClient.
+        val expectedAttributeValue = uuid4().toString()
+        val expectedAttributeName = EuPidSdJwtScheme.SdJwtAttributes.FAMILY_NAME
+        with(setup(EuPidSdJwtScheme, SD_JWT, mapOf(expectedAttributeName to expectedAttributeValue), validatePopAudience = true)) {
+            var refreshTokenStore: CredentialRenewalInfo? = null
+            val credentialIdentifierInfos = client.loadCredentialMetadata(issuerPublicContext).getOrThrow()
+            val selectedCredential = credentialIdentifierInfos
+                .first { it.supportedCredentialFormat.format == CredentialFormatEnum.DC_SD_JWT }
+
+            client.startProvisioningWithAuthRequestReturningResult(
+                credentialIssuerUrl = issuerPublicContext,
+                credentialIdentifierInfo = selectedCredential,
+            ).getOrThrow().also {
+                val httpClient = HttpClient(mockEngine) { followRedirects = false }
+                val authCode = httpClient.get(it.url).headers[HttpHeaders.Location]
+                // Without fix: aud = issuerPublicContext → AS rejects with InvalidClient (aud mismatch)
+                // With fix: aud = authServerPublicContext → AS accepts
+                client.resumeWithAuthCode(authCode!!, it.context).getOrThrow().also { result ->
+                    refreshTokenStore = result.refreshToken!!
+                    result.verifySdJwtCredential(expectedAttributeName, expectedAttributeValue, credentialKeyMaterial.publicKey)
+                }
+            }
+
+            refreshTokenStore.shouldNotBeNull()
+            // Without fix: aud = issuerPublicContext → AS rejects with InvalidClient (aud mismatch)
+            // With fix: aud = authServerPublicContext → AS accepts
+            client.refreshCredentialReturningResult(refreshTokenStore).getOrThrow().also {
+                it.verifySdJwtCredential(expectedAttributeName, expectedAttributeValue, credentialKeyMaterial.publicKey)
             }
         }
     }

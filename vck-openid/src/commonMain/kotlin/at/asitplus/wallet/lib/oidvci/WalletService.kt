@@ -1,5 +1,26 @@
 package at.asitplus.wallet.lib.oidvci
 
+/*
+ * Software Name : VC-K
+ * SPDX-FileCopyrightText: Copyright (c) A-SIT Plus GmbH
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modifications:
+ * - According to the W3C Verifiable Credential Data Model 1.1 https://www.w3.org/TR/vc-data-model-1.1/#jwt-encoding,
+ * "iss MUST represent the issuer property of a verifiable credential or the holder property of a verifiable presentation."
+ * So in this case the issuer should be the wallet holder, represented by it's DID.
+ * SPDX-FileCopyrightText: Copyright (c) Orange Business
+ * - Added support for configurable key binding method selection via resolveKeyBindingMethod,
+ * allowing the credential request proof JWS header to embed either an inline JsonWebKey (jwk)
+ * or a DID URL key identifier (kid), as required by the OID4VCI specification.
+ * Exactly one of jwk or kid must be provided; supplying both or neither raises an IllegalArgumentException.
+ * The default behaviour (embed jwk inline) is preserved for backward compatibility.
+ * SPDX-FileCopyrightText: Copyright (c) Orange Business
+ *
+ * This software is distributed under the Apache License 2.0,
+ * see the "LICENSE" file for more details
+ */
+
 import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.catchingUnwrapped
@@ -10,32 +31,42 @@ import at.asitplus.openid.CredentialOffer
 import at.asitplus.openid.CredentialOfferUrlParameters
 import at.asitplus.openid.CredentialRequestParameters
 import at.asitplus.openid.CredentialRequestProofContainer
-import at.asitplus.openid.CredentialRequestProofSupported
 import at.asitplus.openid.CredentialResponseParameters
 import at.asitplus.openid.IssuerMetadata
+import at.asitplus.openid.KeyAttestationRequired
 import at.asitplus.openid.OpenIdAuthorizationDetails
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.OpenIdConstants.ProofTypes
 import at.asitplus.openid.SupportedCredentialFormat
+import at.asitplus.openid.SupportedCredentialFormatIsoMdoc
+import at.asitplus.openid.SupportedCredentialFormatSdJwt
+import at.asitplus.openid.SupportedCredentialFormatW3cVcJsonLd
+import at.asitplus.openid.SupportedCredentialFormatW3cVcJwt
+import at.asitplus.openid.SupportedCredentialFormatW3cVcJwtJsonLd
 import at.asitplus.openid.TokenResponseParameters
 import at.asitplus.openid.truncateToSeconds
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
+import at.asitplus.signum.indispensable.josef.JsonWebKey
 import at.asitplus.signum.indispensable.josef.JsonWebKeySet
 import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.JweEncrypted
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.JwsHeader
-import at.asitplus.signum.indispensable.josef.JwsSigned
 import at.asitplus.signum.indispensable.josef.KeyAttestationJwt
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.wallet.lib.RemoteResourceRetrieverFunction
 import at.asitplus.wallet.lib.RemoteResourceRetrieverInput
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.Holder
-import at.asitplus.wallet.lib.agent.Holder.StoreCredentialInput.*
+import at.asitplus.wallet.lib.agent.Holder.StoreCredentialInput.Iso
+import at.asitplus.wallet.lib.agent.Holder.StoreCredentialInput.SdJwt
+import at.asitplus.wallet.lib.agent.Holder.StoreCredentialInput.Vc
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.SignJwt
@@ -45,8 +76,8 @@ import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidRequest
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidToken
 import com.benasher44.uuid.uuid4
 import io.github.aakira.napier.Napier
-import io.ktor.http.*
-import io.ktor.util.*
+import io.ktor.http.Url
+import io.ktor.util.flattenEntries
 import io.matthewnelson.encoding.base64.Base64
 import io.matthewnelson.encoding.core.Decoder.Companion.decodeToByteArray
 import kotlinx.serialization.decodeFromByteArray
@@ -54,7 +85,6 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.days
 
 /**
  * Client service to retrieve credentials using OID4VCI
@@ -76,22 +106,45 @@ class WalletService
      * or the HTTP header `Location`, i.e. if the server sends the request object as a redirect.
      */
     private val remoteResourceRetriever: RemoteResourceRetrieverFunction = { null },
-    /** Load key attestation to create [CredentialRequestProofContainer], if required by the credential issuer. */
-    @Deprecated("Removed, use new loadUnitAttestation function instead")
-    // TODO but the PoP for JWT proofs?
-    private val loadKeyAttestation: (suspend (KeyAttestationInput) -> KmmResult<JwsSigned<KeyAttestationJwt>>)? = null,
     /** Handles credential request encryption and credential response decryption. */
     private val encryptionService: WalletEncryptionService = WalletEncryptionService(),
-    /** Returns a new unit attestation proof to use during credential issuance. */
-    private val loadUnitAttestationPop: (suspend (input: LoadUnitAttestationPopInput) -> KmmResult<JwsSigned<JsonWebToken>>)? = null,
+    private val loadKeyAttestation: (suspend (KeyAttestationInput) -> KmmResult<JwsCompactTyped<KeyAttestationJwt>>)? = null,
+    /**
+     * Selects the key binding to embed in the [JwsHeader] of a credential request proof JWT,
+     * as defined in the OpenID for Verifiable Credential Issuance specification.
+     *
+     * This function determines how the holder's key is referenced in the proof JWT header,
+     * by selecting between two mutually exclusive binding mechanisms:
+     *
+     * - **`jwk`** ([JwsHeader.jsonWebKey]): embeds the [JsonWebKey] inline in the header,
+     *   suitable when the holder has no associated DID.
+     * - **`kid`** ([JwsHeader.keyId]): embeds a DID URL string in the header,
+     *   identifying a specific key within the holder's DID Document.
+     *
+     * The lambda receives the current [KeyMaterial] and must return a [Pair] where:
+     * - the **first** element is the [JsonWebKey] to embed as the `jwk` header parameter, or `null`,
+     * - the **second** element is the DID URL string to embed as the `kid` header parameter, or `null`.
+     *
+     * Exactly **one** of the two values must be non-null, as `jwk` and `kid` are mutually exclusive:
+     * - Returning **both non-null** will throw an [IllegalArgumentException] during proof creation.
+     * - Returning **both null** will throw an [IllegalArgumentException] during proof creation.
+     *
+     * Defaults to selecting the [JsonWebKey] from [KeyMaterial.jsonWebKey] as the `jwk` binding,
+     * which is suitable when no DID is associated with the holder.
+     *
+     * @see JwsHeader.jsonWebKey
+     * @see JwsHeader.keyId
+     */
+    private val selectProofJwtKeyBinding: (suspend (KeyMaterial) -> Pair<JsonWebKey?, String?>) = { key ->
+        Pair(key.jsonWebKey, null)
+    }
 ) {
 
-    data class KeyAttestationInput(val clientNonce: String?, val supportedAlgorithms: Collection<String>?)
-
-    data class LoadUnitAttestationPopInput(
-        val ttl: Duration,
-        val type: String = OpenIdConstants.PROOF_JWT_TYPE,
-        val payload: JsonWebToken
+    data class KeyAttestationInput(
+        val credentialIssuer: String?,
+        val clientNonce: String?,
+        val supportedAlgorithms: Collection<String>?,
+        val preferredKeyStorageStatusPeriod: Duration?,
     )
 
     sealed interface CredentialRequest {
@@ -123,7 +176,7 @@ class WalletService
          */
         val credentialScheme: ConstantIndex.CredentialScheme,
         /**
-         * Required representation, see [ConstantIndex.CredentialRepresentation]
+         * Required representation, see [CredentialRepresentation]
          */
         val representation: CredentialRepresentation = PLAIN_JWT,
         /**
@@ -198,9 +251,22 @@ class WalletService
         it.format.toRepresentation() == requestOptions.representation
     }?.firstOrNull {
         when (requestOptions.representation) {
-            PLAIN_JWT -> it.credentialDefinition?.types?.contains(requestOptions.credentialScheme.vcType!!) == true
-            SD_JWT -> it.sdJwtVcType == requestOptions.credentialScheme.sdJwtType!!
-            ISO_MDOC -> it.docType == requestOptions.credentialScheme.isoDocType!!
+            PLAIN_JWT -> when (it) {
+                is SupportedCredentialFormatW3cVcJwt -> it.credentialDefinition.types
+                is SupportedCredentialFormatW3cVcJwtJsonLd -> it.credentialDefinition.type
+                is SupportedCredentialFormatW3cVcJsonLd -> it.credentialDefinition.type
+                else -> listOf()
+            }.contains(requestOptions.credentialScheme.vcType!!)
+
+            SD_JWT -> when (it) {
+                is SupportedCredentialFormatSdJwt -> it.sdJwtVcType
+                else -> null
+            } == requestOptions.credentialScheme.sdJwtType!!
+
+            ISO_MDOC -> when (it) {
+                is SupportedCredentialFormatIsoMdoc -> it.docType
+                else -> null
+            } == requestOptions.credentialScheme.isoDocType!!
         }
     }
 
@@ -278,7 +344,7 @@ class WalletService
      * Parses [response] received from the credential issuer, mapping to [Holder.StoreCredentialInput],
      * decrypting the response if required.
      */
-    public suspend fun parseCredentialResponse(
+    suspend fun parseCredentialResponse(
         response: String,
         isEncrypted: Boolean,
         representation: CredentialRepresentation,
@@ -298,7 +364,7 @@ class WalletService
      * Parses [response] received from the credential issuer, mapping to [Holder.StoreCredentialInput],
      * decrypting the response if required.
      */
-    public suspend fun parseCredentialResponse(
+    suspend fun parseCredentialResponse(
         response: CredentialResponse,
         representation: CredentialRepresentation,
         scheme: ConstantIndex.CredentialScheme,
@@ -346,111 +412,114 @@ class WalletService
         credentialFormat: SupportedCredentialFormat,
         clientNonce: String?,
         clock: Clock = Clock.System,
-    ): CredentialRequestProofContainer =
-        credentialFormat.supportedProofTypes?.get(ProofTypes.JWT)?.let { type ->
-            loadUnitAttestationPop?.invoke(
-                LoadUnitAttestationPopInput(
-                    ttl = type.keyAttestationRequired?.preferredTtl ?: 31.days,
-                    payload = JsonWebToken(
-                        issuer = clientId, // omit when token was pre-authn?
-                        audience = metadata.credentialIssuer,
-                        issuedAt = clock.now().truncateToSeconds(),
-                        nonce = clientNonce,
-                    )
-                ))?.getOrElse { err -> throw IllegalArgumentException("Key attestation required, none provided $err") }.let {
-                createCredentialRequestProofJwt(
-                    clientNonce,
-                    metadata.credentialIssuer,
-                    clock,
-                    type.keyAttestationRequired(),
-                    it
-                )
-            }
-        } ?: credentialFormat.supportedProofTypes?.get(ProofTypes.ATTESTATION)?.let { type ->
-            loadUnitAttestationPop?.invoke(
-                LoadUnitAttestationPopInput(
-                    ttl = type.keyAttestationRequired?.preferredTtl ?: 31.days,
-                    payload = JsonWebToken(
-                        issuer = clientId, // omit when token was pre-authn?
-                        audience = metadata.credentialIssuer,
-                        issuedAt = clock.now().truncateToSeconds(),
-                        nonce = clientNonce,
-                    )
-                ))?.getOrElse { err -> throw IllegalArgumentException("Key attestation required, none provided $err") }.let {
-                createCredentialRequestProofAttestation(clientNonce, type.supportedSigningAlgorithms, it)
-            }
-        } ?: createCredentialRequestProofJwt(clientNonce, metadata.credentialIssuer, clock)
-    private fun CredentialRequestProofSupported.keyAttestationRequired(): Boolean =
-        keyAttestationRequired != null
-
-    internal suspend fun createCredentialRequestProofAttestation(
-        clientNonce: String?,
-        supportedSigningAlgorithms: Collection<String>?,
-        unitAttestationPop: JwsSigned<JsonWebToken>? = null
-    ) = CredentialRequestProofContainer(
-        attestation = when (unitAttestationPop != null) {
-            true -> {
-                setOf(
-                    unitAttestationPop.header.keyAttestation
-                        ?: throw IllegalArgumentException("Key attestation required, none provided")
-                )
-            }
-
-            else -> {
-                setOf(
-                    this.loadKeyAttestation?.invoke(KeyAttestationInput(clientNonce, supportedSigningAlgorithms))
-                        ?.getOrThrow()?.serialize()
-                        ?: throw IllegalArgumentException("Key attestation required, none provided")
-                )
-            }
-        }
-    )
+    ): CredentialRequestProofContainer = credentialFormat.supportedProofTypes?.get(ProofTypes.JWT)?.let { type ->
+        createCredentialRequestProofJwt(
+            clientNonce = clientNonce,
+            credentialIssuer = metadata.credentialIssuer,
+            clock = clock,
+            keyAttestationRequired = type.keyAttestationRequired,
+            supportedAlgorithms = type.supportedSigningAlgorithms,
+        )
+    } ?: credentialFormat.supportedProofTypes?.get(ProofTypes.ATTESTATION)?.let { type ->
+        createCredentialRequestProofAttestation(
+            clientNonce = clientNonce,
+            credentialIssuer = metadata.credentialIssuer,
+            keyAttestationRequired = type.keyAttestationRequired,
+            supportedAlgorithms = type.supportedSigningAlgorithms,
+        )
+    } ?: CredentialRequestProofContainer()
 
     internal suspend fun createCredentialRequestProofJwt(
         clientNonce: String?,
         credentialIssuer: String?,
         clock: Clock = Clock.System,
-        addKeyAttestation: Boolean = false,
-        unitAttestationPop: JwsSigned<JsonWebToken>? = null
+        keyAttestationRequired: KeyAttestationRequired? = null,
+        supportedAlgorithms: Collection<String>? = null,
     ): CredentialRequestProofContainer {
-        if (addKeyAttestation && loadUnitAttestationPop == null && loadKeyAttestation == null) {
+        if (keyAttestationRequired != null && loadKeyAttestation == null) {
             throw IllegalArgumentException("Key attestation required, none provided")
         }
-        return CredentialRequestProofContainer(
-            jwt = when (unitAttestationPop != null) {
-                true ->
-                    setOf(unitAttestationPop.serialize())
-
-                else -> setOf(
-                    SignJwt<JsonWebToken>(
-                        keyMaterial,
-                        // TODO To be refactored once signJwt is not passed in the constructor but to this function
-                        addKeyAttestationToJwsHeader(clientNonce, addKeyAttestation)
-                    ).invoke(
-                        OpenIdConstants.PROOF_JWT_TYPE,
-                        JsonWebToken(
-                            issuer = clientId, // omit when token was pre-authn?
-                            audience = credentialIssuer,
-                            issuedAt = clock.now().truncateToSeconds(),
-                            nonce = clientNonce,
-                        ),
-                        JsonWebToken.serializer(),
-                    ).getOrThrow().serialize()
+        val keyAttestation: JwsCompactTyped<KeyAttestationJwt>? = if (keyAttestationRequired != null) {
+            loadKeyAttestation?.invoke(
+                KeyAttestationInput(
+                    credentialIssuer = credentialIssuer,
+                    clientNonce = clientNonce,
+                    supportedAlgorithms = supportedAlgorithms,
+                    preferredKeyStorageStatusPeriod = keyAttestationRequired.preferredTtl,
                 )
-            }
+            )?.getOrElse { throw IllegalArgumentException("Key attestation required, none provided", it) }
+        } else null
+        keyAttestation?.requireKeyMaterialAtAttestedKeyIndex0()
+
+        return CredentialRequestProofContainer(
+            jwt = setOf(
+                SignJwt<JsonWebToken>(
+                    keyMaterial
+                )
+                // To be refactored once signJwt is not passed in the constructor but to this function
+                { header: JwsHeader, key: KeyMaterial ->
+                    val (jsonWebKey, keyId) = this.selectProofJwtKeyBinding.invoke(key)
+
+                    when {
+                        jsonWebKey != null && keyId.isNullOrEmpty() ->
+                            header.copy(jsonWebKey = jsonWebKey, keyAttestation = keyAttestation?.jws)
+
+                        jsonWebKey == null && !keyId.isNullOrEmpty() ->
+                            header.copy(keyId = keyId, keyAttestation = keyAttestation?.jws)
+
+                        jsonWebKey != null && !keyId.isNullOrEmpty() ->
+                            throw IllegalArgumentException(
+                                "Key binding conflict: both 'jwk' and 'kid' are set, only one must be provided as per OID4VCI spec."
+                            )
+
+                        else -> // same as jsonWebKey == null && keyId.isNullOrEmpty()
+                            throw IllegalArgumentException(
+                                "Key binding missing: neither 'jwk' nor 'kid' is set, exactly one must be provided as per OID4VCI spec."
+                            )
+                    }
+
+                }.invoke(
+                    OpenIdConstants.PROOF_JWT_TYPE,
+                    JsonWebToken(
+                        issuer = clientId, // omit when token was pre-authn?
+                        audience = credentialIssuer,
+                        issuedAt = clock.now().truncateToSeconds(),
+                        nonce = clientNonce,
+                    ),
+                    JsonWebToken.serializer(),
+                ).getOrThrow().jws
+            )
         )
     }
 
-    private fun addKeyAttestationToJwsHeader(
+    internal suspend fun createCredentialRequestProofAttestation(
         clientNonce: String?,
-        addKeyAttestation: Boolean = false,
-    ): suspend (JwsHeader, KeyMaterial) -> JwsHeader = { header: JwsHeader, key: KeyMaterial ->
-        val keyAttestation = if (addKeyAttestation) {
-            this.loadKeyAttestation?.invoke(KeyAttestationInput(clientNonce, null))?.getOrThrow()?.serialize()
-                ?: throw IllegalArgumentException("Key attestation required, none provided")
-        } else null
-        header.copy(jsonWebKey = key.jsonWebKey, keyAttestation = keyAttestation)
+        credentialIssuer: String?,
+        keyAttestationRequired: KeyAttestationRequired? = null,
+        supportedAlgorithms: Collection<String>? = null,
+    ): CredentialRequestProofContainer = CredentialRequestProofContainer(
+        attestation = setOf(
+            (loadKeyAttestation?.invoke(
+                KeyAttestationInput(
+                    credentialIssuer = credentialIssuer,
+                    clientNonce = clientNonce,
+                    supportedAlgorithms = supportedAlgorithms,
+                    preferredKeyStorageStatusPeriod = keyAttestationRequired?.preferredTtl,
+                )
+            )?.getOrThrow()?.jws ?: throw IllegalArgumentException("Key attestation required, none provided"))
+        )
+    )
+
+    private fun JwsCompactTyped<KeyAttestationJwt>.requireKeyMaterialAtAttestedKeyIndex0() {
+        val attestedKey = payload.attestedKeys.firstOrNull()
+            ?: throw IllegalArgumentException("Key attestation required, none provided")
+        if (attestedKey.jwkThumbprintPlain != keyMaterial.jsonWebKey.jwkThumbprintPlain) {
+            throw IllegalArgumentException("Key attestation attested_keys[0] must match credential proof signing key")
+        }
     }
+
+    private val JsonWebKey.jwkThumbprintPlain: String
+        get() = jwkThumbprint.removePrefix("urn:ietf:params:oauth:jwk-thumbprint:sha256:")
 
     @Throws(Exception::class)
     private fun String.toStoreCredentialInput(
@@ -458,8 +527,7 @@ class WalletService
         credentialScheme: ConstantIndex.CredentialScheme,
     ): Holder.StoreCredentialInput = when (credentialRepresentation) {
         PLAIN_JWT -> Vc(
-            signedVcJws = JwsSigned.deserialize(VerifiableCredentialJws.serializer(), this, joseCompliantSerializer)
-                .getOrThrow(),
+            signedVcJws = JwsCompactTyped<VerifiableCredentialJws>(this),
             vcJws = this,
             scheme = credentialScheme
         )

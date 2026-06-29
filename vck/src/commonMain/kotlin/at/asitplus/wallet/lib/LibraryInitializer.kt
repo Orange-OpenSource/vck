@@ -33,9 +33,9 @@ object LibraryInitializer {
      * Example for [jsonValueEncoder]:
      * ```
      * when (it) {
-     *     is DrivingPrivilege -> vckJsonSerializer.encodeToJsonElement(it)
-     *     is LocalDate -> vckJsonSerializer.encodeToJsonElement(it)
-     *     is UInt -> vckJsonSerializer.encodeToJsonElement(it)
+     *     is DrivingPrivilege -> joseCompliantSerializer.encodeToJsonElement(it)
+     *     is LocalDate -> joseCompliantSerializer.encodeToJsonElement(it)
+     *     is UInt -> joseCompliantSerializer.encodeToJsonElement(it)
      *     else -> null
      * }
      * ```
@@ -69,7 +69,7 @@ object LibraryInitializer {
  * Used to encode any value into a [JsonElement], implementation may be
  * ```
  * when (it) {
- *     is DrivingPrivilege -> vckJsonSerializer.encodeToJsonElement(it)
+ *     is DrivingPrivilege -> joseCompliantSerializer.encodeToJsonElement(it)
  *     else -> null
  * }
  * ```

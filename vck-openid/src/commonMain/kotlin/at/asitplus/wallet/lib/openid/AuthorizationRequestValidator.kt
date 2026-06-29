@@ -6,12 +6,14 @@ import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.OpenIdConstants.ClientIdScheme
 import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
+import at.asitplus.signum.indispensable.josef.JwsCompact
+import at.asitplus.signum.indispensable.josef.JwsGeneral
 import at.asitplus.signum.indispensable.pki.X509Certificate
 import at.asitplus.signum.indispensable.pki.leaf
-import at.asitplus.wallet.lib.utils.DefaultMapStore
-import at.asitplus.wallet.lib.utils.MapStore
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidRequest
+import at.asitplus.wallet.lib.utils.DefaultMapStore
+import at.asitplus.wallet.lib.utils.MapStore
 import io.ktor.http.*
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlin.coroutines.cancellation.CancellationException
@@ -54,15 +56,22 @@ internal class AuthorizationRequestValidator(
 
     private fun RequestParametersFrom<AuthenticationRequestParameters>.validateDcApi() {
         when (this) {
-            is RequestParametersFrom.DcApiSigned<*> -> {
+            is RequestParametersFrom.OpenId4VpDcApiSigned,
+            is RequestParametersFrom.OpenId4VpDcApiMultiSigned -> {
+                val dcApiRequest = this as RequestParametersFrom.DcApiRequest
                 if (this.parameters.clientId == null)
-                    throw InvalidRequest("client_id must be set for DC API signed request")
-                this.parameters.verifyExpectedOrigin(this.dcApiRequest.callingOrigin)
+                    throw InvalidRequest("client_id must be set for signed DC API request")
+                if (this.parameters.expectedOrigins == null)
+                    throw InvalidRequest("expected_origins must be set for signed DC API request")
+                if (!this.parameters.verifyExpectedOrigin(dcApiRequest.callingOrigin))
+                    throw InvalidRequest(
+                        "calling origin '${dcApiRequest.callingOrigin}' does not match expected_origins"
+                    )
             }
 
-            is RequestParametersFrom.DcApiUnsigned<*> -> {
-                if (this.parameters.clientId != null)
-                    throw InvalidRequest("client_id not allowed for DC API unsigned request")
+            is RequestParametersFrom.OpenId4VpDcApiUnsigned -> {
+                // Nothing to validate: the Wallet authenticates the client through the calling Origin,
+                // and any client_id present in an unsigned request is ignored (not used for authentication).
             }
 
             else -> throw InvalidRequest("DC API request not set even though response mode is ${parameters.responseMode}")
@@ -70,7 +79,7 @@ internal class AuthorizationRequestValidator(
     }
 
     private fun RequestParametersFrom<AuthenticationRequestParameters>.isFromRequestObject(): Boolean =
-        this is RequestParametersFrom.Json || this is RequestParametersFrom.JwsSigned
+        this is RequestParametersFrom.Json || this is RequestParametersFrom.Jws
 
     @Throws(OAuth2Exception::class)
     private fun AuthenticationRequestParameters.verifyRedirectUrl() {
@@ -86,19 +95,26 @@ internal class AuthorizationRequestValidator(
 
     @Throws(OAuth2Exception::class)
     private fun RequestParametersFrom<AuthenticationRequestParameters>.verifyClientIdSchemeX509() {
-        val clientIdScheme = parameters.clientIdSchemeExtracted
-        val responseModeIsDirectPost = parameters.responseMode.isAnyDirectPost()
-        val responseModeIsDcApi = parameters.responseMode.isAnyDcApi()
-        if (this !is RequestParametersFrom.RequestParametersSigned<AuthenticationRequestParameters>
-            || jwsSigned.header.certificateChain.isNullOrEmpty()
-        ) {
-            throw InvalidRequest("x5c is null, and metadata is not set")
-        }
+        val signedRequest = this as? RequestParametersFrom.RequestParametersSigned<AuthenticationRequestParameters>
+            ?: throw InvalidRequest("x509 client_id_scheme requires a signed request object")
 
-        val leaf = jwsSigned.header.certificateChain!!.leaf
-        when (clientIdScheme) {
-            ClientIdScheme.X509SanDns -> verifyX509SanDns(leaf, responseModeIsDirectPost, responseModeIsDcApi)
-            ClientIdScheme.X509Hash -> verifyX509SanHash(leaf)
+        val certChain = when (val jws = signedRequest.jwsTyped.jws) {
+            is JwsCompact -> jws.jwsHeader.certificateChain
+            is JwsGeneral -> jws.signatureElements.firstOrNull()?.jwsHeader?.certificateChain
+            else -> null
+        }
+        val leaf = certChain
+            ?.takeIf { it.isNotEmpty() }
+            ?.leaf
+            ?: throw InvalidRequest("x509 client_id_scheme requires an x5c certificate chain in the JOSE header")
+
+        when (val clientIdScheme = parameters.clientIdSchemeExtracted) {
+            ClientIdScheme.X509SanDns -> signedRequest.verifyX509SanDns(
+                leaf = leaf,
+                responseModeIsDirectPost = parameters.responseMode.isAnyDirectPost(),
+                responseModeIsDcApi = parameters.responseMode.isAnyDcApi(),
+            )
+            ClientIdScheme.X509Hash -> signedRequest.verifyX509SanHash(leaf)
             // checked before calling this method
             else -> throw InvalidRequest("Unexpected clientIdScheme $clientIdScheme")
         }
