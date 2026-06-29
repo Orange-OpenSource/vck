@@ -1,8 +1,18 @@
 # Changelog
 
 Release 7.0.0 (unreleased):
- - Refactorings:
-   - `OpenId4VpHolder.getMatchingCredentials()` returns `KmmResult` instead of `Result`
+- Credential definitions:
+    - Move `CredentialScheme` out of `ConstantIndex`
+    - Provide type alias for `CredentialRepresentation`
+    - Introduce typed sub-interfaces of `CredentialScheme`: `VcJwtCredentialScheme`, `SdJwtCredentialScheme` and `IsoMdocCredentialScheme`
+    - That implies changes to `CredentialToBeIssued`, `IssuedCredential`, `StoreCredentialInput` and methods in `SubjectCredentialStore`
+    - In `CredentialScheme` deprecate `claimNames` (list of strings), to be replaced with `claimDescriptions` (set of typed descriptions)
+    - In `StoreEntry` deprecate property `scheme` and add suspending function `resolveScheme()` to replace it
+    - Add `UnknownCredentialScheme` so that the `scheme` property in several methods and classes is not null
+    - Import data classes and data element strings from credentials into this library for [EU PID](https://github.com/a-sit-plus/eu-pid-credential), [EU PID in SD-JWT](https://github.com/a-sit-plus/eu-pid-credential-sdjwt/) and [Mobile Driving Licence](https://github.com/a-sit-plus/mobile-driving-licence-credential/)
+    - Document usage of remote metadata retrieval
+- Refactorings:
+    - `OpenId4VpHolder.getMatchingCredentials()` returns `KmmResult` instead of `Result`
 
 Release 6.0.0:
  - JWS:
@@ -42,16 +52,6 @@ Release 6.0.0:
    - Remove code deprecated in 5.12.0, e.g. `CredentialSubject` as base class for JWT VC
    - Deprecate `vckJsonSerializer`, should be replaced with `joseCompliantSerializer` (Signum)
    - Deprecate `signDpop` in `OAuth2KtorClient` because DPoP need same key as instance attestation [EUDI Wallet TS3](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md)
- - Credential definitions:
-   - Move `CredentialScheme` out of `ConstantIndex`
-   - Provide type alias for `CredentialRepresentation`
-   - Introduce typed sub-interfaces of `CredentialScheme`: `VcJwtCredentialScheme`, `SdJwtCredentialScheme` and `IsoMdocCredentialScheme`
-   - That implies changes to `CredentialToBeIssued`, `IssuedCredential`, `StoreCredentialInput` and methods in `SubjectCredentialStore`
-   - In `CredentialScheme` deprecate `claimNames` (list of strings), to be replaced with `claimDescriptions` (set of typed descriptions)
-   - In `StoreEntry` deprecate property `scheme` and add suspending function `resolveScheme()` to replace it 
-   - Add `UnknownCredentialScheme` so that the `scheme` property in several methods and classes is not null
-   - Import data classes and data element strings from credentials into this library for [EU PID](https://github.com/a-sit-plus/eu-pid-credential), [EU PID in SD-JWT](https://github.com/a-sit-plus/eu-pid-credential-sdjwt/) and [Mobile Driving Licence](https://github.com/a-sit-plus/mobile-driving-licence-credential/)
-   - Document usage of remote metadata retrieval
  - New modules:
    - `etsi-data-classes` implements list of trusted entities from [ETSI TS 119 602](https://www.etsi.org/deliver/etsi_ts/119600_119699/119602/01.01.01_60/ts_119602v010101p.pdf)
    - `sd-jwt-type-metadata` implements SD-JWT VC Type Metadata from [draft-ietf-oauth-sd-jwt-vc-16](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/):
