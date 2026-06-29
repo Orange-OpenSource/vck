@@ -49,6 +49,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.random.Random
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 
 object TestUtils {
 
@@ -92,7 +93,7 @@ object TestUtils {
                 PLAIN_JWT -> TODO()
                 SD_JWT -> CredentialToBeIssued.VcSd(
                     claims = attributes.map { ClaimToBeIssued(it.key, it.value) },
-                    expiration = Clock.System.now(),
+                    expiration = Clock.System.now().plus(1.minutes),
                     scheme = it.credentialScheme as SdJwtCredentialScheme,
                     subjectPublicKey = it.subjectPublicKey,
                     userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject"))
@@ -101,13 +102,13 @@ object TestUtils {
                 )
 
                 ISO_MDOC -> CredentialToBeIssued.Iso(
-                    attributes.map {
+                    issuerSignedItems = attributes.map {
                         IssuerSignedItem(digestId++, Random.nextBytes(32), it.key, it.value)
                     },
-                    Clock.System.now(),
-                    it.credentialScheme as IsoMdocCredentialScheme,
-                    it.subjectPublicKey,
-                    OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
+                    expiration = Clock.System.now().plus(1.minutes),
+                    scheme = it.credentialScheme as IsoMdocCredentialScheme,
+                    subjectPublicKey = it.subjectPublicKey,
+                    userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
                     revocationKind = revocationKind,
                 )
             }
