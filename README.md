@@ -109,12 +109,150 @@ implementation("at.asitplus.wallet:vck:$version")
 implementation("at.asitplus.wallet:vck-openid:$version")
 ```
 
+```kotlin
+implementation("at.asitplus.wallet:vck-openid-ktor:$version")
+```
+
 Everything else (serialization, crypto through Signum, …) will be taken care of.
 Therefore, **do not** manually add serialization dependencies! In case you are using this project in a codebase with dependencies on `kotlinx-serialization`, please use the `vck-versionCatalog` artefact to keep versions in sync.
 As discovered in [#226](https://github.com/a-sit-plus/vck/issues/226), using the deprecated `io.spring.dependency-management` will cause issues.
 
 The actual credentials are provided as discrete artefacts and are maintained separately [over here](https://github.com/a-sit-plus/credentials-collection).
 It is fine to add credentials **and** VC-K to as project dependencies, e. g., to use a version of VC-K that is more recent than the one a certain credentials depends on.
+
+### OpenID4VP presentation
+
+Use `OpenId4VpVerifier` in the verifier/relying party and `OpenId4VpHolder` in the wallet. The verifier creates the
+authorization request, sends the resulting URL to the wallet as a QR code or deep link, then validates the URL or POST
+body returned by the wallet.
+
+```kotlin
+val verifier = OpenId4VpVerifier(
+    keyMaterial = verifierKeyMaterial,
+    clientIdScheme = ClientIdScheme.RedirectUri("https://rp.example/callback"),
+    verifier = VerifierAgent(identifier = "https://rp.example/callback"),
+)
+
+val request = verifier.createAuthnRequest(
+    requestOptions = OpenId4VpRequestOptions(
+        presentationRequest = CredentialPresentationRequestBuilder(
+            credentials = setOf(
+                RequestOptionsCredential(
+                    credentialScheme = EuPidSdJwtScheme,
+                    representation = SD_JWT,
+                    attributePaths = setOf(
+                        DCQLClaimsPathPointer("given_name"),
+                        DCQLClaimsPathPointer("family_name"),
+                    ),
+                )
+            )
+        ).toDCQLRequest(),
+    ),
+    creationOptions = OpenId4VpVerifier.CreationOptions.Query("openid4vp://authorize"),
+).getOrThrow()
+
+// Show request.url as QR code or open it as a wallet deep link.
+// For RequestByReference/SignedRequestByReference also serve request.loadRequestObject from your request_uri.
+
+val response = verifier.validateAuthnResponse(walletRedirectUrlOrDirectPostBody).getOrThrow()
+val vpValidation = response.vpTokenValidationResult?.getOrThrow()
+```
+
+On the wallet side, use the two-step API when the user must review and choose credentials. `OpenId4VpWallet` from
+`vck-openid-ktor` wraps the same holder flow and also performs the HTTP POST/redirect response handling. For signed
+request objects from pre-registered clients, provide a real `requestObjectJwsVerifier`.
+
+```kotlin
+val holder = OpenId4VpHolder(
+    keyMaterial = holderKeyMaterial,
+    holder = holderAgent,
+    remoteResourceRetriever = { request -> httpClient.get(request.url).bodyAsText() },
+)
+
+val preparation = holder.startAuthorizationResponsePreparation(requestUrlFromQrOrDeepLink).getOrThrow()
+val matches = holder.getMatchingCredentials(preparation).getOrThrow()
+
+// Show preparation.verifierInfo and matches to the user, then continue after consent.
+val authnResponse = holder.finalizeAuthorizationResponse(preparation).getOrThrow()
+
+when (authnResponse) {
+    is AuthenticationResponseResult.Redirect -> openBrowser(authnResponse.url)
+    is AuthenticationResponseResult.Post -> postForm(authnResponse.url, authnResponse.params)
+    is AuthenticationResponseResult.DcApi -> returnToBrowserDcApi(authnResponse)
+}
+```
+
+### OpenID4VCI credential issuance
+
+Use `CredentialIssuer` on the issuer service. Your HTTP framework only needs to expose the metadata, nonce, and
+credential endpoints and forward request data into the protocol object.
+
+```kotlin
+val credentialIssuer = CredentialIssuer(
+    publicContext = "https://issuer.example",
+    credentialSchemes = setOf(EuPidSdJwtScheme),
+    authorizationService = authorizationServer,
+    issuer = issuerAgent,
+    keyMaterial = setOf(issuerKeyMaterial),
+    credentialEndpointPath = "/credential",
+    nonceEndpointPath = "/nonce",
+)
+
+// GET /.well-known/openid-credential-issuer
+fun issuerMetadata() = credentialIssuer.metadata
+
+// POST /nonce
+suspend fun nonce() = credentialIssuer.nonceWithDpopNonce().getOrThrow()
+
+// POST /credential
+suspend fun credential(authorizationHeader: String, requestBody: String, requestInfo: RequestInfo) =
+    credentialIssuer.credential(
+        authorizationHeader = authorizationHeader,
+        params = WalletService.CredentialRequest.parse(requestBody).getOrThrow(),
+        request = requestInfo,
+        credentialDataProvider = credentialDataProvider,
+    ).getOrThrow()
+
+// Serialize CredentialResponse.Plain as JSON and CredentialResponse.Encrypted as application/jwt.
+```
+
+On the wallet side, `WalletService` builds credential requests and parses responses. For a Ktor-based wallet, prefer
+`OpenId4VciClient`; it handles issuer metadata, OAuth2, DPoP, credential requests, and response parsing. Without a
+credential offer, load metadata with `loadCredentialMetadata(issuerUrl)`, let the user pick a credential, and call
+`startProvisioningWithAuthRequestReturningResult`.
+
+```kotlin
+val walletService = WalletService(
+    clientId = walletClientId,
+    keyMaterial = holderKeyMaterial,
+    remoteResourceRetriever = { request -> httpClient.get(request.url).bodyAsText() },
+)
+
+val client = OpenId4VciClient(
+    engine = httpEngine,
+    cookiesStorage = cookiesStorage,
+    oid4vciService = walletService,
+)
+
+val offer = walletService.parseCredentialOffer(credentialOfferUrl).getOrThrow()
+val credentials = client.loadCredentialMetadata(offer.credentialIssuer).getOrThrow()
+val selectedCredential = credentials.first { it.credentialIdentifier in offer.configurationIds }
+
+when (val result = client.loadCredentialWithOfferReturningResult(offer, selectedCredential).getOrThrow()) {
+    is CredentialIssuanceResult.OpenUrlForAuthnRequest -> {
+        storeProvisioningContext(result.context)
+        openBrowser(result.url)
+    }
+
+    is CredentialIssuanceResult.Success -> {
+        result.credentials.forEach { holderAgent.storeCredential(it, result.refreshToken) }
+    }
+}
+
+// After the browser redirects back to the wallet app in the authorization-code flow:
+val success = client.resumeWithAuthCode(redirectUrl, loadProvisioningContext()).getOrThrow()
+success.credentials.forEach { holderAgent.storeCredential(it, success.refreshToken) }
+```
 
 ### Registering credential schemes
 
