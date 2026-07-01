@@ -35,7 +35,6 @@ val LegacyIsoSchemeMatchingTest by matrixSuite {
         @Suppress("DEPRECATION")
         return SubjectCredentialStore.StoreEntry.Iso(
             issuerSigned = issued.issuerSigned,
-            schemaUri = AtomicAttribute2023.schemaUri,
             schemeIdentifier = null, // entry serialized before scheme-identifier was introduced
         )
     }

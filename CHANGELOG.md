@@ -7,6 +7,7 @@ Release 7.0.0 (unreleased):
     - Introduce typed sub-interfaces of `CredentialScheme`: `VcJwtCredentialScheme`, `SdJwtCredentialScheme` and `IsoMdocCredentialScheme`
     - That implies changes to `CredentialToBeIssued`, `IssuedCredential`, `StoreCredentialInput` and methods in `SubjectCredentialStore`
     - In `CredentialScheme` deprecate `claimNames` (list of strings), to be replaced with `claimDescriptions` (set of typed descriptions)
+    - In `CredentialScheme` deprecate `schemaUri`, clients should use the identifiers for each credential representation instead
     - In `StoreEntry` deprecate property `scheme` and add suspending function `resolveScheme()` to replace it
     - Add `UnknownCredentialScheme` so that the `scheme` property in several methods and classes is not null
     - Import data classes and data element strings from credentials into this library for [EU PID](https://github.com/a-sit-plus/eu-pid-credential), [EU PID in SD-JWT](https://github.com/a-sit-plus/eu-pid-credential-sdjwt/) and [Mobile Driving Licence](https://github.com/a-sit-plus/mobile-driving-licence-credential/)

@@ -39,7 +39,6 @@ import at.asitplus.wallet.lib.agent.PresentationRequestParameters
 import at.asitplus.wallet.lib.agent.PresentationResponseParameters
 import at.asitplus.wallet.lib.agent.PresentationResponseParameters.DCQLParameters
 import at.asitplus.wallet.lib.agent.PresentationResponseParameters.PresentationExchangeParameters
-import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.cbor.SignCoseDetachedFun
 import at.asitplus.wallet.lib.data.CredentialPresentation
 import at.asitplus.wallet.lib.extensions.firstSessionTranscriptThumbprint
@@ -59,7 +58,6 @@ internal class PresentationFactory(
     private val supportedAlgorithms: Set<SignatureAlgorithm>,
     private val signDeviceAuthDetached: SignCoseDetachedFun<ByteArray>,
     private val signIdToken: SignJwtFun<IdToken>,
-    private val randomSource: RandomSource = RandomSource.Secure,
 ) {
     private val supportedJwsAlgorithms = supportedAlgorithms
         .mapNotNull { it.toJwsAlgorithm().getOrNull() }

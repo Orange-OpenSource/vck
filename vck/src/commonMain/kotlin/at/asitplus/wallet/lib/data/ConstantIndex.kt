@@ -83,13 +83,9 @@ typealias CredentialRepresentation = ConstantIndex.CredentialRepresentation
  * Holds all information needed to define one type of "credential", i.e. a collection of claims about a subject.
  */
 interface CredentialScheme {
-    /**
-     * Schema URL of the credential, used in protocols to map
-     * from the requested schema to the internal attribute type used in [at.asitplus.wallet.lib.agent.Issuer]
-     * when issuing credentials.
-     */
-    // TODO Do we still need this? Or can we remove it? Is it the URL where the document has been downloaded?
+    @Deprecated("Use other identifiers instead, e.g. `vcType` or `sdJwtType` or `isoDocType`")
     val schemaUri: String
+        get() = ""
 
     /**
      * The `type` of the credential when using [ConstantIndex.CredentialRepresentation.PLAIN_JWT].

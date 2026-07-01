@@ -229,7 +229,7 @@ val SdJwtTypeMetadataDocumentSerializationTest by matrixSuite {
             SdJwtTypeMetadataDocument.serializer(),
             input
         ).definition.toSdJwtTypeMetadata()
-            .toCredentialScheme("https://metadata.example.test/ehic.json")
+            .toCredentialScheme()
             .apply {
             SD_JWT shouldBeIn supportedRepresentations
             sdJwtType shouldBe "urn:eudi:ehic:1"

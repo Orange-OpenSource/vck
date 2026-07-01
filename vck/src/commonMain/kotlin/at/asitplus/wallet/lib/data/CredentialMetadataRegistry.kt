@@ -34,7 +34,7 @@ data class ResolvedCredentialMetadata(
     val aliases: Set<String> = emptySet(),
 )
 
-fun ResolvedCredentialMetadata.toCredentialScheme() = metadata.toCredentialScheme(loadedFrom)
+fun ResolvedCredentialMetadata.toCredentialScheme() = metadata.toCredentialScheme()
 
 private fun SdJwtTypeMetadata.extractRepresentation() = when (vckExtensions?.format) {
     CredentialFormatEnum.JWT_VC -> PLAIN_JWT
@@ -43,21 +43,18 @@ private fun SdJwtTypeMetadata.extractRepresentation() = when (vckExtensions?.for
     else -> null
 } ?: SD_JWT
 
-fun SdJwtTypeMetadata.toCredentialScheme(schemaUri: String) = when (extractRepresentation()) {
+fun SdJwtTypeMetadata.toCredentialScheme() = when (extractRepresentation()) {
     PLAIN_JWT -> ExtractedVcJwtCredentialScheme(
-        schemaUri = schemaUri,
         vcType = vckExtensions?.vcType ?: vct.string,
         claimDescriptions = claims?.map { it.toClaimDescription() }?.toSet() ?: setOf()
     )
 
     SD_JWT -> ExtractedSdJwtCredentialScheme(
-        schemaUri = schemaUri,
         sdJwtType = vct.string,
         claimDescriptions = claims?.map { it.toClaimDescription() }?.toSet() ?: setOf()
     )
 
     ISO_MDOC -> ExtractedIsoMdocCredentialScheme(
-        schemaUri = schemaUri,
         isoDocType = vckExtensions?.isoDocType ?: vct.string,
         isoNamespace = vckExtensions?.isoNamespace ?: vct.string,
         claimDescriptions = claims?.map { it.toClaimDescription() }?.toSet() ?: setOf()
@@ -96,19 +93,16 @@ private fun ULong.safeToUint(): UInt = also {
 }.toUInt()
 
 data class ExtractedVcJwtCredentialScheme(
-    override val schemaUri: String,
     override val vcType: String,
     override val claimDescriptions: Set<ClaimDescription>
 ) : VcJwtCredentialScheme
 
 data class ExtractedSdJwtCredentialScheme(
-    override val schemaUri: String,
     override val sdJwtType: String,
     override val claimDescriptions: Set<ClaimDescription>
 ) : SdJwtCredentialScheme
 
 data class ExtractedIsoMdocCredentialScheme(
-    override val schemaUri: String,
     override val isoDocType: String,
     override val isoNamespace: String,
     override val claimDescriptions: Set<ClaimDescription>

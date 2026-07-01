@@ -18,7 +18,7 @@ import at.asitplus.wallet.sdjwt.W3cSubresourceIntegrityMetadata
  * Static [CredentialMetadataRegistry] backed by an in-memory [SdJwtTypeMetadataDocumentRegistry].
  *
  * This is intended for libraries that ship known metadata documents in code. [documentUrls] provides the canonical
- * hosted URL for each entry document; that URL becomes [CredentialScheme.schemaUri] after resolution.
+ * hosted URL for each entry document.
  */
 class StaticCredentialMetadataRegistry(
     private val documentRegistry: SdJwtTypeMetadataDocumentRegistry,

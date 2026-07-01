@@ -127,8 +127,7 @@ class OpenId4VpHolder(
     private val presentationFactory = PresentationFactory(
         supportedAlgorithms = supportedAlgorithms,
         signDeviceAuthDetached = signDeviceAuthDetached,
-        signIdToken = signIdToken,
-        randomSource = randomSource
+        signIdToken = signIdToken
     )
 
     val metadata: OAuth2AuthorizationServerMetadata by lazy {
@@ -390,17 +389,12 @@ class OpenId4VpHolder(
         clientJsonWebKeySet: Collection<JsonWebKey>?,
     ) = when (this) {
         is RequestParametersFrom.DcApiRequest -> "origin:$callingOrigin"
-        else -> parameters.extractAudience(clientJsonWebKeySet)
+        else -> parameters.clientId
+            ?: parameters.issuer
+            ?: clientJsonWebKeySet?.firstOrNull()
+                ?.let { it.keyId ?: it.didEncoded ?: it.jwkThumbprint }
+            ?: throw InvalidRequest("could not parse audience")
     }
-
-    @Throws(OAuth2Exception::class)
-    private fun AuthenticationRequestParameters.extractAudience(
-        clientJsonWebKeySet: Collection<JsonWebKey>?,
-    ) = clientId
-        ?: issuer
-        ?: clientJsonWebKeySet?.firstOrNull()
-            ?.let { it.keyId ?: it.didEncoded ?: it.jwkThumbprint }
-        ?: throw InvalidRequest("could not parse audience")
 
     private fun RequestParametersFrom<AuthenticationRequestParameters>.callingOrigin() =
         (this as? RequestParametersFrom.DcApiRequest)?.callingOrigin

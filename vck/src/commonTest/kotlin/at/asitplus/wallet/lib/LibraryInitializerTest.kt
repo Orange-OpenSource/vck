@@ -12,33 +12,105 @@ import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
 import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.JsonCredentialSerializer
 import com.benasher44.uuid.uuid4
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlin.random.Random
 
-private data class TestCredentialScheme(
-    override val schemaUri: String,
+@Suppress("DEPRECATION")
+private data class DeprecatedTestCredentialScheme(
     override val vcType: String? = null,
     override val sdJwtType: String? = null,
     override val isoNamespace: String? = null,
     override val isoDocType: String? = null,
-    override val claimNames: Collection<String> = emptyList(),
     override val supportedRepresentations: Collection<CredentialRepresentation> = listOf(PLAIN_JWT),
 ) : ConstantIndex.CredentialScheme
 
+private data class TestCredentialScheme(
+    override val vcType: String? = null,
+    override val sdJwtType: String? = null,
+    override val isoNamespace: String? = null,
+    override val isoDocType: String? = null,
+    override val supportedRepresentations: Collection<CredentialRepresentation> = listOf(PLAIN_JWT),
+) : CredentialScheme
+
 val LibraryInitializerTest by matrixSuite {
     "registerExtensionLibrary registers schemes without serializer modules" {
+        val deprecatedScheme = DeprecatedTestCredentialScheme(
+            vcType = "TestCredential-${uuid4()}",
+        )
         val scheme = TestCredentialScheme(
-            schemaUri = "urn:test:${uuid4()}",
             vcType = "TestCredential-${uuid4()}",
         )
 
+        @Suppress("DEPRECATION")
+        LibraryInitializer.registerExtensionLibrary(deprecatedScheme)
         LibraryInitializer.registerExtensionLibrary(scheme)
 
+        AttributeIndex.resolveAttributeType(deprecatedScheme.vcType!!) shouldBe deprecatedScheme
         AttributeIndex.resolveAttributeType(scheme.vcType!!) shouldBe scheme
+    }
+
+    "registerExtensionLibrary registers ISO encoders and serializers (deprecated)" {
+        @Serializable
+        data class MockIssuerSignedValue(val value: String)
+
+        val elementId = "element-${uuid4()}"
+        val isoNamespace = "namespace.${uuid4()}"
+        val deprecatedScheme = DeprecatedTestCredentialScheme(
+            vcType = "IsoCredential-${uuid4()}",
+            isoNamespace = isoNamespace,
+            isoDocType = "doctype.${uuid4()}",
+            supportedRepresentations = listOf(ISO_MDOC),
+        )
+        val scheme = DeprecatedTestCredentialScheme(
+            vcType = "IsoCredential-${uuid4()}",
+            isoNamespace = isoNamespace,
+            isoDocType = "doctype.${uuid4()}",
+            supportedRepresentations = listOf(ISO_MDOC),
+        )
+
+        LibraryInitializer.registerExtensionLibrary(
+            deprecatedScheme,
+            jsonValueEncoder = { value: Any ->
+                when (value) {
+                    is MockIssuerSignedValue -> joseCompliantSerializer.encodeToJsonElement<MockIssuerSignedValue>(value)
+                    else -> null
+                }
+            },
+            itemValueSerializerMap = mapOf<String, KSerializer<MockIssuerSignedValue>>(
+                elementId to MockIssuerSignedValue.serializer()
+            ),
+        )
+
+        JsonCredentialSerializer.encode(MockIssuerSignedValue("encoded")) shouldBe
+                joseCompliantSerializer.encodeToJsonElement(MockIssuerSignedValue("encoded"))
+
+        val list = IssuerSignedList(
+            listOf(
+                ByteStringWrapper(
+                    IssuerSignedItem(
+                        digestId = 1u,
+                        random = Random.nextBytes(16),
+                        elementIdentifier = elementId,
+                        elementValue = MockIssuerSignedValue("round-trip"),
+                    )
+                )
+            )
+        )
+        val encodedList = coseCompliantSerializer.encodeToByteArray(
+            IssuerSignedListSerializer(isoNamespace),
+            list
+        )
+        val decodedList = coseCompliantSerializer.decodeFromByteArray(
+            IssuerSignedListSerializer(isoNamespace),
+            encodedList
+        )
+        decodedList shouldBe list
     }
 
     "registerExtensionLibrary registers ISO encoders and serializers" {
@@ -47,28 +119,24 @@ val LibraryInitializerTest by matrixSuite {
 
         val elementId = "element-${uuid4()}"
         val isoNamespace = "namespace.${uuid4()}"
-        val scheme = TestCredentialScheme(
-            schemaUri = "urn:test:${uuid4()}",
+        val scheme = DeprecatedTestCredentialScheme(
             vcType = "IsoCredential-${uuid4()}",
             isoNamespace = isoNamespace,
             isoDocType = "doctype.${uuid4()}",
             supportedRepresentations = listOf(ISO_MDOC),
         )
 
-        val jsonValueEncoder: JsonValueEncoder = { value ->
-            when (value) {
-                is MockIssuerSignedValue -> joseCompliantSerializer.encodeToJsonElement(value)
-                else -> null
-            }
-        }
-        val itemValueSerializerMap = mapOf(
-            elementId to MockIssuerSignedValue.serializer()
-        )
-
         LibraryInitializer.registerExtensionLibrary(
             scheme,
-            jsonValueEncoder = jsonValueEncoder,
-            itemValueSerializerMap = itemValueSerializerMap,
+            jsonValueEncoder = { value: Any ->
+                when (value) {
+                    is MockIssuerSignedValue -> joseCompliantSerializer.encodeToJsonElement<MockIssuerSignedValue>(value)
+                    else -> null
+                }
+            },
+            itemValueSerializerMap = mapOf<String, KSerializer<MockIssuerSignedValue>>(
+                elementId to MockIssuerSignedValue.serializer()
+            ),
         )
 
         JsonCredentialSerializer.encode(MockIssuerSignedValue("encoded")) shouldBe

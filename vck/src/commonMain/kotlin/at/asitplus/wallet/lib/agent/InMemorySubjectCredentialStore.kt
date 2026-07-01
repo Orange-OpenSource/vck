@@ -23,7 +23,6 @@ class InMemorySubjectCredentialStore : SubjectCredentialStore {
     ) = SubjectCredentialStore.StoreEntry.Vc(
         vcSerialized = vcSerialized,
         vc = vc,
-        schemaUri = scheme.schemaUri,
         renewalInfo = renewalInfo,
         schemeIdentifier = scheme.vcType,
     ).also { credentials += it }
@@ -38,7 +37,6 @@ class InMemorySubjectCredentialStore : SubjectCredentialStore {
         vcSerialized = vcSerialized,
         sdJwt = vc,
         disclosures = disclosures,
-        schemaUri = scheme.schemaUri,
         renewalInfo = renewalInfo,
         schemeIdentifier = scheme.sdJwtType,
     ).also { credentials += it }
@@ -49,7 +47,6 @@ class InMemorySubjectCredentialStore : SubjectCredentialStore {
         renewalInfo: CredentialRenewalInfo?,
     ) = SubjectCredentialStore.StoreEntry.Iso(
         issuerSigned = issuerSigned,
-        schemaUri = scheme.schemaUri,
         renewalInfo = renewalInfo,
         schemeIdentifier = scheme.isoDocType,
     ).also { credentials += it }

@@ -11,7 +11,6 @@ import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
-import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.cbor.CoseHeaderNone
 import at.asitplus.wallet.lib.cbor.SignCoseDetached
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
@@ -27,8 +26,7 @@ val PresentationFactoryTest by matrixSuite {
             val presentationFactory = PresentationFactory(
                 supportedAlgorithms = setOf(SignatureAlgorithm.ECDSAwithSHA256),
                 signDeviceAuthDetached = SignCoseDetached(keyMaterial, CoseHeaderNone(), CoseHeaderNone()),
-                signIdToken = SignJwt(keyMaterial, JwsHeaderCertOrJwk()),
-                randomSource = RandomSource.Default
+                signIdToken = SignJwt(keyMaterial, JwsHeaderCertOrJwk())
             )
         }
     } - {

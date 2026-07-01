@@ -493,7 +493,6 @@ val OidvciCodeFlowTest by matrixSuite {
             // issuer: a typed SD-JWT scheme that is never registered with AttributeIndex (so not in the issuer's
             // schemeSet), unlike the metadata-backed schemes pre-loaded via the TestConfig registry
             val scheme = ExtractedSdJwtCredentialScheme(
-                schemaUri = "https://example.com/unknown",
                 sdJwtType = "urn:eudi:unknown:1",
                 claimDescriptions = emptySet(),
             )

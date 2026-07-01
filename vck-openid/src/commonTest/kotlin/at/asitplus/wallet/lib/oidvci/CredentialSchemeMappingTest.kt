@@ -51,7 +51,6 @@ val CredentialSchemeMappingTest by matrixSuite {
     test("already namespace-qualified ISO claims are not double-prefixed") {
         val namespace = "org.iso.18013.5.1"
         val scheme = ExtractedIsoMdocCredentialScheme(
-            schemaUri = "https://example.com",
             isoDocType = "org.iso.18013.5.1.mDL",
             isoNamespace = namespace,
             claimDescriptions = setOf(ClaimDescription(OpenId4VciClaimsPathPointer(namespace, "given_name"))),

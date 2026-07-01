@@ -36,9 +36,7 @@ object AttributeIndex {
         schemeSetRef.update { it + preloaded }
     }
 
-    /**
-     * Matches the passed [uri] against all known schemes from [CredentialScheme.schemaUri].
-     */
+    @Suppress("DEPRECATION")
     @Deprecated("Use other methods that resolve an identifier")
     fun resolveSchemaUri(uri: String): CredentialScheme? =
         schemeSet.firstOrNull { it.schemaUri == uri }

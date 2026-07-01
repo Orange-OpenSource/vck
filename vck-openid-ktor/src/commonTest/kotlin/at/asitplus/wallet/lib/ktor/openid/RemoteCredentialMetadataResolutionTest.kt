@@ -67,7 +67,6 @@ val RemoteCredentialMetadataResolutionTest by matrixSuite {
 
         val scheme = entry.toCredentialScheme().shouldBeInstanceOf<SdJwtCredentialScheme>()
         scheme.sdJwtType shouldBe ehicVct.string
-        scheme.schemaUri shouldBe ehicUrl
         // All 13 claims parsed, including the nested issuing_authority.* / authentic_source.* objects, all mandatory.
         scheme.claimDescriptions.size shouldBe 13
         scheme.claimDescriptions.count { it.mandatory == true } shouldBe 13
@@ -81,7 +80,6 @@ val RemoteCredentialMetadataResolutionTest by matrixSuite {
         val scheme = entry.toCredentialScheme().shouldBeInstanceOf<IsoMdocCredentialScheme>()
         scheme.isoDocType shouldBe ageVerificationVct.string
         scheme.isoNamespace shouldBe ageVerificationVct.string
-        scheme.schemaUri shouldBe ageVerificationUrl
         // 11 age-over predicates; only age_over_18 is mandatory.
         scheme.claimDescriptions.size shouldBe 11
         scheme.claimDescriptions.count { it.mandatory == true } shouldBe 1
