@@ -98,6 +98,43 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 .params.shouldBeInstanceOf<OpenId4VpResponseUnsigned>()
         }
 
+        test("DC API unsigned: SD-JWT response validation exposes origin audience mismatch") { f ->
+            val rpOrigin = "https://wallet-rp.a-sit.plus"
+            val transactionId = uuid4().toString()
+            val authnRequest = f.verifierOid4vp.createAuthnRequest(
+                OpenId4VpRequestOptions(
+                    presentationRequest = dcqlRequest,
+                    responseMode = OpenIdConstants.ResponseMode.DcApi,
+                    responseUrl = "$rpOrigin/transaction/result/$transactionId",
+                    expectedOrigins = listOf(rpOrigin),
+                    populateClientId = false,
+                    state = transactionId,
+                )
+            )
+
+            val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiUnsigned(
+                parameters = authnRequest,
+                jsonString = joseCompliantSerializer.encodeToString(authnRequest),
+                credentialIds = listOf(credentialId),
+                callingPackageName = callingPackageName,
+                callingOrigin = rpOrigin,
+            )
+
+            val response = f.holderOid4vp.startAuthorizationResponsePreparation(dcApiRequest).getOrThrow()
+                .let { f.holderOid4vp.finalizeAuthorizationResponse(it).getOrThrow() }
+                .shouldBeInstanceOf<AuthenticationResponseResult.DcApi>()
+                .params.shouldBeInstanceOf<OpenId4VpResponseUnsigned>()
+                .copy(origin = rpOrigin)
+
+            val validation = f.verifierOid4vp.validateAuthnResponse(response, transactionId).getOrThrow()
+                .vpTokenValidationResult!!.getOrThrow()
+                .shouldBeInstanceOf<VpTokenValidationResultDCQL>()
+                .credentialQueryResponseValidations.values.single().single()
+
+            validation.isFailure shouldBe true
+            validation.exceptionOrNull()!!.message shouldContain "Audience not correct: origin:$rpOrigin"
+        }
+
         test("DC API signed: parsed as DcApiSigned, validates and responds with OpenId4VpResponseSigned") { f ->
             val reqOptions = OpenId4VpRequestOptions(
                 presentationRequest = dcqlRequest,
