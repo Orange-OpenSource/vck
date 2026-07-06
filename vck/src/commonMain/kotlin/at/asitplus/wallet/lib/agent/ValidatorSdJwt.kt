@@ -20,13 +20,14 @@ import at.asitplus.wallet.lib.jws.VerifyJwsSignatureFun
 import at.asitplus.wallet.lib.jws.VerifyJwsSignatureWithCnf
 import at.asitplus.wallet.lib.jws.VerifyJwsSignatureWithCnfFun
 import io.github.aakira.napier.Napier
+import kotlin.jvm.JvmOverloads
 
 /**
  * Parses and validates Verifiable Credentials and Verifiable Presentations.
  * Does verify the cryptographic authenticity of the data.
  * Does verify the revocation status of the data (when a status information is encoded in the credential).
  */
-class ValidatorSdJwt(
+class ValidatorSdJwt @JvmOverloads constructor(
     private val verifySignature: VerifySignatureFun = VerifySignature(),
     private val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(verifySignature),
     private val verifyJwsObject: VerifyJwsObjectFun = VerifyJwsObject(verifyJwsSignature),

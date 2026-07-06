@@ -59,6 +59,7 @@ import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidRequest
 import at.asitplus.wallet.lib.utils.DefaultMapStore
 import at.asitplus.wallet.lib.utils.MapStore
 import com.benasher44.uuid.uuid4
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 
 /**
@@ -71,7 +72,7 @@ import kotlin.time.Clock
  * show the information to the user,
  * and create the response in [finalizeAuthorizationResponse], and send it back to the verifier.
  */
-class OpenId4VpHolder(
+class OpenId4VpHolder @JvmOverloads constructor(
     /** Key material used to encrypt responses and sign ID tokens. */
     private val keyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
     /** Holds the credentials and creates the verifiable presentation. */

@@ -13,6 +13,7 @@ import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocumentRegistry
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataVckExtensions
 import at.asitplus.wallet.sdjwt.SdJwtVcType
 import at.asitplus.wallet.sdjwt.W3cSubresourceIntegrityMetadata
+import kotlin.jvm.JvmOverloads
 
 /**
  * Static [CredentialMetadataRegistry] backed by an in-memory [SdJwtTypeMetadataDocumentRegistry].
@@ -20,7 +21,7 @@ import at.asitplus.wallet.sdjwt.W3cSubresourceIntegrityMetadata
  * This is intended for libraries that ship known metadata documents in code. [documentUrls] provides the canonical
  * hosted URL for each entry document.
  */
-class StaticCredentialMetadataRegistry(
+class StaticCredentialMetadataRegistry @JvmOverloads constructor(
     private val documentRegistry: SdJwtTypeMetadataDocumentRegistry,
     private val documentUrls: Map<SdJwtVcType, String>,
     private val aliases: Map<CredentialMetadataLookup, SdJwtVcType> = emptyMap(),

@@ -15,6 +15,7 @@ import io.github.aakira.napier.Napier
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.jvm.JvmOverloads
 import kotlin.random.Random
 
 /**
@@ -73,7 +74,7 @@ abstract class KeyWithSelfSignedCert(
 /**
  * Generate new key material with a random key, and a self-signed certificate, e.g. used in tests
  */
-class EphemeralKeyWithSelfSignedCert(
+class EphemeralKeyWithSelfSignedCert @JvmOverloads constructor(
     val key: EphemeralKey = EphemeralKey {
         ec {
             curve = ECCurve.SECP_256_R_1
@@ -90,7 +91,7 @@ class EphemeralKeyWithSelfSignedCert(
 /**
  * Generate new key material with a random key, e.g. used in tests
  */
-class EphemeralKeyWithoutCert(
+class EphemeralKeyWithoutCert @JvmOverloads constructor(
     val key: EphemeralKey = EphemeralKey {
         ec {
             curve = ECCurve.SECP_256_R_1
@@ -107,7 +108,7 @@ class EphemeralKeyWithoutCert(
 /**
  * Key that will be referenced by its [getCertificate] or the [jsonWebKey] directly embedded in proofs.
  */
-abstract class SignerBasedKeyMaterial(
+abstract class SignerBasedKeyMaterial @JvmOverloads constructor(
     val signer: Signer,
     val customKeyId: String = Random.nextBytes(8).encodeToString(Base16Strict).lowercase(),
 ) : KeyMaterial, Signer by signer {

@@ -1,13 +1,14 @@
 package at.asitplus.wallet.lib.data
 
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
+import kotlin.jvm.JvmOverloads
 
 
 /**
  * Intermediate class used by [at.asitplus.wallet.lib.agent.ValidatorVcJws.verifyVpJws] when parsing a verifiable
  * presentation, and also by [at.asitplus.wallet.lib.agent.VerifierAgent.verifyPresentationVcJwt].
  */
-data class VerifiablePresentationParsed(
+data class VerifiablePresentationParsed @JvmOverloads constructor(
     val jws: JwsCompactTyped<VerifiablePresentationJws>,
     val id: String,
     val type: String,
@@ -16,4 +17,3 @@ data class VerifiablePresentationParsed(
     val notVerifiablyFreshVerifiableCredentials: Collection<VcJwsVerificationResultWrapper> = listOf(),
     val invalidVerifiableCredentials: Collection<String> = listOf(),
 )
-

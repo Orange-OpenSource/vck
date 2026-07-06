@@ -23,6 +23,7 @@ import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
 import at.asitplus.wallet.lib.jws.JwsHeaderModifierFun
 import kotlinx.serialization.json.JsonElement
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Instant
 
 sealed class CredentialToBeIssued {
@@ -39,7 +40,7 @@ sealed class CredentialToBeIssued {
         override val userInfo: OidcUserInfoExtended,
     ) : CredentialToBeIssued()
 
-    data class VcSd(
+    data class VcSd @JvmOverloads constructor(
         val claims: Collection<ClaimToBeIssued>,
         override val expiration: Instant,
         override val scheme: SdJwtCredentialScheme,
@@ -50,7 +51,7 @@ sealed class CredentialToBeIssued {
         val sdAlgorithm: Digest = Digest.SHA256
     ) : CredentialToBeIssued()
 
-    data class Iso(
+    data class Iso @JvmOverloads constructor(
         val issuerSignedItems: List<IssuerSignedItem>,
         override val expiration: Instant,
         override val scheme: IsoMdocCredentialScheme,
@@ -69,10 +70,17 @@ sealed class CredentialToBeIssued {
  *
  * For each claim, one can select if the claim shall be selectively disclosable or otherwise included plain.
  */
-data class ClaimToBeIssued(val name: String, val value: Any, val selectivelyDisclosable: Boolean = true)
+data class ClaimToBeIssued @JvmOverloads constructor(
+    val name: String,
+    val value: Any,
+    val selectivelyDisclosable: Boolean = true,
+)
 
 /**
  * Represents an element of an array inside an SD-JWT that shall be issued to the holder.
  * Use this in any collection inside [ClaimToBeIssued.value] to correctly serialize the array.
  */
-data class ClaimToBeIssuedArrayElement(val value: Any, val selectivelyDisclosable: Boolean = true)
+data class ClaimToBeIssuedArrayElement @JvmOverloads constructor(
+    val value: Any,
+    val selectivelyDisclosable: Boolean = true,
+)

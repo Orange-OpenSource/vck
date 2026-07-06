@@ -22,8 +22,9 @@ import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.jws.VerifyJwsObject
 import at.asitplus.wallet.lib.jws.VerifyJwsObjectFun
+import kotlin.jvm.JvmOverloads
 
-data class VcJwsInputValidator(
+data class VcJwsInputValidator @JvmOverloads constructor(
     val vcJwsContentSemanticsValidator: VcJwsContentSemanticsValidator = VcJwsContentSemanticsValidator(),
     val vpJwsValidator: VpJwsValidator = VpJwsValidator(),
     val verifyJwsObject: VerifyJwsObjectFun = VerifyJwsObject(),
@@ -56,4 +57,3 @@ data class VcJwsInputValidator(
         )
     }
 }
-

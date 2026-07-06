@@ -14,6 +14,7 @@ import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataClaimInformation
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataClaimInformationPathSegment
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataClaimInformationPathSegmentIndex
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataClaimInformationPathSegmentName
+import kotlin.jvm.JvmOverloads
 
 interface CredentialMetadataRegistry {
     suspend fun findEntry(
@@ -28,7 +29,7 @@ interface CredentialMetadataRegistry {
     fun preloadEntries(): Collection<ResolvedCredentialMetadata> = emptyList()
 }
 
-data class ResolvedCredentialMetadata(
+data class ResolvedCredentialMetadata @JvmOverloads constructor(
     val metadata: SdJwtTypeMetadata,
     val loadedFrom: String,
     val aliases: Set<String> = emptySet(),
@@ -107,4 +108,3 @@ data class ExtractedIsoMdocCredentialScheme(
     override val isoNamespace: String,
     override val claimDescriptions: Set<ClaimDescription>
 ) : IsoMdocCredentialScheme
-

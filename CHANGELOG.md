@@ -14,6 +14,8 @@ Release 7.0.0 (unreleased):
     - Document usage of remote metadata retrieval
 - OpenID for Verifiable Presentations:
     - Fix SD-JWT presentation validation for Digital Credentials API responses by checking the key binding JWT audience against the request origin (`origin:<origin>`) instead of the verifier client identifier.
+- JVM interoperability:
+    - Add `@JvmOverloads` to public API constructors with default parameters across the published modules.
 - Refactorings:
     - `OpenId4VpHolder.getMatchingCredentials()` returns `KmmResult` instead of `Result`
 - Trust Evaluation:

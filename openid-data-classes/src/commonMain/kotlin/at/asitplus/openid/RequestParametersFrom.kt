@@ -15,6 +15,7 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
+import kotlin.jvm.JvmOverloads
 
 /**
  * This class tracks Requests, their contents and their origin with relevant parameters.
@@ -61,7 +62,7 @@ sealed class RequestParametersFrom<S : RequestParameters> {
 
     @Serializable
     @SerialName(SerialNames.TYPE_JWS)
-    data class Jws<T : RequestParameters>(
+    data class Jws<T : RequestParameters> @JvmOverloads constructor(
         @SerialName(SerialNames.JWS)
         val jws: JWS,
         @SerialName(SerialNames.PARAMETERS)
@@ -76,7 +77,7 @@ sealed class RequestParametersFrom<S : RequestParameters> {
 
     @Serializable
     @SerialName(SerialNames.TYPE_DCAPI_MULTISIGNED)
-    data class OpenId4VpDcApiMultiSigned(
+    data class OpenId4VpDcApiMultiSigned @JvmOverloads constructor(
         @Serializable(with = JwsGeneralAuthParamSerializer::class)
         @SerialName(SerialNames.JWS)
         override val jwsTyped: JwsGeneralTyped<AuthenticationRequestParameters>,
@@ -206,7 +207,7 @@ sealed class RequestParametersFrom<S : RequestParameters> {
 
     @Serializable
     @SerialName(SerialNames.TYPE_DCAPI_ISO_MDOC)
-    data class IsoMdocDcApi(
+    data class IsoMdocDcApi @JvmOverloads constructor(
         override val parameters: IsoMdocRequestWrapper,
         @SerialName(SerialNames.JSON_STRING)
         val jsonString: String,
@@ -271,7 +272,7 @@ sealed class RequestParametersFrom<S : RequestParameters> {
 
     @Serializable
     @SerialName(SerialNames.TYPE_JSON)
-    data class Json<T : RequestParameters>(
+    data class Json<T : RequestParameters> @JvmOverloads constructor(
         @SerialName(SerialNames.JSON_STRING)
         val jsonString: String,
         @SerialName(SerialNames.PARAMETERS)

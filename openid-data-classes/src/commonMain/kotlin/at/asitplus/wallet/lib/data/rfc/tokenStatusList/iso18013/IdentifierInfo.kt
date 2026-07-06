@@ -4,9 +4,10 @@ import at.asitplus.signum.indispensable.io.TransformingSerializerTemplate
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.nullable
+import kotlin.jvm.JvmOverloads
 
 @Serializable(with = IdentifierInfo.TransformingSerializer::class)
-data class IdentifierInfo(
+data class IdentifierInfo @JvmOverloads constructor(
     val keys: Map<IdentifierInfoKey, RFU?> = emptyMap(),
 ) {
     object TransformingSerializer : TransformingSerializerTemplate<IdentifierInfo, Map<IdentifierInfoKey, RFU?>>(

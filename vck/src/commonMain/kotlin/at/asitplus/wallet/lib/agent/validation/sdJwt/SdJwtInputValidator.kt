@@ -11,11 +11,12 @@ import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.VerifyJwsObject
 import at.asitplus.wallet.lib.jws.VerifyJwsObjectFun
 import kotlinx.serialization.json.buildJsonObject
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-data class SdJwtInputValidator(
+data class SdJwtInputValidator @JvmOverloads constructor(
     private val timeLeeway: Duration = 300.seconds,
     private val clock: Clock = Clock.System,
     private val verifyJwsObject: VerifyJwsObjectFun = VerifyJwsObject(),
@@ -73,4 +74,3 @@ data class SdJwtInputValidator(
         )
     }
 }
-

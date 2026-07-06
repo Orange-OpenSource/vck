@@ -12,6 +12,7 @@ import at.asitplus.wallet.sdjwt.SdJwtVcType
 import at.asitplus.wallet.sdjwt.W3cSubresourceIntegrityMetadata
 import io.ktor.client.HttpClient
 import kotlinx.serialization.json.Json
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 
 /**
@@ -29,7 +30,7 @@ import kotlin.time.Clock
  * the `vct` directly. Mapping a decoupled W3C `vcType` / ISO `docType` to its `vct` needs an [aliases] entry until
  * richer discovery is added.
  */
-class RemoteCredentialMetadataRegistry(
+class RemoteCredentialMetadataRegistry @JvmOverloads constructor(
     httpClient: HttpClient,
     clock: Clock,
     /** `vct` -> hosted document URL. Owned here; fill in the known pairs. */

@@ -7,11 +7,12 @@ import at.asitplus.wallet.lib.agent.validation.sdJwt.SdJwtTimelinessValidator
 import at.asitplus.wallet.lib.agent.validation.vcJws.VcJwsTimelinessValidator
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.VerifiableCredentialSdJwt
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-data class CredentialTimelinessValidator(
+data class CredentialTimelinessValidator @JvmOverloads constructor(
     /**
      * @param timeLeeway specifies tolerance for expiration and start of validity of credentials.
      * A credential that expired at most `timeLeeway` ago is not yet considered expired.
@@ -51,4 +52,3 @@ data class CredentialTimelinessValidator(
         is CredentialWrapper.VcJws -> invoke(credentialWrapper.verifiableCredentialJws)
     }
 }
-

@@ -57,6 +57,7 @@ import io.github.aakira.napier.Napier
 import io.ktor.http.*
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlinx.serialization.json.JsonObject
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
@@ -79,7 +80,7 @@ import kotlin.time.Duration.Companion.minutes
  * [OAuth 2.0 Token Introspection](https://datatracker.ietf.org/doc/html/rfc7662)
  * [OAuth 2.0 Token Exchange](https://datatracker.ietf.org/doc/html/rfc8693)
  */
-class SimpleAuthorizationService(
+class SimpleAuthorizationService @JvmOverloads constructor(
     /** Used to filter authorization details and scopes. */
     private val strategy: AuthorizationServiceStrategy,
     /** Used to load the actual user data during [authorize]. */

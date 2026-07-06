@@ -22,6 +22,7 @@ import at.asitplus.wallet.lib.jws.VerifyJwsSignatureWithKeyFun
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidNonce
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidProof
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -33,7 +34,7 @@ import kotlin.time.Duration.Companion.minutes
  * [OpenID for Verifiable Credential Issuance](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
  * 1.0 from 2025-09-16.
  */
-class ProofValidator(
+class ProofValidator @JvmOverloads constructor(
     /** Used in several fields in [IssuerMetadata], to provide endpoint URLs to clients. */
     internal val publicContext: String = "https://wallet.a-sit.at/credential-issuer",
     /** Used to verify the signature of proof elements in credential requests. */
