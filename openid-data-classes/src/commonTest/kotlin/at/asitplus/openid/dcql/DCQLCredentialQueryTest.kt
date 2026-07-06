@@ -4,6 +4,7 @@ import at.asitplus.openid.CredentialFormatEnum
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -23,6 +24,44 @@ val DCQLCredentialQueryTest by matrixSuite {
             DCQLCredentialQuery.SerialNames.META shouldBe "meta"
             DCQLCredentialQuery.SerialNames.CLAIM_SETS shouldBe "claim_sets"
             DCQLCredentialQuery.SerialNames.CLAIMS shouldBe "claims"
+        }
+    }
+    "claims matching" - {
+        val query = DCQLSdJwtCredentialQuery(
+            id = DCQLCredentialQueryIdentifier("query"),
+            format = CredentialFormatEnum.DC_SD_JWT,
+            meta = DCQLSdJwtCredentialMetadataAndValidityConstraints(vctValues = listOf("vct")),
+        )
+        val claimStructure = DCQLCredentialClaimStructure.JsonBasedStructure(buildJsonObject {
+            put("family_name", JsonPrimitive("Musterfrau"))
+        })
+
+        "absent claims request only mandatory claims for selectively disclosable credentials" {
+            query.matchClaimsQueriesAgainstClaimStructure(
+                credentialStructure = claimStructure,
+                satisfiesSelectiveDisclosure = true,
+            ).getOrThrow() shouldBe DCQLCredentialQueryMatchingResult.AllMandatoryClaimsMatchingResult
+        }
+        "absent claims request all claims for non-selectively disclosable credentials" {
+            query.matchClaimsQueriesAgainstClaimStructure(
+                credentialStructure = claimStructure,
+                satisfiesSelectiveDisclosure = false,
+            ).getOrThrow() shouldBe DCQLCredentialQueryMatchingResult.AllClaimsMatchingResult
+        }
+        "present claims request exactly the listed claims" {
+            val result = query.copy(
+                claims = DCQLClaimsQueryList(
+                    DCQLJsonClaimsQuery(path = DCQLClaimsPathPointer("family_name"))
+                )
+            ).matchClaimsQueriesAgainstClaimStructure(
+                credentialStructure = claimStructure,
+                satisfiesSelectiveDisclosure = true,
+            ).getOrThrow()
+
+            result.shouldBeInstanceOf<DCQLCredentialQueryMatchingResult.ClaimsQueryResults>()
+                .claimsQueryResults.single()
+                .shouldBeInstanceOf<DCQLClaimsQueryResult.JsonResult>()
+                .nodeList.single().value shouldBe JsonPrimitive("Musterfrau")
         }
     }
     "serialization" {

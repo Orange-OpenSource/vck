@@ -29,6 +29,7 @@ import at.asitplus.jsonpath.core.NormalizedJsonPathSegment
 import at.asitplus.openid.dcql.DCQLClaimsQueryResult
 import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult
 import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult.AllClaimsMatchingResult
+import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult.AllMandatoryClaimsMatchingResult
 import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult.ClaimsQueryResults
 import at.asitplus.openid.truncateToSeconds
 import at.asitplus.signum.indispensable.Digest
@@ -127,6 +128,8 @@ class VerifiablePresentationFactory(
     private fun DCQLCredentialQueryMatchingResult.toRequestedSdJwtClaims(
         credential: StoreEntry.SdJwt
     ): List<NormalizedJsonPath> = when (this) {
+        AllMandatoryClaimsMatchingResult -> emptyList()
+
         AllClaimsMatchingResult -> credential.disclosures.entries.map {
             NormalizedJsonPath() + it.value!!.claimName!!
         }
@@ -143,6 +146,8 @@ class VerifiablePresentationFactory(
     private fun DCQLCredentialQueryMatchingResult.toRequestedIsoClaims(
         credential: StoreEntry.Iso,
     ) = when (this) {
+        AllMandatoryClaimsMatchingResult -> emptyList()
+
         AllClaimsMatchingResult -> credential.issuerSigned.namespaces!!.entries.flatMap { namespace ->
             namespace.value.entries.map {
                 NormalizedJsonPath() + namespace.key + it.value.elementIdentifier
@@ -249,6 +254,7 @@ class VerifiablePresentationFactory(
     private fun StoreEntry.SdJwt.loadDisclosures(
         disclosedAttributes: DCQLCredentialQueryMatchingResult
     ): Set<String> = when (disclosedAttributes) {
+        AllMandatoryClaimsMatchingResult -> emptySet()
         AllClaimsMatchingResult -> disclosures.keys
         is ClaimsQueryResults -> loadDisclosures(disclosedAttributes.toRequestedSdJwtClaims(this))
     }

@@ -5,6 +5,7 @@ import at.asitplus.jsonpath.core.NormalizedJsonPath
 import at.asitplus.openid.dcql.DCQLClaimsQueryResult.IsoMdocResult
 import at.asitplus.openid.dcql.DCQLClaimsQueryResult.JsonResult
 import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult.AllClaimsMatchingResult
+import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult.AllMandatoryClaimsMatchingResult
 import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult.ClaimsQueryResults
 import at.asitplus.signum.indispensable.CryptoSignature
 import at.asitplus.signum.indispensable.cosef.CoseAlgorithm
@@ -113,6 +114,15 @@ val VerifiablePresentationFactoryTest by matrixSuite {
                 }
         }
 
+        "sd-jwt createVerifiablePresentation uses disclosedAttributes (dcql mandatory claims)" {
+            it.verifiablePresentationFactory.createVerifiablePresentation(
+                request = presentationRequest(),
+                credential = it.sdJwtCredential,
+                disclosedAttributes = AllMandatoryClaimsMatchingResult,
+            ).getOrThrow().shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
+                .disclosedClaimNames() shouldBe setOfDefaultSdJwtClaims
+        }
+
         "sd-jwt createVerifiablePresentation uses disclosedAttributes (dcql query results)" {
             it.verifiablePresentationFactory.createVerifiablePresentation(
                 request = presentationRequest(),
@@ -189,6 +199,18 @@ val VerifiablePresentationFactoryTest by matrixSuite {
                 disclosedIsoClaimNames(namespace).apply {
                     this shouldBe setOf(CLAIM_GIVEN_NAME, CLAIM_FAMILY_NAME, CLAIM_DATE_OF_BIRTH, CLAIM_PORTRAIT)
                 }
+            }
+        }
+
+        "iso createVerifiablePresentation uses disclosedAttributes (dcql mandatory claims)" {
+            val namespace = ConstantIndex.AtomicAttribute2023.isoNamespace.shouldNotBeNull()
+
+            it.verifiablePresentationFactory.createVerifiablePresentation(
+                request = presentationRequest(),
+                credential = it.isoCredential,
+                disclosedAttributes = AllMandatoryClaimsMatchingResult,
+            ).getOrThrow().shouldBeInstanceOf<CreatePresentationResult.DeviceResponse>().apply {
+                disclosedIsoClaimNames(namespace).shouldBeEmpty()
             }
         }
 

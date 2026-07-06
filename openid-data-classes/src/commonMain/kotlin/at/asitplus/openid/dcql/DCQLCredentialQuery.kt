@@ -260,7 +260,7 @@ sealed interface DCQLCredentialQuery {
         ).getOrThrow()
 
         return matchClaimsQueriesAgainstClaimStructure(
-            credential.claimStructure,
+            credentialStructure = credential.claimStructure,
             satisfiesSelectiveDisclosure = credential.isSelectivelyDisclosable,
         )
     }
@@ -269,11 +269,13 @@ sealed interface DCQLCredentialQuery {
         credentialStructure: DCQLCredentialClaimStructure,
         satisfiesSelectiveDisclosure: Boolean,
     ): KmmResult<DCQLCredentialQueryMatchingResult> = catching {
-        val claimQueries = claims ?: if (satisfiesSelectiveDisclosure) {
-            return KmmResult.success(DCQLCredentialQueryMatchingResult.ClaimsQueryResults(listOf()))
-        } else {
-            return KmmResult.success(DCQLCredentialQueryMatchingResult.AllClaimsMatchingResult)
-        }
+        val claimQueries = claims ?: return KmmResult.success(
+            if (satisfiesSelectiveDisclosure) {
+                DCQLCredentialQueryMatchingResult.AllMandatoryClaimsMatchingResult
+            } else {
+                DCQLCredentialQueryMatchingResult.AllClaimsMatchingResult
+            }
+        )
 
         val requestedClaimsQueryCombinations = claimSets?.let {
             val claimQueryLookup = claimQueries.associateBy {
