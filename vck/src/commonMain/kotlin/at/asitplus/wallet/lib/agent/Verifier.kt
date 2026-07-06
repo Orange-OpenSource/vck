@@ -32,12 +32,14 @@ interface Verifier {
      * Verifies a presentation of some credentials in [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT]
      * from a holder,
      * that shall include the [challenge] (sent by this verifier).
+     * @param audience Expected audience in the key binding JWT, defaults to the verifier identifier.
      */
     suspend fun verifyPresentationSdJwt(
         input: SdJwtSigned,
         challenge: String,
         transactionData: List<TransactionDataBase64Url>? = null,
         requireCryptographicHolderBinding: Boolean = true,
+        audience: String? = null,
     ): KmmResult<VerifyPresentationResult.SuccessSdJwt>
 
     /**
@@ -119,4 +121,3 @@ fun CryptoPublicKey.matchesIdentifier(input: String): Boolean {
     }
     return false
 }
-

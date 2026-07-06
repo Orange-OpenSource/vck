@@ -702,14 +702,18 @@ class OpenId4VpVerifier(
         requireCryptographicHolderBinding: Boolean? = null,
     ): KmmResult<VerifyPresentationResult> = catching {
         when (claimFormat) {
-            ClaimFormat.SD_JWT -> verifier.verifyPresentationSdJwt(
-                input = SdJwtSigned.parseCatching(relatedPresentation.extractContent()).getOrElse {
+            ClaimFormat.SD_JWT -> {
+                val sdJwt = SdJwtSigned.parseCatching(relatedPresentation.extractContent()).getOrElse {
                     throw IllegalArgumentException("relatedPresentation")
-                },
-                challenge = expectedNonce,
-                transactionData = transactionData,
-                requireCryptographicHolderBinding = requireCryptographicHolderBinding != false,
-            )
+                }
+                verifier.verifyPresentationSdJwt(
+                    input = sdJwt,
+                    challenge = expectedNonce,
+                    transactionData = transactionData,
+                    requireCryptographicHolderBinding = requireCryptographicHolderBinding != false,
+                    audience = origin?.let { "origin:$it" },
+                )
+            }
 
             ClaimFormat.JWT_VP -> if (requireCryptographicHolderBinding != false) {
                 verifier.verifyPresentationVcJwt(

@@ -98,7 +98,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 .params.shouldBeInstanceOf<OpenId4VpResponseUnsigned>()
         }
 
-        test("DC API unsigned: SD-JWT response validation exposes origin audience mismatch") { f ->
+        test("DC API unsigned: SD-JWT response validates with origin audience") { f ->
             val rpOrigin = "https://wallet-rp.a-sit.plus"
             val transactionId = uuid4().toString()
             val authnRequest = f.verifierOid4vp.createAuthnRequest(
@@ -131,8 +131,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 .shouldBeInstanceOf<VpTokenValidationResultDCQL>()
                 .credentialQueryResponseValidations.values.single().single()
 
-            validation.isFailure shouldBe true
-            validation.exceptionOrNull()!!.message shouldContain "Audience not correct: origin:$rpOrigin"
+            validation.getOrThrow()
         }
 
         test("DC API signed: parsed as DcApiSigned, validates and responds with OpenId4VpResponseSigned") { f ->
