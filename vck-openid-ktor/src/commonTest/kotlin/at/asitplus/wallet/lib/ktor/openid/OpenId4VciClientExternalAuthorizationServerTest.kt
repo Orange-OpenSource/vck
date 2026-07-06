@@ -65,6 +65,7 @@ import io.ktor.http.*
 import io.ktor.util.*
 import kotlin.random.Random
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Tests [OpenId4VciClient] against [CredentialIssuer] that uses [RemoteOAuth2AuthorizationServerAdapter]
@@ -101,7 +102,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by matrixSuite {
                     PLAIN_JWT -> TODO()
                     SD_JWT -> VcSd(
                         attributes.map { ClaimToBeIssued(it.key, it.value) },
-                        Clock.System.now(),
+                        Clock.System.now().plus(1.minutes),
                         it.credentialScheme as SdJwtCredentialScheme,
                         it.subjectPublicKey,
                         OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
@@ -112,7 +113,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by matrixSuite {
                         attributes.map {
                             IssuerSignedItem(digestId++, Random.nextBytes(32), it.key, it.value)
                         },
-                        Clock.System.now(),
+                        Clock.System.now().plus(1.minutes),
                         it.credentialScheme as IsoMdocCredentialScheme,
                         it.subjectPublicKey,
                         OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
