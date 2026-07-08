@@ -13,6 +13,7 @@ import at.asitplus.dcapi.OpenId4VpResponse
 import at.asitplus.dcapi.SessionTranscriptContentHashable
 import at.asitplus.dcapi.request.IsoMdocRequest
 import at.asitplus.dcapi.request.verifier.CredentialRequestOptions
+import at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest
 import at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest.*
 import at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest.OpenId4Vp.SignedDataElement
 import at.asitplus.dif.ClaimFormat
@@ -205,39 +206,49 @@ class DcApiVerifier @JvmOverloads constructor(
      * relying party's frontend needs to pass to the browser in `navigator.credentials.get()`.
      *
      * [requestOptions] must use [OpenIdConstants.ResponseMode.DcApi] or [OpenIdConstants.ResponseMode.DcApiJwt].
+     *
+     * Pass more than one [creationOptions] to offer the same request over several exchange protocols in one
+     * browser call, e.g. [DcApiCreationOptions.OpenId4VpSigned] and [DcApiCreationOptions.Iso180137AnnexC].
+     * Do not combine [DcApiCreationOptions.OpenId4VpSigned] and [DcApiCreationOptions.OpenId4VpUnsigned],
+     * as the stored requests to validate the response would overwrite each other.
      */
     suspend fun createAuthnRequest(
         requestOptions: OpenId4VpRequestOptions,
-        creationOptions: DcApiCreationOptions,
+        vararg creationOptions: DcApiCreationOptions,
     ): KmmResult<CredentialRequestOptions> = catching {
         require(requestOptions.isAnyDcApi) {
             "responseMode must be ${OpenIdConstants.ResponseMode.DcApi} or ${OpenIdConstants.ResponseMode.DcApiJwt}"
         }
+        require(creationOptions.isNotEmpty()) {
+            "at least one creation option is required"
+        }
         CredentialRequestOptions.create(
-            listOf(
-                when (creationOptions) {
-                    is DcApiCreationOptions.OpenId4VpUnsigned -> OpenId4VpUnsigned(
-                        // client_id MUST be omitted in unsigned requests, per OpenID4VP 1.0 Appendix A.3.1
-                        createPlainAuthnRequest(requestOptions.requireEncryptionKeyConveyed().copy(populateClientId = false))
-                    )
+            creationOptions.map { it.toGetRequest(requestOptions) }
+        )
+    }
 
-                    is DcApiCreationOptions.OpenId4VpSigned -> OpenId4VpSigned(
-                        SignedDataElement(
-                            createSignedRequestObject(requestOptions.requireEncryptionKeyConveyed()).getOrThrow().jws
-                        )
-                    )
+    private suspend fun DcApiCreationOptions.toGetRequest(
+        requestOptions: OpenId4VpRequestOptions,
+    ): DigitalCredentialGetRequest = when (this) {
+        is DcApiCreationOptions.OpenId4VpUnsigned -> OpenId4VpUnsigned(
+            // client_id MUST be omitted in unsigned requests, per OpenID4VP 1.0 Appendix A.3.1
+            createPlainAuthnRequest(requestOptions.requireEncryptionKeyConveyed().copy(populateClientId = false))
+        )
 
-                    DcApiCreationOptions.Iso180137AnnexC -> {
-                        requireNotNull(decryptHpke) {
-                            "ISO 18013-7 Annex C requires decryptHpke to be set, the response could never be validated"
-                        }
-                        IsoMdoc(
-                            createIsoMdocRequest(requestOptions)
-                        )
-                    }
-                }
+        is DcApiCreationOptions.OpenId4VpSigned -> OpenId4VpSigned(
+            SignedDataElement(
+                createSignedRequestObject(requestOptions.requireEncryptionKeyConveyed()).getOrThrow().jws
             )
         )
+
+        DcApiCreationOptions.Iso180137AnnexC -> {
+            requireNotNull(decryptHpke) {
+                "ISO 18013-7 Annex C requires decryptHpke to be set, the response could never be validated"
+            }
+            IsoMdoc(
+                createIsoMdocRequest(requestOptions)
+            )
+        }
     }
 
     private suspend fun createSignedRequestObject(

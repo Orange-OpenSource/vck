@@ -35,6 +35,7 @@ import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import com.benasher44.uuid.uuid4
 import io.kotest.matchers.collections.shouldBeSingleton
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -175,6 +176,43 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                     SingleItemsRequest(CLAIM_GIVEN_NAME, false)
             isoMdocRequest.encryptionInfo.type shouldBe DCAPIHandover.TYPE_DCAPI
             isoMdocRequest.encryptionInfo.encryptionParameters.nonce.shouldNotBeNull()
+        }
+
+        test("createAuthnRequest combines several exchange protocols in one browser call") { f ->
+            val isoDcqlRequest = CredentialPresentationRequestBuilder(
+                RequestOptionsCredential(
+                    credentialScheme = AtomicAttribute2023,
+                    representation = ISO_MDOC,
+                    attributePaths = setOf(DCQLClaimsPathPointer(CLAIM_GIVEN_NAME)),
+                ),
+            ).toDCQLRequest()
+            val reqOptions = OpenId4VpRequestOptions(
+                presentationRequest = isoDcqlRequest,
+                responseMode = OpenIdConstants.ResponseMode.DcApi,
+                expectedOrigins = listOf(callingOrigin),
+            )
+
+            val requests = f.dcApiVerifier.createAuthnRequest(
+                reqOptions,
+                DcApiCreationOptions.OpenId4VpUnsigned,
+                DcApiCreationOptions.Iso180137AnnexC,
+            ).getOrThrow().digital.requests
+
+            requests.shouldHaveSize(2)
+            requests[0].shouldBeInstanceOf<DigitalCredentialGetRequest.OpenId4VpUnsigned>()
+                .data.dcqlQuery shouldBe isoDcqlRequest!!.dcqlQuery
+            requests[1].shouldBeInstanceOf<DigitalCredentialGetRequest.IsoMdoc>()
+                .data.deviceRequest.docRequests.single().itemsRequest.value.docType shouldBe
+                    AtomicAttribute2023.isoDocType
+        }
+
+        test("createAuthnRequest rejects empty creation options") { f ->
+            val reqOptions = OpenId4VpRequestOptions(
+                presentationRequest = dcqlRequest,
+                responseMode = OpenIdConstants.ResponseMode.DcApi,
+                expectedOrigins = listOf(callingOrigin),
+            )
+            f.dcApiVerifier.createAuthnRequest(reqOptions).isFailure shouldBe true
         }
 
         test("DC API Annex C: createAuthnRequest rejects verifier without HPKE decryption") {
