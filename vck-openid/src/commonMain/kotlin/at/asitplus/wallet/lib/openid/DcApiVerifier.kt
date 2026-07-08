@@ -474,14 +474,23 @@ class DcApiVerifier @JvmOverloads constructor(
         )
         val deviceResponse = coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(encodedDeviceResponse)
 
-        Iso180137AnnexCWrapper(
-            verifier.verifyPresentationIsoMdoc(
-                input = deviceResponse,
-                verifyDocument = verifyDocument(
-                    sessionTranscript = sessionTranscript
-                )
-            ).getOrThrow().documents
-        )
+        val documents = verifier.verifyPresentationIsoMdoc(
+            input = deviceResponse,
+            verifyDocument = verifyDocument(
+                sessionTranscript = sessionTranscript
+            )
+        ).getOrThrow().documents
+
+        // an authentic document of a type we never asked for must not be mistaken for the requested one
+        val requestedDocTypes = isoMdocRequest.deviceRequest.docRequests
+            .map { it.itemsRequest.value.docType }.toSet()
+        documents.forEach { document ->
+            require(document.document.docType in requestedDocTypes) {
+                "Response contains docType '${document.document.docType}', but requested were $requestedDocTypes"
+            }
+        }
+
+        Iso180137AnnexCWrapper(documents)
     }
 
     private fun AuthnResponseResult.isFullyValid(): Boolean =

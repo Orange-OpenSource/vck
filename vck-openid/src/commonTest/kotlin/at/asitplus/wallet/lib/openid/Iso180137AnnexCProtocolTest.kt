@@ -10,6 +10,9 @@ import at.asitplus.dcapi.request.IsoMdocRequest
 import at.asitplus.dcapi.request.verifier.CredentialRequestOptions
 import at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest
 import at.asitplus.iso.DeviceAuthentication
+import at.asitplus.iso.DeviceRequest
+import at.asitplus.iso.DocRequest
+import at.asitplus.iso.ItemsRequest
 import at.asitplus.iso.SingleItemsRequest
 import at.asitplus.iso.SessionTranscript
 import at.asitplus.iso.serializeOrigin
@@ -201,6 +204,32 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
             )
 
             val dcApiResponse = f.walletResponse(otherRequest)
+
+            f.verifier.validateIsoResponse(
+                receivedData = dcApiResponse,
+                externalId = transactionId,
+                expectedOrigin = callingOrigin,
+            ).isFailure shouldBe true
+        }
+
+        test("response with a document of a different docType than requested fails validation") { f ->
+            val transactionId = uuid4().toString()
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
+            // same encryption info (so decryption and device signature verification succeed),
+            // but the stored request asks for a different docType than the wallet presents
+            f.stateToIsoMdocRequestStore.put(
+                transactionId,
+                isoMdocRequest.copy(
+                    deviceRequest = DeviceRequest(
+                        version = "1.0",
+                        docRequests = arrayOf(
+                            DocRequest(ByteStringWrapper(ItemsRequest("org.iso.18013.5.1.mDL", emptyMap())))
+                        ),
+                    )
+                )
+            )
+
+            val dcApiResponse = f.walletResponse(isoMdocRequest)
 
             f.verifier.validateIsoResponse(
                 receivedData = dcApiResponse,
