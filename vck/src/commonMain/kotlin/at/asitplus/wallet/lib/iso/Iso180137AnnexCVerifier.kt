@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package at.asitplus.wallet.lib.iso
 
 
@@ -36,16 +38,15 @@ import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
 import kotlin.jvm.JvmOverloads
 
+@Deprecated("Use DcApiVerifier instead")
 class Iso180137AnnexCVerifier @JvmOverloads constructor(
     /** Creates challenges in authentication requests. */
     override val nonceService: NonceService = DefaultNonceService(),
     /** Used to store issued requests to verify the response to it */
-    private val stateToIsoMdocRequestStore: MapStore<String, IsoMdocRequest> = DefaultMapStore(), //stateToRequestStore
-
+    private val stateToIsoMdocRequestStore: MapStore<String, IsoMdocRequest> = DefaultMapStore(),
     override val decryptionKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
     /** Used to verify session transcripts from mDoc responses. */
     override val verifyCoseSignature: VerifyCoseSignatureWithKeyFun<ByteArray> = VerifyCoseSignatureWithKey(),
-
     private val validatorMdoc: ValidatorMdoc = ValidatorMdoc(),
 ) : AbstractMdocVerifier() {
 
@@ -63,6 +64,7 @@ class Iso180137AnnexCVerifier @JvmOverloads constructor(
         value = authenticationRequestParameters,
     ).also { Napier.w("Request with external ID $externalId stored") }
 
+    @Deprecated("Use createAuthnRequest from DcApiVerifier instead")
     suspend fun createRequest(
         requestOptions: Iso180137AnnexCRequestOptions,
     ): IsoMdocRequest {
@@ -96,6 +98,7 @@ class Iso180137AnnexCVerifier @JvmOverloads constructor(
         Iso180137AnnexCVerifiedPresentationResult(it.documents)
     }
 
+    @Deprecated("Use validateAuthnResponse from DcApiVerifier instead")
     @OptIn(SecretExposure::class)
     suspend fun validateResponse(
         receivedData: DCAPIResponse,
@@ -118,7 +121,12 @@ class Iso180137AnnexCVerifier @JvmOverloads constructor(
             )
         )
         val encodedSessionTranscript = coseCompliantSerializer.encodeToByteArray(sessionTranscript)
-        val encodedDeviceResponse = decryptHpke(encryptedResponseData.enc, encryptedResponseData.cipherText, privateKey, encodedSessionTranscript)
+        val encodedDeviceResponse = decryptHpke(
+            encryptedResponseData.enc,
+            encryptedResponseData.cipherText,
+            privateKey,
+            encodedSessionTranscript
+        )
         val deviceResponse = coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(encodedDeviceResponse)
 
         return validatorMdoc.verifyDeviceResponse(

@@ -1,13 +1,16 @@
 package at.asitplus.wallet.lib.openid
 
+import at.asitplus.dcapi.DCAPIHandover
 import at.asitplus.dcapi.OpenId4VpResponseMultiSigned
 import at.asitplus.dcapi.OpenId4VpResponseSigned
 import at.asitplus.dcapi.OpenId4VpResponseUnsigned
 import at.asitplus.dcapi.request.verifier.CredentialRequestOptions
 import at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest
+import at.asitplus.iso.SingleItemsRequest
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParametersFrom
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.signum.indispensable.josef.JwsCompact
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.JwsTyped
@@ -25,14 +28,18 @@ import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
+import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import com.benasher44.uuid.uuid4
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.runBlocking
 
 val OpenId4VpDcApiProtocolTest by matrixSuite {
 
@@ -44,8 +51,8 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
         RequestOptionsCredential(AtomicAttribute2023, SD_JWT),
     ).toDCQLRequest()
 
-    fixture({
-        kotlinx.coroutines.runBlocking {
+    fixture {
+        runBlocking {
             val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
             val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
                 agent.storeCredential(
@@ -67,11 +74,10 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                     holder = holderAgent,
                     randomSource = RandomSource.Default,
                 )
-                val clientId: String = "dc-api-rp-${uuid4()}"
                 val dcApiVerifier = DcApiVerifier(
                     keyMaterial = EphemeralKeyWithoutCert(),
                     clientIdScheme = ClientIdScheme.PreRegistered(
-                        clientId = clientId,
+                        clientId = "dc-api-rp-${uuid4()}",
                         redirectUri = "https://example.com/callback",
                     ),
                 )
@@ -94,7 +100,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                     .typed<AuthenticationRequestParameters, JwsCompact>()
             }
         }
-    }) - {
+    } - {
 
         test("createAuthnRequest rejects response modes other than DC API") { f ->
             val reqOptions = OpenId4VpRequestOptions(
@@ -104,6 +110,42 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
             f.dcApiVerifier.createAuthnRequest(reqOptions, DcApiCreationOptions.OpenId4VpUnsigned)
                 .isFailure shouldBe true
             f.dcApiVerifier.createAuthnRequest(reqOptions, DcApiCreationOptions.OpenId4VpSigned)
+                .isFailure shouldBe true
+        }
+
+        test("DC API Annex C: createAuthnRequest renders the DCQL query as ISO device request") { f ->
+            val isoDcqlRequest = CredentialPresentationRequestBuilder(
+                RequestOptionsCredential(
+                    credentialScheme = AtomicAttribute2023,
+                    representation = ISO_MDOC,
+                    attributePaths = setOf(DCQLClaimsPathPointer(CLAIM_GIVEN_NAME)),
+                ),
+            ).toDCQLRequest()
+            val reqOptions = OpenId4VpRequestOptions(
+                presentationRequest = isoDcqlRequest,
+                responseMode = OpenIdConstants.ResponseMode.DcApi,
+                expectedOrigins = listOf(callingOrigin),
+            )
+
+            val isoMdocRequest = f.dcApiVerifier.createAuthnRequest(reqOptions, DcApiCreationOptions.Iso180137AnnexC)
+                .getOrThrow().singleRequest<DigitalCredentialGetRequest.IsoMdoc>()
+                .data
+
+            val itemsRequest = isoMdocRequest.deviceRequest.docRequests.single().itemsRequest.value
+            itemsRequest.docType shouldBe AtomicAttribute2023.isoDocType
+            itemsRequest.namespaces[AtomicAttribute2023.isoNamespace]!!.entries.single() shouldBe
+                    SingleItemsRequest(CLAIM_GIVEN_NAME, false)
+            isoMdocRequest.encryptionInfo.type shouldBe DCAPIHandover.TYPE_DCAPI
+            isoMdocRequest.encryptionInfo.encryptionParameters.nonce.shouldNotBeNull()
+        }
+
+        test("DC API Annex C: createAuthnRequest rejects non-mdoc DCQL queries") { f ->
+            val reqOptions = OpenId4VpRequestOptions(
+                presentationRequest = dcqlRequest, // SD-JWT credential query
+                responseMode = OpenIdConstants.ResponseMode.DcApi,
+                expectedOrigins = listOf(callingOrigin),
+            )
+            f.dcApiVerifier.createAuthnRequest(reqOptions, DcApiCreationOptions.Iso180137AnnexC)
                 .isFailure shouldBe true
         }
 
@@ -163,6 +205,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 .copy(origin = rpOrigin)
 
             val validation = f.dcApiVerifier.validateAuthnResponse(response, transactionId).getOrThrow()
+                .shouldBeInstanceOf<AuthnResponseResult>()
                 .vpTokenValidationResult!!.getOrThrow()
                 .shouldBeInstanceOf<VpTokenValidationResultDCQL>()
                 .credentialQueryResponseValidations.values.single().single()

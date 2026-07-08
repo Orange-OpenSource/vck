@@ -19,5 +19,11 @@ sealed class DcApiCreationOptions {
      */
     data object OpenId4VpSigned : DcApiCreationOptions()
 
-    // TODO: OpenId4VpMultiSigned (`openid4vp-v1-multisigned`) and Iso18013AnnexC (`org-iso-mdoc`)
+    /**
+     * ISO 18013-7 Annex C request, i.e. protocol `org-iso-mdoc`,
+     * see [at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest.IsoMdoc].
+     */
+    data object Iso180137AnnexC : DcApiCreationOptions()
+
+    // TODO: OpenId4VpMultiSigned (`openid4vp-v1-multisigned`)
 }

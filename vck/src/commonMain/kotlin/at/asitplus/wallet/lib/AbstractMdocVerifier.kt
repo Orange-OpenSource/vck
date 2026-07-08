@@ -39,17 +39,20 @@ abstract class AbstractMdocVerifier {
         val deviceSignature = document.deviceSigned.deviceAuth.deviceSignature
             ?: throw IllegalArgumentException("deviceSignature is null")
 
-        val expected = document.calcDeviceAuthenticationOpenId4VpFinal(
+        val expectedDetachedPayload = DeviceAuthentication(
+            type = DeviceAuthentication.TYPE,
             sessionTranscript = sessionTranscript,
+            docType = document.docType,
+            namespaces = document.deviceSigned.namespaces
         ).wrapAsExpectedPayload()
 
         verifyCoseSignature(
             coseSigned = deviceSignature,
             signer = mso.deviceKeyInfo.deviceKey,
             externalAad = byteArrayOf(),
-            detachedPayload = expected
+            detachedPayload = expectedDetachedPayload
         ).onFailure {
-            throw IllegalArgumentException("deviceSignature not matching ${expected.encodeToString(Base16())}", it)
+            throw IllegalArgumentException("deviceSignature not matching ${expectedDetachedPayload.encodeToString(Base16())}", it)
         }
         true
     }
@@ -58,18 +61,5 @@ abstract class AbstractMdocVerifier {
         .encodeToByteArray(coseCompliantSerializer.encodeToByteArray(this))
         .wrapInCborTag(24)
 
-
-    /**
-     * Performs calculation of the [at.asitplus.iso.DeviceAuthentication],
-     * acc. to ISO 18013. Can take session transcripts acc. to ISO 18013 or OpenID4VP 1.0
-     */
-    private fun Document.calcDeviceAuthenticationOpenId4VpFinal(
-        sessionTranscript: SessionTranscript,
-    ) = DeviceAuthentication(
-        type = DeviceAuthentication.TYPE,
-        sessionTranscript = sessionTranscript,
-        docType = docType,
-        namespaces = deviceSigned.namespaces
-    )
 
 }

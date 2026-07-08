@@ -12,7 +12,7 @@ data class AuthnResponseResult(
     val idTokenValidationResult: KmmResult<IdToken>?,
     val vpTokenValidationResult: KmmResult<VpTokenValidationResult>?,
     val request: AuthenticationRequestParameters?,
-) {
+) : DcApiResponseResult() {
     val state
         get() = request?.state
 }

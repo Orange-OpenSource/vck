@@ -18,7 +18,7 @@ Release 7.0.0 (unreleased):
     - Fix disclosure of SD-JWT claims from foreign issuers: match disclosure digests against the originally serialized disclosures instead of re-serializing them, since digests are computed over the exact bytes (RFC 9901, section 4.2.3), e.g. failing for disclosures serialized with whitespace.
     - Extend `DCQLCredentialQueryMatchingResult` by case `AllMandatoryClaimsMatchingResult`
     - Consolidate interface of `OpenId4VpVerifier`: All clients should use `createAuthnRequest()`, so we deprecate methods `submitAuthnRequest()` or `createAuthnRequestAsSignedRequestObject()`
-    - Extract `DcApiVerifier` as a pendant to `OpenId4VpVerifier` which handles DCAPI requests only
+    - Extract `DcApiVerifier` as a pendant to `OpenId4VpVerifier` which handles DCAPI requests only, deprecating `Iso180137AnnexCVerifier`
     - Move `CreationOptions` and `CreatedRequest` to upper level (`at.asitplus.wallet.lib.openid`) instead of nesting in `OpenId4VpVerifier`
 - Verifier:
     - Add `NonceChallengeVerifier`, a thin `Verifier` wrapper that creates presentation challenges from a `NonceService` and verifies SD-JWT/VC-JWT presentations against the embedded challenge.

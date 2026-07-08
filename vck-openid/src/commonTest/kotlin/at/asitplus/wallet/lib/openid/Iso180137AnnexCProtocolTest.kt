@@ -7,11 +7,15 @@ import at.asitplus.dcapi.DCAPIResponse
 import at.asitplus.dcapi.EncryptedResponse
 import at.asitplus.dcapi.EncryptedResponseData
 import at.asitplus.dcapi.request.IsoMdocRequest
+import at.asitplus.dcapi.request.verifier.CredentialRequestOptions
+import at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest
 import at.asitplus.iso.DeviceAuthentication
+import at.asitplus.iso.SingleItemsRequest
 import at.asitplus.iso.SessionTranscript
 import at.asitplus.iso.serializeOrigin
 import at.asitplus.iso.sha256
 import at.asitplus.iso.wrapInCborTag
+import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.signum.indispensable.CryptoPrivateKey
 import at.asitplus.signum.indispensable.CryptoPublicKey
@@ -49,8 +53,6 @@ import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_DATE_
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.rfc3986.toUri
-import at.asitplus.wallet.lib.iso.Iso180137AnnexCRequestOptions
-import at.asitplus.wallet.lib.iso.Iso180137AnnexCVerifier
 import at.asitplus.wallet.lib.utils.DefaultMapStore
 import com.benasher44.uuid.uuid4
 import io.kotest.matchers.collections.shouldBeSingleton
@@ -62,7 +64,7 @@ import kotlinx.serialization.builtins.ByteArraySerializer
 import kotlinx.serialization.encodeToByteArray
 
 /**
- * Tests [Iso180137AnnexCVerifier] against a simulated wallet performing an ISO/IEC 18013-7 Annex C
+ * Tests [DcApiVerifier] against a simulated wallet performing an ISO/IEC 18013-7 Annex C
  * presentation over the Digital Credentials API, analogous to [OpenId4VpDcApiProtocolTest].
  */
 val Iso180137AnnexCProtocolTest by matrixSuite {
@@ -77,7 +79,7 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
             DCQLClaimsPathPointer(CLAIM_DATE_OF_BIRTH),
         ),
     )
-    val deviceRequest = CredentialPresentationRequestBuilder(requestedCredential).toIso180137AnnexCDeviceRequest()
+    val dcqlRequest = CredentialPresentationRequestBuilder(requestedCredential).toDCQLRequest()!!
 
     fixture({
         kotlinx.coroutines.runBlocking {
@@ -100,10 +102,30 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
             object {
                 val decryptionKeyMaterial = EphemeralKeyWithoutCert()
                 val stateToIsoMdocRequestStore = DefaultMapStore<String, IsoMdocRequest>()
-                val verifier = Iso180137AnnexCVerifier(
+                val verifier = DcApiVerifier(
+                    clientIdScheme = ClientIdScheme.PreRegistered(
+                        clientId = "dc-api-rp-${uuid4()}",
+                        redirectUri = "https://example.com/callback",
+                    ),
                     stateToIsoMdocRequestStore = stateToIsoMdocRequestStore,
                     decryptionKeyMaterial = decryptionKeyMaterial,
+                    decryptHpke = ::testHpkeOpen,
                 )
+
+                /** Extracts the Annex C request from the browser-facing [CredentialRequestOptions]. */
+                suspend fun createIsoMdocRequest(transactionId: String): IsoMdocRequest = verifier
+                    .createAuthnRequest(
+                        OpenId4VpRequestOptions(
+                            presentationRequest = dcqlRequest,
+                            responseMode = OpenIdConstants.ResponseMode.DcApi,
+                            expectedOrigins = listOf(callingOrigin),
+                            state = transactionId,
+                        ),
+                        DcApiCreationOptions.Iso180137AnnexC,
+                    ).getOrThrow()
+                    .digital.requests.shouldBeSingleton().first()
+                    .shouldBeInstanceOf<DigitalCredentialGetRequest.IsoMdoc>()
+                    .data
 
                 suspend fun walletResponse(
                     isoMdocRequest: IsoMdocRequest,
@@ -113,13 +135,16 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
         }
     }) - {
 
-        test("createRequest contains device request and encryption info, and remembers the request") { f ->
+        test("createAuthnRequest renders device request and encryption info, and remembers the request") { f ->
             val transactionId = uuid4().toString()
-            val isoMdocRequest = f.verifier.createRequest(
-                Iso180137AnnexCRequestOptions(deviceRequest, transactionId)
-            )
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
 
-            isoMdocRequest.deviceRequest shouldBe deviceRequest
+            val itemsRequest = isoMdocRequest.deviceRequest.docRequests.single().itemsRequest.value
+            itemsRequest.docType shouldBe AtomicAttribute2023.isoDocType
+            itemsRequest.namespaces[AtomicAttribute2023.isoNamespace]!!.entries shouldBe listOf(
+                SingleItemsRequest(CLAIM_GIVEN_NAME, false),
+                SingleItemsRequest(CLAIM_DATE_OF_BIRTH, false),
+            )
             isoMdocRequest.encryptionInfo.type shouldBe TYPE_DCAPI
             isoMdocRequest.encryptionInfo.encryptionParameters.nonce.shouldNotBeNull()
             isoMdocRequest.encryptionInfo.encryptionParameters.recipientPublicKey shouldBe
@@ -130,16 +155,13 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
 
         test("Annex C walk-through: wallet response validates and contains requested claims") { f ->
             val transactionId = uuid4().toString()
-            val isoMdocRequest = f.verifier.createRequest(
-                Iso180137AnnexCRequestOptions(deviceRequest, transactionId)
-            )
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
 
             val dcApiResponse = f.walletResponse(isoMdocRequest)
 
             val result = f.verifier.validateResponse(
                 receivedData = dcApiResponse,
                 externalId = transactionId,
-                decryptHpke = ::testHpkeOpen,
                 expectedOrigin = callingOrigin,
             ).getOrThrow()
 
@@ -154,25 +176,20 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
 
         test("origin mismatch: session transcript differs, device signature verification fails") { f ->
             val transactionId = uuid4().toString()
-            val isoMdocRequest = f.verifier.createRequest(
-                Iso180137AnnexCRequestOptions(deviceRequest, transactionId)
-            )
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
 
             val dcApiResponse = f.walletResponse(isoMdocRequest)
 
             f.verifier.validateResponse(
                 receivedData = dcApiResponse,
                 externalId = transactionId,
-                decryptHpke = ::testHpkeOpen,
                 expectedOrigin = "https://evil.example.com",
             ).isFailure shouldBe true
         }
 
         test("wallet responding to a different encryption info fails validation") { f ->
             val transactionId = uuid4().toString()
-            val isoMdocRequest = f.verifier.createRequest(
-                Iso180137AnnexCRequestOptions(deviceRequest, transactionId)
-            )
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
             // wallet answers a request with the same decryption key, but a different nonce,
             // i.e. its session transcript is not the one the verifier will calculate
             val otherRequest = isoMdocRequest.copy(
@@ -188,32 +205,26 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
             f.verifier.validateResponse(
                 receivedData = dcApiResponse,
                 externalId = transactionId,
-                decryptHpke = ::testHpkeOpen,
                 expectedOrigin = callingOrigin,
             ).isFailure shouldBe true
         }
 
         test("unknown transaction id fails validation") { f ->
             val transactionId = uuid4().toString()
-            val isoMdocRequest = f.verifier.createRequest(
-                Iso180137AnnexCRequestOptions(deviceRequest, transactionId)
-            )
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
 
             val dcApiResponse = f.walletResponse(isoMdocRequest)
 
             f.verifier.validateResponse(
                 receivedData = dcApiResponse,
                 externalId = "unknown-${uuid4()}",
-                decryptHpke = ::testHpkeOpen,
                 expectedOrigin = callingOrigin,
             ).isFailure shouldBe true
         }
 
         test("tampered ciphertext fails validation") { f ->
             val transactionId = uuid4().toString()
-            val isoMdocRequest = f.verifier.createRequest(
-                Iso180137AnnexCRequestOptions(deviceRequest, transactionId)
-            )
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
 
             val dcApiResponse = f.walletResponse(isoMdocRequest)
             val tampered = dcApiResponse.response.encryptedResponseData.cipherText
@@ -223,7 +234,6 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
             f.verifier.validateResponse(
                 receivedData = tampered,
                 externalId = transactionId,
-                decryptHpke = ::testHpkeOpen,
                 expectedOrigin = callingOrigin,
             ).isFailure shouldBe true
         }
@@ -290,7 +300,7 @@ private suspend fun createWalletResponse(
 
 // ponytail: stand-in for HPKE (RFC 9180), which is not available in signum supreme 0.14:
 // ephemeral ECDH + SHA-256 KDF over (sharedSecret || info) + AES-256-GCM.
-// [Iso180137AnnexCVerifier.validateResponse] takes the HPKE decryption function as a parameter,
+// [DcApiVerifier.validateResponse] takes the HPKE decryption function as a parameter,
 // so actual HPKE interop is out of scope here; this pair still binds the response to the
 // verifier's decryption key and the session transcript. Replace with signum HPKE once available.
 private suspend fun testHpkeSeal(
