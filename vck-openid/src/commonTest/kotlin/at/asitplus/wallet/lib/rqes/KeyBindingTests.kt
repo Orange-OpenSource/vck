@@ -202,7 +202,7 @@ val KeyBindingTests by matrixSuite {
                 stateToAuthnRequestStore = it.externalMapStore
             )
             val requestOptions = buildRequestOptions(transactionDataHashAlgorithms = null)
-            val authnRequest = verifierOid4Vp.createAuthnRequest(requestOptions)
+            val authnRequest = verifierOid4Vp.createPlainAuthnRequest(requestOptions)
 
             val authnRequestUrl = URLBuilder(it.walletUrl).apply {
                 authnRequest.encodeToParameters()
@@ -237,7 +237,7 @@ val KeyBindingTests by matrixSuite {
                 stateToAuthnRequestStore = it.externalMapStore
             )
             val requestOptions = buildRequestOptions(transactionDataHashAlgorithms = setOf(SdJwtConstants.SHA_384))
-            val authnRequest = verifierOid4Vp.createAuthnRequest(requestOptions)
+            val authnRequest = verifierOid4Vp.createPlainAuthnRequest(requestOptions)
 
             val authnRequestUrl = URLBuilder(it.walletUrl).apply {
                 authnRequest.encodeToParameters()
@@ -272,7 +272,7 @@ val KeyBindingTests by matrixSuite {
             )
             val requestOptions =
                 buildRequestOptions(OpenIdConstants.ResponseMode.DirectPost, setOf(SdJwtConstants.SHA_256))
-            val authnRequest = verifierOid4Vp.createAuthnRequest(requestOptions)
+            val authnRequest = verifierOid4Vp.createPlainAuthnRequest(requestOptions)
 
             val malignResponse = it.holderOid4vp.createAuthnResponse(
                 joseCompliantSerializer.encodeToString(
@@ -302,7 +302,7 @@ val KeyBindingTests by matrixSuite {
             )
 
             val requestOptions = buildRequestOptions(OpenIdConstants.ResponseMode.DirectPost, null)
-            val authnRequest = lenientVerifier.createAuthnRequest(requestOptions)
+            val authnRequest = lenientVerifier.createPlainAuthnRequest(requestOptions)
 
             val malignResponse = it.holderOid4vp.createAuthnResponse(
                 joseCompliantSerializer.encodeToString(

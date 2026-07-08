@@ -93,9 +93,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
                     ).toDCQLRequest()
                 )
@@ -111,9 +111,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
                     ).toDCQLRequest(),
                 )
@@ -145,9 +145,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
                     ).toDCQLRequest()?.let {
                         CredentialPresentationRequest.DCQLRequest(
@@ -187,9 +187,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, it.mdlScheme)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
                     ).toPresentationExchangeRequest()
                 )
@@ -205,9 +205,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, it.mdlScheme)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
                     ).toPresentationExchangeRequest(),
                 ),
@@ -228,9 +228,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, it.mdlScheme)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
-            val authnRequest = it.verifierOid4vp.prepareAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
                     ).toDCQLRequest(),
                 ),
@@ -247,17 +247,16 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, it.mdlScheme)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
                     ).toDCQLRequest(),
                 ),
             )
 
-            val authnResponse =
-                it.holderOid4vp.createAuthnResponse(authnRequest.serialize()).getOrThrow()
-                    .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
+            val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest.serialize()).getOrThrow()
+                .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
             it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
                 .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
@@ -274,9 +273,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
                 ),
@@ -292,9 +291,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
                 ),
@@ -314,9 +313,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
                     ).toDCQLRequest(),
                 ),
@@ -333,17 +332,16 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
                     ).toDCQLRequest(),
                 ),
             )
 
-            val authnResponse =
-                it.holderOid4vp.createAuthnResponse(authnRequest.serialize()).getOrThrow()
-                    .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
+            val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest.serialize()).getOrThrow()
+                .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
             it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
                 .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
@@ -361,11 +359,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
             ).toDCQLRequest().shouldNotBeNull()
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = dcqlRequest,
-                ),
-            )
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(OpenId4VpRequestOptions(dcqlRequest))
 
             val preparationState =
                 it.holderOid4vp.startAuthorizationResponsePreparation(authnRequest.serialize()).getOrThrow()
@@ -399,11 +393,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
             ).toDCQLRequest().shouldNotBeNull()
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = originalDcqlRequest,
-                ),
-            )
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(OpenId4VpRequestOptions(originalDcqlRequest))
 
             val preparationState =
                 it.holderOid4vp.startAuthorizationResponsePreparation(authnRequest.serialize()).getOrThrow()
@@ -458,11 +448,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
             ).toDCQLRequest().shouldNotBeNull()
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = dcqlRequest,
-                ),
-            )
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(OpenId4VpRequestOptions(dcqlRequest))
 
             val preparationState =
                 it.holderOid4vp.startAuthorizationResponsePreparation(authnRequest.serialize()).getOrThrow()
@@ -490,9 +476,9 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT),
                         RequestOptionsCredential(it.mdlScheme, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
@@ -528,7 +514,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                     )
                 ).toPresentationExchangeRequest(),
             )
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(requestOptions)
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(requestOptions)
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest.serialize()).getOrThrow()
                 .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()

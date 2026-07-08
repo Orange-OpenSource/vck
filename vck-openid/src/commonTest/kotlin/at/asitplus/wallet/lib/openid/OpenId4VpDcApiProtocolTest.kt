@@ -55,7 +55,6 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 )
             }
             object {
-                val holderAgent: Holder = holderAgent
                 val holderOid4vp: OpenId4VpHolder = OpenId4VpHolder(
                     keyMaterial = holderKeyMaterial,
                     holder = holderAgent,
@@ -80,7 +79,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 expectedOrigins = listOf(callingOrigin),
                 // client_id is populated, but the Wallet MUST ignore it for unsigned DC API requests
             )
-            val authnRequest = f.verifierOid4vp.createAuthnRequest(reqOptions)
+            val authnRequest = f.verifierOid4vp.createPlainAuthnRequest(reqOptions)
 
             val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiUnsigned(
                 parameters = authnRequest,
@@ -103,7 +102,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
         test("DC API unsigned: SD-JWT response validates with origin audience") { f ->
             val rpOrigin = "https://wallet-rp.a-sit.plus"
             val transactionId = uuid4().toString()
-            val authnRequest = f.verifierOid4vp.createAuthnRequest(
+            val authnRequest = f.verifierOid4vp.createPlainAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = dcqlRequest,
                     responseMode = OpenIdConstants.ResponseMode.DcApi,
@@ -142,7 +141,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf(callingOrigin),
             )
-            val signedRequest = f.verifierOid4vp.createAuthnRequestAsSignedRequestObject(reqOptions).getOrThrow()
+            val signedRequest = f.verifierOid4vp.createSignedRequestObject(reqOptions).getOrThrow()
 
             val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiSigned(
                 jwsTyped = signedRequest,
@@ -168,7 +167,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf(callingOrigin),
             )
-            val signedRequest = f.verifierOid4vp.createAuthnRequestAsSignedRequestObject(reqOptions).getOrThrow()
+            val signedRequest = f.verifierOid4vp.createSignedRequestObject(reqOptions).getOrThrow()
 
             val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiMultiSigned(
                 jwsTyped = JwsTyped<AuthenticationRequestParameters>(listOf(signedRequest.jws.toJwsFlattened())),
@@ -194,7 +193,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf(callingOrigin),
             )
-            val signedRequest = f.verifierOid4vp.createAuthnRequestAsSignedRequestObject(reqOptions).getOrThrow()
+            val signedRequest = f.verifierOid4vp.createSignedRequestObject(reqOptions).getOrThrow()
 
             val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiMultiSigned(
                 jwsTyped = JwsTyped<AuthenticationRequestParameters>(listOf(signedRequest.jws.toJwsFlattened())),
@@ -215,7 +214,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf(callingOrigin),
             )
-            val signedRequest = f.verifierOid4vp.createAuthnRequestAsSignedRequestObject(reqOptions).getOrThrow()
+            val signedRequest = f.verifierOid4vp.createSignedRequestObject(reqOptions).getOrThrow()
 
             val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiSigned(
                 jwsTyped = signedRequest,
@@ -236,7 +235,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf(callingOrigin),
             )
-            val signedRequest = f.verifierOid4vp.createAuthnRequestAsSignedRequestObject(reqOptions).getOrThrow()
+            val signedRequest = f.verifierOid4vp.createSignedRequestObject(reqOptions).getOrThrow()
 
             // Simulate a (third-party) signed request that omits expected_origins entirely.
             val withoutExpectedOrigins = JwsTyped(

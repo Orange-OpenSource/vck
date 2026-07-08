@@ -62,7 +62,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
 
         "Json test $representation" {
             val authnRequest = joseCompliantSerializer.encodeToString(
-                verifierOid4vp.createAuthnRequest(requestOptions = reqOptions)
+                verifierOid4vp.createPlainAuthnRequest(reqOptions)
             )
             authnRequest.shouldNotContain(DifInputDescriptor::class.simpleName!!)
             val params = holderOid4vp.startAuthorizationResponsePreparation(authnRequest).getOrThrow().request
@@ -75,7 +75,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
         }
 
         "DcApiUnsigned test $representation" {
-            val parameters = verifierOid4vp.createAuthnRequest(requestOptions = reqOptions)
+            val parameters = verifierOid4vp.createPlainAuthnRequest(reqOptions)
             val authnRequest = RequestParametersFrom.OpenId4VpDcApiUnsigned(
                 parameters = parameters,
                 jsonString = joseCompliantSerializer.encodeToString(parameters),

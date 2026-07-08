@@ -314,7 +314,7 @@ val PreRegisteredClientTest by matrixSuite {
         }
 
         "test with deserializing" {
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(it.defaultRequestOptions)
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(it.defaultRequestOptions)
             val authnRequestUrlParams = authnRequest.encodeToParameters().formUrlEncode()
 
             val parsedAuthnRequest: AuthenticationRequestParameters =

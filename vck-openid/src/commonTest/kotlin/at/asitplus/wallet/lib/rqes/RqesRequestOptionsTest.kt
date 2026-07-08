@@ -42,7 +42,7 @@ val RqesRequestOptionsTest by matrixSuite {
 
         test("Authentication request contains transactionData") {
             val requestOptions = buildRequestOptions(transactionDataHashAlgorithms = setOf(SdJwtConstants.SHA_256))
-            it.verifierOid4Vp.createAuthnRequest(requestOptions = requestOptions).apply {
+            it.verifierOid4Vp.createPlainAuthnRequest(requestOptions).apply {
                 val inputDescriptor = presentationDefinition.shouldNotBeNull().inputDescriptors.first()
                 transactionData.shouldNotBeNull().first().toTransactionData().apply {
                     transactionDataHashAlgorithms shouldNotBe null

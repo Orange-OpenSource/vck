@@ -60,7 +60,7 @@ val JarmTest by matrixSuite {
          * Incorrect behaviour arises when the [RelyingPartyMetadata.jsonWebKeySet] cannot be retrieved.
          */
         "DirectPostJwt must either be signed or encrypted" {
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
                         RequestOptionsCredential(

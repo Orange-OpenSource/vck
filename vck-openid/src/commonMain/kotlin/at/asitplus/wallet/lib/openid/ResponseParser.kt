@@ -28,16 +28,17 @@ class ResponseParser @JvmOverloads constructor(
     private val verifyJwsObject: VerifyJwsObjectFun = VerifyJwsObject(),
 ) {
     /**
-     * Parses [at.asitplus.openid.AuthenticationResponseParameters], where [input] is either:
+     * Parses [AuthenticationResponseParameters], where [input] is either:
      * - a URL, containing parameters in the fragment, e.g. `https://example.com#id_token=...`
      * - a URL, containing parameters in the query, e.g. `https://example.com?id_token=...`
      * - parameters encoded as a POST body, e.g. `id_token=...&vp_token=...`
      */
     @Throws(IllegalArgumentException::class, CancellationException::class)
-    suspend fun parseAuthnResponse(input: String) = input.parseResponseParameters().extractFromJar()
+    suspend fun parseAuthnResponse(input: String): ResponseParametersFrom =
+        input.parseResponseParameters().extractFromJar()
 
     /**
-     * Parses [at.asitplus.openid.AuthenticationResponseParameters], where [input] is a signed or unsigned DC API
+     * Parses [AuthenticationResponseParameters], where [input] is a signed or unsigned DC API
      * response.
      */
     @Throws(IllegalArgumentException::class, CancellationException::class)

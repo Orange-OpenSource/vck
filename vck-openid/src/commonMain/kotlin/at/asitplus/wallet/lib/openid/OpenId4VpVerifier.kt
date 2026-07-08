@@ -119,7 +119,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     override val decryptionKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
     /** Decrypts encrypted responses from holders. */
     private val decryptJwe: DecryptJweFun = DecryptJwe(decryptionKeyMaterial),
-    /** Signs authentication requests in [createAuthnRequestAsSignedRequestObject]. */
+    /** Signs authentication requests in [createSignedRequestObject]. */
     private val signAuthnRequest: SignJwtFun<AuthenticationRequestParameters> =
         SignJwt(keyMaterial, JwsHeaderClientIdScheme(clientIdScheme)),
     /** Validates signed responses from holders. */
@@ -232,16 +232,23 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     }
 
     data class CreatedRequest(
-        /** URL to invoke the wallet/holder */
+        /** URL to invoke the wallet, may be rendered as a QR Code. */
         val url: String,
         /**
          *  Optional content that needs to be served under the previously passed in `requestUrl`
-         *  with content type `application/oauth-authz-req+jwt`
+         *  (see [CreationOptions.RequestByReference.requestUrl] or
+         *  [CreationOptions.SignedRequestByReference.requestUrl] in call to [createAuthnRequest])
+         *  with content type `application/oauth-authz-req+jwt` (see
+         *  [at.asitplus.wallet.lib.data.MediaTypes.Application.AUTHZ_REQ_JWT]).
+         *
          *  Pass in the [RequestObjectParameters] that the Wallet may have sent when requesting the request object.
          */
         val loadRequestObject: (suspend (RequestObjectParameters?) -> KmmResult<String>)? = null,
     )
 
+    /**
+     * Creates a new authentication request conforming to OpenID4VP.
+     */
     suspend fun createAuthnRequest(
         requestOptions: OpenId4VpRequestOptions,
         creationOptions: CreationOptions,
@@ -250,7 +257,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
             is CreationOptions.Query -> {
                 require(clientIdScheme !is ClientIdScheme.CertificateSanDns) // per OpenID4VP d23 5.10.4
                 URLBuilder(creationOptions.walletUrl).apply {
-                    createAuthnRequest(requestOptions).encodeToParameters()
+                    createPlainAuthnRequest(requestOptions).encodeToParameters()
                         .forEach { parameters.append(it.key, it.value) }
                 }.buildString().toCreatedRequest()
             }
@@ -266,7 +273,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
                         .forEach { parameters.append(it.key, it.value) }
                 }.buildString().toCreatedRequest {
                     catching {
-                        joseCompliantSerializer.encodeToString(createAuthnRequest(requestOptions, it))
+                        joseCompliantSerializer.encodeToString(createPlainAuthnRequest(requestOptions, it))
                     }
                 }
             }
@@ -276,7 +283,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
                 URLBuilder(creationOptions.walletUrl).apply {
                     JarRequestParameters(
                         clientId = clientIdScheme.clientId,
-                        request = createAuthnRequestAsSignedRequestObject(requestOptions).getOrThrow().toString(),
+                        request = createSignedRequestObject(requestOptions).getOrThrow().toString(),
                     ).encodeToParameters()
                         .forEach { parameters.append(it.key, it.value) }
                 }.buildString().toCreatedRequest()
@@ -294,7 +301,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
                 }.buildString()
                     .toCreatedRequest {
                         catching {
-                            createAuthnRequestAsSignedRequestObject(requestOptions, it).getOrThrow().toString()
+                            createSignedRequestObject(requestOptions, it).getOrThrow().toString()
                         }
                     }
             }
@@ -306,25 +313,19 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         loadRequestObject: suspend (RequestObjectParameters?) -> KmmResult<String>,
     ) = CreatedRequest(this, loadRequestObject)
 
-
-    /**
-     * Creates an JWS Authorization Request (JAR, RFC9101), wrapping the usual [AuthenticationRequestParameters].
-     *
-     * To use this for an Authentication Request with `request_uri`, use the following code,
-     * `jar` being the result of this function:
-     * ```
-     * val urlToSendToWallet = io.ktor.http.URLBuilder(walletUrl).apply {
-     *    parameters.append("client_id", clientId)
-     *    parameters.append("request_uri", requestUrl)
-     * }.buildString()
-     * // on an GET to requestUrl, return `jar.serialize()`
-     * ```
-     */
+    @Deprecated("Use createAuthnRequest instead with CreationOptions.SignedRequestByReference")
     suspend fun createAuthnRequestAsSignedRequestObject(
         requestOptions: OpenId4VpRequestOptions,
         requestObjectParameters: RequestObjectParameters? = null,
+    ): KmmResult<JwsCompactTyped<AuthenticationRequestParameters>> =
+        createSignedRequestObject(requestOptions, requestObjectParameters)
+
+    // TODO Should be called by DCAPI Verifier only
+    internal suspend fun createSignedRequestObject(
+        requestOptions: OpenId4VpRequestOptions,
+        requestObjectParameters: RequestObjectParameters? = null,
     ): KmmResult<JwsCompactTyped<AuthenticationRequestParameters>> = catching {
-        val requestObject = createAuthnRequest(requestOptions, requestObjectParameters)
+        val requestObject = createPlainAuthnRequest(requestOptions, requestObjectParameters)
         val siopClientId = "https://self-issued.me/v2"
         val issuer = when (clientIdScheme) {
             is ClientIdScheme.PreRegistered -> clientIdScheme.issuerUri ?: clientIdScheme.clientId
@@ -340,28 +341,19 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         ).getOrThrow()
     }
 
-    /**
-     * Creates [AuthenticationRequestParameters], to be encoded in the URL of the wallet somehow,
-     * see [createAuthnRequest]
-     */
+    @Deprecated("Use createAuthnRequest instead with CreationOptions.SignedRequestByValue")
     suspend fun createAuthnRequest(
         requestOptions: OpenId4VpRequestOptions,
         requestObjectParameters: RequestObjectParameters? = null,
-    ) = prepareAuthnRequest(
-        requestOptions = requestOptions,
-        requestObjectParameters = requestObjectParameters,
-    ).also {
-        submitAuthnRequest(it, requestOptions.state)
-    }
+    ) = createPlainAuthnRequest(requestOptions, requestObjectParameters)
 
-    /**
-     * Creates [AuthenticationRequestParameters], to be encoded in the URL of the wallet somehow,
-     * see [createAuthnRequest]
-     */
-    suspend fun prepareAuthnRequest(
+    internal suspend fun createPlainAuthnRequest(
         requestOptions: OpenId4VpRequestOptions,
         requestObjectParameters: RequestObjectParameters? = null,
     ) = requestOptions.toAuthnRequest(requestObjectParameters)
+        .also {
+            storeAuthnRequest(it, requestOptions.state)
+        }
 
     private suspend fun OpenId4VpRequestOptions.toAuthnRequest(
         requestObjectParameters: RequestObjectParameters?,
@@ -382,8 +374,8 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         presentationDefinition = (presentationRequest as? PresentationExchangeRequest)?.presentationDefinition?.run {
             copy(
                 inputDescriptors = inputDescriptors.map {
-                    when (val inputDescriptor = it) {
-                        is DifInputDescriptor -> inputDescriptor.replaceAvailableFormatHolders()
+                    when (it) {
+                        is DifInputDescriptor -> it.replaceAvailableFormatHolders()
                     }
                 }
             )
@@ -398,25 +390,20 @@ class OpenId4VpVerifier @JvmOverloads constructor(
      */
     private fun DifInputDescriptor.replaceAvailableFormatHolders() = copy(
         format = format?.copy(
-            jwtVp = format?.jwtVp?.let {
-                containerJwt
-            },
-            sdJwt = format?.sdJwt?.let {
-                containerSdJwt
-            },
-            msoMdoc = format?.msoMdoc?.let {
-                containerJwt
-            },
+            jwtVp = format?.jwtVp?.let { containerJwt },
+            sdJwt = format?.sdJwt?.let { containerSdJwt },
+            msoMdoc = format?.msoMdoc?.let { containerJwt },
         )
     )
 
-    /**
-     * Remembers [authenticationRequestParameters] to link responses to requests in [validateAuthnResponse].
-     *
-     * Parameter [externalId] may be used in cases the [authenticationRequestParameters] do not have a `state`
-     * parameter, e.g., when using DCAPI. Otherwise the value of [AuthenticationRequestParameters.state] will be used.
-     */
+    @Deprecated("Should not be necessary at all, simply call [createAuthnRequest]")
     suspend fun submitAuthnRequest(
+        authenticationRequestParameters: AuthenticationRequestParameters,
+        externalId: String? = null,
+    ) = storeAuthnRequest(authenticationRequestParameters, externalId)
+
+    // TODO Check if externalId is still necessary for DCAPI
+    internal suspend fun storeAuthnRequest(
         authenticationRequestParameters: AuthenticationRequestParameters,
         externalId: String? = null,
     ) = stateToAuthnRequestStore.put(
@@ -439,12 +426,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Validates an Authentication Response from the Wallet, where [input] is either:
-     * - a URL, containing parameters in the fragment, e.g. `https://example.com#id_token=...`
-     * - a URL, containing parameters in the query, e.g. `https://example.com?id_token=...`
-     * - parameters encoded as a POST body, e.g. `id_token=...&vp_token=...`
-     */
+    @Deprecated("Use validateAuthnResponse with externalId instead")
     suspend fun validateAuthnResponse(
         input: String,
     ): KmmResult<AuthnResponseResult> = validateAuthnResponse(
@@ -474,6 +456,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
      *
      * The [externalId] will be used to load the corresponding [AuthenticationRequestParameters] from the store.
      */
+    @Deprecated("Use DCAPI Verifier for that")
     suspend fun validateAuthnResponse(
         input: OpenId4VpResponse,
         externalId: String,
@@ -482,10 +465,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         validateAuthnResponse(response, externalId).getOrThrow()
     }
 
-    /**
-     * Validates an Authentication Response from the Wallet,
-     * in case it has been parsed into [ResponseParametersFrom] with [ResponseParser].
-     */
+    @Deprecated("Use validateAuthnResponse with externalId instead")
     suspend fun validateAuthnResponse(
         input: ResponseParametersFrom,
     ) = validateAuthnResponse(
