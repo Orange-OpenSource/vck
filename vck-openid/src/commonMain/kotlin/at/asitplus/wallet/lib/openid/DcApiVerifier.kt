@@ -28,7 +28,6 @@ import at.asitplus.iso.serializeOrigin
 import at.asitplus.iso.sha256
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.CredentialFormatEnum
-import at.asitplus.openid.IdTokenType
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RelyingPartyMetadata
 import at.asitplus.openid.ResponseParametersFrom
@@ -284,10 +283,10 @@ class DcApiVerifier @JvmOverloads constructor(
             redirectUrl = if (!isAnyDirectPost) clientIdScheme.redirectUri else null,
             responseUrl = responseUrl,
             // Using scope as an alias for a well-defined Presentation Exchange or DCQL is not supported
-            scope = if (isSiop) buildScope() else null,
+            scope = null,
             nonce = nonceAwareVerifier.provideNonce(),
             clientMetadata = clientMetadata(),
-            idTokenType = if (isSiop) IdTokenType.SUBJECT_SIGNED.text else null,
+            idTokenType = null,
             responseMode = responseMode,
             state = null,
             dcqlQuery = (presentationRequest as? DCQLRequest)?.dcqlQuery,
@@ -364,7 +363,7 @@ class DcApiVerifier @JvmOverloads constructor(
         externalId: String,
     ): KmmResult<DcApiResponseResult> = catching {
         when (input) {
-            is IsoMdocResponse -> validateResponse(
+            is IsoMdocResponse -> validateIsoResponse(
                 receivedData = input.data,
                 externalId = externalId,
                 expectedOrigin = "TODO"
@@ -417,7 +416,7 @@ class DcApiVerifier @JvmOverloads constructor(
     }
 
     @OptIn(SecretExposure::class)
-    suspend fun validateResponse(
+    internal suspend fun validateIsoResponse(
         receivedData: DCAPIResponse,
         externalId: String,
         expectedOrigin: String

@@ -159,7 +159,7 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
 
             val dcApiResponse = f.walletResponse(isoMdocRequest)
 
-            val result = f.verifier.validateResponse(
+            val result = f.verifier.validateIsoResponse(
                 receivedData = dcApiResponse,
                 externalId = transactionId,
                 expectedOrigin = callingOrigin,
@@ -180,7 +180,7 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
 
             val dcApiResponse = f.walletResponse(isoMdocRequest)
 
-            f.verifier.validateResponse(
+            f.verifier.validateIsoResponse(
                 receivedData = dcApiResponse,
                 externalId = transactionId,
                 expectedOrigin = "https://evil.example.com",
@@ -202,7 +202,7 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
 
             val dcApiResponse = f.walletResponse(otherRequest)
 
-            f.verifier.validateResponse(
+            f.verifier.validateIsoResponse(
                 receivedData = dcApiResponse,
                 externalId = transactionId,
                 expectedOrigin = callingOrigin,
@@ -215,7 +215,7 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
 
             val dcApiResponse = f.walletResponse(isoMdocRequest)
 
-            f.verifier.validateResponse(
+            f.verifier.validateIsoResponse(
                 receivedData = dcApiResponse,
                 externalId = "unknown-${uuid4()}",
                 expectedOrigin = callingOrigin,
@@ -231,7 +231,7 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
                 .also { it[0] = (it[0].toInt() xor 0x01).toByte() }
                 .let { DCAPIResponse(EncryptedResponse(TYPE_DCAPI, EncryptedResponseData(dcApiResponse.response.encryptedResponseData.enc, it))) }
 
-            f.verifier.validateResponse(
+            f.verifier.validateIsoResponse(
                 receivedData = tampered,
                 externalId = transactionId,
                 expectedOrigin = callingOrigin,
