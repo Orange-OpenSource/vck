@@ -17,10 +17,6 @@ import at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest
 import at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest.*
 import at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest.OpenId4Vp.SignedDataElement
 import at.asitplus.dif.ClaimFormat
-import at.asitplus.dif.DifInputDescriptor
-import at.asitplus.dif.FormatContainerJwt
-import at.asitplus.dif.FormatContainerSdJwt
-import at.asitplus.dif.PresentationSubmissionDescriptor
 import at.asitplus.iso.DeviceResponse
 import at.asitplus.iso.EncryptionInfo
 import at.asitplus.iso.EncryptionParameters
@@ -68,7 +64,6 @@ import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKey
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKeyFun
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
-import at.asitplus.wallet.lib.data.CredentialPresentationRequest.PresentationExchangeRequest
 import at.asitplus.wallet.lib.data.IsoDocumentParsed
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.data.toBase64UrlJsonString
@@ -155,11 +150,6 @@ class DcApiVerifier @JvmOverloads constructor(
     private val supportedCoseAlgorithms = supportedAlgorithms
         .mapNotNull { it.toCoseAlgorithm().getOrNull()?.coseValue }
     private val responseParser = ResponseParser(decryptJwe, verifyJwsObject)
-    private val containerJwt = FormatContainerJwt(algorithmStrings = supportedJwsAlgorithms)
-    private val containerSdJwt = FormatContainerSdJwt(
-        sdJwtAlgorithmStrings = supportedJwsAlgorithms.toSet(),
-        kbJwtAlgorithmStrings = supportedJwsAlgorithms.toSet()
-    )
 
     /**
      * Creates the [at.asitplus.openid.RelyingPartyMetadata], without encryption (see [metadataWithEncryption])
@@ -305,31 +295,11 @@ class DcApiVerifier @JvmOverloads constructor(
             idTokenType = null,
             responseMode = responseMode,
             state = null,
+            // Presentation Exchange is not available for the DC API, only DCQL
             dcqlQuery = (presentationRequest as? DCQLRequest)?.dcqlQuery,
-            presentationDefinition = (presentationRequest as? PresentationExchangeRequest)?.presentationDefinition?.run {
-                copy(
-                    inputDescriptors = inputDescriptors.map {
-                        when (it) {
-                            is DifInputDescriptor -> it.replaceAvailableFormatHolders()
-                        }
-                    }
-                )
-            },
             transactionData = transactionData?.map { it.toBase64UrlJsonString() },
             expectedOrigins = expectedOrigins,
         )
-
-    /**
-     * Defining *some* non-null format container is our way of specifying the allowed credential representations,
-     * but provided values are overridden here
-     */
-    private fun DifInputDescriptor.replaceAvailableFormatHolders() = copy(
-        format = format?.copy(
-            jwtVp = format?.jwtVp?.let { containerJwt },
-            sdJwt = format?.sdJwt?.let { containerSdJwt },
-            msoMdoc = format?.msoMdoc?.let { containerJwt },
-        )
-    )
 
     private suspend fun storeAuthnRequest(
         authenticationRequestParameters: AuthenticationRequestParameters,
@@ -494,8 +464,7 @@ class DcApiVerifier @JvmOverloads constructor(
     }
 
     private fun AuthnResponseResult.isFullyValid(): Boolean =
-        idTokenValidationResult?.isFailure != true &&
-                vpTokenValidationResult?.isFailure != true &&
+        vpTokenValidationResult?.isFailure != true &&
                 (vpTokenValidationResult?.getOrNull()?.isFullyValid() ?: true)
 
     private fun VpTokenValidationResult.isFullyValid(): Boolean =
@@ -730,17 +699,6 @@ class DcApiVerifier @JvmOverloads constructor(
     // should always be ecdh-es for encryption
     private fun JsonWebKey.withAlgorithm(): JsonWebKey = this.copy(algorithm = JweAlgorithm.ECDH_ES)
 }
-
-private val PresentationSubmissionDescriptor.cumulativeJsonPath: String
-    get() {
-        var cummulativeJsonPath = this.path
-        var descriptorIterator = this.nestedPath
-        while (descriptorIterator != null) {
-            cummulativeJsonPath += descriptorIterator.path.substring(1)
-            descriptorIterator = descriptorIterator.nestedPath
-        }
-        return cummulativeJsonPath
-    }
 
 sealed class DcApiResponseResult {
 
