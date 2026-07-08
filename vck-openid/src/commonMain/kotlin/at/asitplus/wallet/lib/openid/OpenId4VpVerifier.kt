@@ -130,7 +130,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     timeLeewaySeconds: Long = 300L,
     /** Clock for time validity checks. */
     private val clock: Clock = Clock.System,
-    /** Creates challenges in authentication requests. */
+    /** Creates and validates OpenID4VP request nonces. */
     override val nonceService: NonceService = DefaultNonceService(),
     /** Used to store issued authn requests to verify the authn response to it */
     private val stateToAuthnRequestStore: MapStore<String, AuthenticationRequestParameters> = DefaultMapStore(),
@@ -138,6 +138,10 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     private val supportedJweEncryptionAlgorithms: Set<JweEncryption> = JweEncryption.entries.toSet(),
 ) : AbstractMdocVerifier() {
 
+    private val verifierSession = OpenId4VpVerifierSession(
+        verifier = verifier,
+        nonceService = nonceService,
+    )
     private val supportedJwsAlgorithms = supportedAlgorithms
         .mapNotNull { it.toJwsAlgorithm().getOrNull()?.identifier }
     private val supportedCoseAlgorithms = supportedAlgorithms
@@ -366,7 +370,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         responseUrl = responseUrl,
         // Using scope as an alias for a well-defined Presentation Exchange or DCQL is not supported
         scope = if (isSiop) buildScope() else null,
-        nonce = nonceService.provideNonce(),
+        nonce = verifierSession.provideNonce(),
         walletNonce = requestObjectParameters?.walletNonce,
         clientMetadata = clientMetadata(),
         idTokenType = if (isSiop) IdTokenType.SUBJECT_SIGNED.text else null,
@@ -507,8 +511,10 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         } ?: throw IllegalStateException(
             "No response type was specified in the original authentication request."
         )
+        val expectedNonce = authnRequest.nonce
+            ?: throw IllegalArgumentException("nonce not present in $authnRequest")
         val idTokenValidationResult = if (OpenIdConstants.ID_TOKEN in responseType) {
-            extractValidatedIdToken(input)
+            extractValidatedIdToken(input, expectedNonce)
         } else {
             null
         }
@@ -526,8 +532,24 @@ class OpenId4VpVerifier @JvmOverloads constructor(
             idTokenValidationResult = idTokenValidationResult,
             vpTokenValidationResult = vpTokenValidationResult,
             request = authnRequest,
-        )
+        ).also {
+            if (it.isFullyValid()) {
+                if (!verifierSession.consumeNonce(expectedNonce)) {
+                    throw IllegalArgumentException("nonce")
+                        .also { Napier.d("nonce not valid: $expectedNonce, not known to us") }
+                }
+            }
+        }
     }
+
+    private fun AuthnResponseResult.isFullyValid(): Boolean =
+        idTokenValidationResult?.isFailure != true &&
+                vpTokenValidationResult?.isFailure != true &&
+                (vpTokenValidationResult?.getOrNull()?.isFullyValid() ?: true)
+
+    private fun VpTokenValidationResult.isFullyValid(): Boolean =
+        presentationResults.all { it.isSuccess } &&
+                (this !is VpTokenValidationResultDCQL || submissionRequirementsValidationResult.isSuccess)
 
     @Throws(IllegalArgumentException::class, CancellationException::class)
     private suspend fun loadAuthnRequest(
@@ -549,6 +571,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     @Throws(IllegalArgumentException::class, CancellationException::class)
     private suspend fun extractValidatedIdToken(
         input: ResponseParametersFrom,
+        expectedNonce: String,
     ): KmmResult<IdToken> = catching {
         val idTokenJws = input.parameters.idToken
             ?: throw IllegalArgumentException("idToken")
@@ -571,9 +594,9 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         if (idToken.issuedAt > (clock.now() + timeLeeway))
             throw IllegalArgumentException("idToken.iat")
                 .also { Napier.d("issuedAt after now: ${idToken.issuedAt}") }
-        if (!nonceService.verifyAndRemoveNonce(idToken.nonce)) {
+        if (idToken.nonce != expectedNonce || !verifierSession.verifyNonce(expectedNonce)) {
             throw IllegalArgumentException("idToken.nonce")
-                .also { Napier.d("nonce not valid: ${idToken.nonce}, not known to us") }
+                .also { Napier.d("nonce not valid: ${idToken.nonce}, expected $expectedNonce") }
         }
         if (idToken.subjectJwk == null)
             throw IllegalArgumentException("idToken.sub_jwk")
@@ -708,7 +731,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
                 val sdJwt = SdJwtSigned.parseCatching(relatedPresentation.extractContent()).getOrElse {
                     throw IllegalArgumentException("relatedPresentation")
                 }
-                verifier.verifyPresentationSdJwt(
+                verifierSession.verifier.verifyPresentationSdJwt(
                     input = sdJwt,
                     challenge = expectedNonce,
                     transactionData = transactionData,
@@ -718,21 +741,21 @@ class OpenId4VpVerifier @JvmOverloads constructor(
             }
 
             ClaimFormat.JWT_VP -> if (requireCryptographicHolderBinding != false) {
-                verifier.verifyPresentationVcJwt(
+                verifierSession.verifier.verifyPresentationVcJwt(
                     input = JwsCompactTyped<VerifiablePresentationJws>(
                         relatedPresentation.extractContent()
-                ),
+                    ),
                     challenge = expectedNonce
                 )
             } else {
-                verifier.verifyUnsignedVcJws(
+                verifierSession.verifier.verifyUnsignedVcJws(
                     input = relatedPresentation.extractContent()
                 ).map {
                     VerifyPresentationResult.SuccessUnsigned(it.vc)
                 }
             }
 
-            ClaimFormat.MSO_MDOC -> verifier.verifyPresentationIsoMdoc(
+            ClaimFormat.MSO_MDOC -> verifierSession.verifier.verifyPresentationIsoMdoc(
                 input = relatedPresentation.extractContent().decodeToByteArray(Base64UrlStrict)
                     .let { coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(it) },
                 verifyDocument = verifyDocument(
@@ -833,6 +856,17 @@ class OpenId4VpVerifier @JvmOverloads constructor(
 
     // should always be ecdh-es for encryption
     private fun JsonWebKey.withAlgorithm(): JsonWebKey = this.copy(algorithm = JweAlgorithm.ECDH_ES)
+}
+
+private class OpenId4VpVerifierSession(
+    val verifier: Verifier,
+    private val nonceService: NonceService,
+) {
+    suspend fun provideNonce(): String = nonceService.provideNonce()
+
+    suspend fun verifyNonce(nonce: String): Boolean = nonceService.verifyNonce(nonce)
+
+    suspend fun consumeNonce(nonce: String): Boolean = nonceService.verifyAndRemoveNonce(nonce)
 }
 
 

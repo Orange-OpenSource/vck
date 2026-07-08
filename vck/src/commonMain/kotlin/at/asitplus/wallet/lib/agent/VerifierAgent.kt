@@ -26,6 +26,7 @@ class VerifierAgent @JvmOverloads constructor(
     private val validatorSdJwt: ValidatorSdJwt = ValidatorSdJwt(),
     private val validatorMdoc: ValidatorMdoc = ValidatorMdoc(),
 ) : Verifier {
+
     override suspend fun verifyPresentationSdJwt(
         input: SdJwtSigned,
         challenge: String,

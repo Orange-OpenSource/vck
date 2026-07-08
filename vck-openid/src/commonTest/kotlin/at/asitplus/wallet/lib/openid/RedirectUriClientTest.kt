@@ -113,9 +113,10 @@ val RedirectUriClientTest by matrixSuite {
         }
 
         "wrong client nonce in id_token should lead to error" {
+            val clientIdScheme = ClientIdScheme.RedirectUri(it.clientId)
             val verifierOid4vp = OpenId4VpVerifier(
                 keyMaterial = it.verifierKeyMaterial,
-                clientIdScheme = ClientIdScheme.RedirectUri(it.clientId),
+                clientIdScheme = clientIdScheme,
                 nonceService = object : NonceService {
                     override suspend fun provideNonce() = uuid4().toString()
                     override suspend fun verifyNonce(it: String) = false

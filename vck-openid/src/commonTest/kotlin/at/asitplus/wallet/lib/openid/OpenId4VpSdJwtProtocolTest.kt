@@ -21,6 +21,7 @@ import com.benasher44.uuid.uuid4
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.runBlocking
@@ -102,6 +103,27 @@ val OpenId4VpSdJwtProtocolTest by matrixSuite {
                     verifiableCredentialSdJwt.shouldNotBeNull()
                     reconstructedJsonObject[requestedClaim].shouldNotBeNull()
                 }
+        }
+
+        "authn response nonce cannot be replayed" {
+            val authnRequest = it.verifierOid4vp.createAuthnRequest(
+                OpenId4VpRequestOptions(
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        RequestOptionsCredential(
+                            credentialScheme = AtomicAttribute2023,
+                            representation = SD_JWT,
+                            attributePaths = setOf(DCQLClaimsPathPointer(CLAIM_GIVEN_NAME))
+                        )
+                    ).toDCQLRequest(),
+                ),
+                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+            ).getOrThrow().url
+
+            val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
+                .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
+
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).isFailure shouldBe true
         }
 
         "Selective Disclosure with EU PID credential" {

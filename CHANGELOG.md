@@ -17,6 +17,8 @@ Release 7.0.0 (unreleased):
     - Fix DCQL matching for credential queries without `claims`: selectively disclosable credentials now return an explicit mandatory-claims-only result, while non-selectively disclosable credentials still return all claims.
     - Fix disclosure of SD-JWT claims from foreign issuers: match disclosure digests against the originally serialized disclosures instead of re-serializing them, since digests are computed over the exact bytes (RFC 9901, section 4.2.3), e.g. failing for disclosures serialized with whitespace.
     - Extend `DCQLCredentialQueryMatchingResult` by case `AllMandatoryClaimsMatchingResult`
+- Verifier:
+    - Move OpenID4VP request nonce handling out of `VerifierAgent` and consume nonces after successful response validation to prevent replay.
 - JVM interoperability:
     - Add `@JvmOverloads` to public API constructors with default parameters across the published modules.
 - Refactorings:
