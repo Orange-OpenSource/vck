@@ -3,12 +3,17 @@ package at.asitplus.wallet.lib.openid
 import at.asitplus.dcapi.OpenId4VpResponseMultiSigned
 import at.asitplus.dcapi.OpenId4VpResponseSigned
 import at.asitplus.dcapi.OpenId4VpResponseUnsigned
+import at.asitplus.dcapi.request.verifier.CredentialRequestOptions
+import at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParametersFrom
+import at.asitplus.signum.indispensable.josef.JwsCompact
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.JwsTyped
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.toJwsFlattened
+import at.asitplus.signum.indispensable.josef.typed
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.RequestOptionsCredential
@@ -23,6 +28,8 @@ import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import com.benasher44.uuid.uuid4
+import io.kotest.matchers.collections.shouldBeSingleton
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -68,18 +75,47 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                         redirectUri = "https://example.com/callback",
                     ),
                 )
+
+                /** Extracts the unsigned authn request from the browser-facing [CredentialRequestOptions]. */
+                suspend fun createUnsignedAuthnRequest(
+                    reqOptions: OpenId4VpRequestOptions,
+                ): AuthenticationRequestParameters = dcApiVerifier
+                    .createAuthnRequest(reqOptions, DcApiCreationOptions.OpenId4VpUnsigned).getOrThrow()
+                    .singleRequest<DigitalCredentialGetRequest.OpenId4VpUnsigned>()
+                    .data
+
+                /** Extracts the signed authn request from the browser-facing [CredentialRequestOptions]. */
+                suspend fun createSignedAuthnRequest(
+                    reqOptions: OpenId4VpRequestOptions,
+                ): JwsCompactTyped<AuthenticationRequestParameters> = dcApiVerifier
+                    .createAuthnRequest(reqOptions, DcApiCreationOptions.OpenId4VpSigned).getOrThrow()
+                    .singleRequest<DigitalCredentialGetRequest.OpenId4VpSigned>()
+                    .data.request
+                    .typed<AuthenticationRequestParameters, JwsCompact>()
             }
         }
     }) - {
+
+        test("createAuthnRequest rejects response modes other than DC API") { f ->
+            val reqOptions = OpenId4VpRequestOptions(
+                presentationRequest = dcqlRequest,
+                responseMode = OpenIdConstants.ResponseMode.Fragment,
+            )
+            f.dcApiVerifier.createAuthnRequest(reqOptions, DcApiCreationOptions.OpenId4VpUnsigned)
+                .isFailure shouldBe true
+            f.dcApiVerifier.createAuthnRequest(reqOptions, DcApiCreationOptions.OpenId4VpSigned)
+                .isFailure shouldBe true
+        }
 
         test("DC API unsigned: parsed as DcApiUnsigned, validates and responds with OpenId4VpResponseUnsigned") { f ->
             val reqOptions = OpenId4VpRequestOptions(
                 presentationRequest = dcqlRequest,
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf(callingOrigin),
-                // client_id is populated, but the Wallet MUST ignore it for unsigned DC API requests
             )
-            val authnRequest = f.dcApiVerifier.createPlainAuthnRequest(reqOptions)
+            val authnRequest = f.createUnsignedAuthnRequest(reqOptions)
+            // client_id MUST be omitted in unsigned requests, per OpenID4VP 1.0 Appendix A.3.1
+            authnRequest.clientId.shouldBeNull()
 
             val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiUnsigned(
                 parameters = authnRequest,
@@ -102,13 +138,12 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
         test("DC API unsigned: SD-JWT response validates with origin audience") { f ->
             val rpOrigin = "https://wallet-rp.a-sit.plus"
             val transactionId = uuid4().toString()
-            val authnRequest = f.dcApiVerifier.createPlainAuthnRequest(
+            val authnRequest = f.createUnsignedAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = dcqlRequest,
                     responseMode = OpenIdConstants.ResponseMode.DcApi,
                     responseUrl = "$rpOrigin/transaction/result/$transactionId",
                     expectedOrigins = listOf(rpOrigin),
-                    populateClientId = false,
                     state = transactionId,
                 )
             )
@@ -141,7 +176,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf(callingOrigin),
             )
-            val signedRequest = f.dcApiVerifier.createSignedRequestObject(reqOptions).getOrThrow()
+            val signedRequest = f.createSignedAuthnRequest(reqOptions)
 
             val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiSigned(
                 jwsTyped = signedRequest,
@@ -167,7 +202,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf(callingOrigin),
             )
-            val signedRequest = f.dcApiVerifier.createSignedRequestObject(reqOptions).getOrThrow()
+            val signedRequest = f.createSignedAuthnRequest(reqOptions)
 
             val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiMultiSigned(
                 jwsTyped = JwsTyped<AuthenticationRequestParameters>(listOf(signedRequest.jws.toJwsFlattened())),
@@ -193,7 +228,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf(callingOrigin),
             )
-            val signedRequest = f.dcApiVerifier.createSignedRequestObject(reqOptions).getOrThrow()
+            val signedRequest = f.createSignedAuthnRequest(reqOptions)
 
             val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiMultiSigned(
                 jwsTyped = JwsTyped<AuthenticationRequestParameters>(listOf(signedRequest.jws.toJwsFlattened())),
@@ -214,7 +249,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf(callingOrigin),
             )
-            val signedRequest = f.dcApiVerifier.createSignedRequestObject(reqOptions).getOrThrow()
+            val signedRequest = f.createSignedAuthnRequest(reqOptions)
 
             val dcApiRequest = RequestParametersFrom.OpenId4VpDcApiSigned(
                 jwsTyped = signedRequest,
@@ -235,7 +270,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf(callingOrigin),
             )
-            val signedRequest = f.dcApiVerifier.createSignedRequestObject(reqOptions).getOrThrow()
+            val signedRequest = f.createSignedAuthnRequest(reqOptions)
 
             // Simulate a (third-party) signed request that omits expected_origins entirely.
             val withoutExpectedOrigins = JwsTyped(
@@ -256,3 +291,7 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
         }
     }
 }
+
+/** Extracts the single [DigitalCredentialGetRequest] of the expected protocol, as a wallet would receive it. */
+private inline fun <reified T : DigitalCredentialGetRequest> CredentialRequestOptions.singleRequest(): T =
+    digital.requests.shouldBeSingleton().first().shouldBeInstanceOf<T>()
