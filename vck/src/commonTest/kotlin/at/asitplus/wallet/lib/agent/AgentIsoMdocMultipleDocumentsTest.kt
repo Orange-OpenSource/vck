@@ -81,23 +81,24 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
                 }
             }
             val verifierId = "urn:${uuid4()}"
-            val verifier = VerifierAgent(
-                identifier = verifierId,
-                validatorMdoc = validator,
+            val verifier = NonceChallengeVerifier(
+                verifierId = verifierId,
+                verifier = VerifierAgent(
+                    identifier = verifierId,
+                    validatorMdoc = validator,
+                ),
             )
-            val challenge = uuid4().toString()
             val signer = SignCose<ByteArray>(keyMaterial = holderKeyMaterial)
         }
     } - {
 
         test("presex: multiple credentials should be multiple device responses for remote presentation") {
+            val request = it.verifier.createPresentationRequest(
+                calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
+                returnOneDeviceResponse = false,
+            )
             val presentationParameters = it.holder.createPresentation(
-                request = PresentationRequestParameters(
-                    nonce = it.challenge,
-                    audience = it.verifierId,
-                    calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
-                    returnOneDeviceResponse = false
-                ),
+                request = request,
                 credentialPresentation = PresentationExchangePresentation(
                     PresentationExchangeRequest(
                         PresentationDefinition(
@@ -134,13 +135,12 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
         }
 
         test("presex: multiple credentials should be one device response for local presentation") {
+            val request = it.verifier.createPresentationRequest(
+                calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
+                returnOneDeviceResponse = true,
+            )
             val presentationParameters = it.holder.createPresentation(
-                request = PresentationRequestParameters(
-                    nonce = it.challenge,
-                    audience = it.verifierId,
-                    calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
-                    returnOneDeviceResponse = true
-                ),
+                request = request,
                 credentialPresentation = PresentationExchangePresentation(
                     PresentationExchangeRequest(
                         PresentationDefinition(

@@ -144,9 +144,9 @@ val AgentIsoMdocTest by matrixSuite {
                     val firstVp = it.createPresexDeviceResponse(CLAIM_GIVEN_NAME)
                     val secondVp = createPresexDeviceResponse(
                         holder = secondHolder,
-                        challenge = it.challenge,
-                        verifierId = it.verifierId,
-                        signer = SignCose(keyMaterial = secondHolderKeyMaterial),
+                        request = it.verifier.createPresentationRequest(
+                            calcIsoDeviceSignaturePlain = simpleSigner(SignCose(keyMaterial = secondHolderKeyMaterial)),
+                        ),
                         attributeNames = arrayOf(CLAIM_GIVEN_NAME),
                     )
 
@@ -166,12 +166,15 @@ val AgentIsoMdocTest by matrixSuite {
                 "identifier list: verifier rejects presentation when resolver returns status list token" {
                     val vp = it.createPresexDeviceResponse(CLAIM_GIVEN_NAME)
 
-                    val mismatchedVerifier = VerifierAgent(
-                        identifier = it.verifierId,
-                        validatorMdoc = ValidatorMdoc(
-                            validator = Validator(
-                                tokenStatusResolver = statusListResolver(it.statusListIssuer)
-                            )
+                    val mismatchedVerifier = NonceChallengeVerifier(
+                        verifierId = it.verifierId,
+                        verifier = VerifierAgent(
+                            identifier = it.verifierId,
+                            validatorMdoc = ValidatorMdoc(
+                                validator = Validator(
+                                    tokenStatusResolver = statusListResolver(it.statusListIssuer)
+                                )
+                            ),
                         ),
                     )
 
@@ -206,9 +209,8 @@ private data class IsoMdocFixture(
     val issuer: IssuerAgent,
     val statusListIssuer: StatusListAgent,
     val holder: HolderAgent,
-    val verifier: VerifierAgent,
+    val verifier: NonceChallengeVerifier,
     val verifierId: String,
-    val challenge: String,
     val signer: SignCose<ByteArray>,
 )
 
@@ -256,9 +258,11 @@ private suspend fun createIsoMdocFixture(mode: IsoRevocationMode): IsoMdocFixtur
         issuer = issuer,
         statusListIssuer = statusListIssuer,
         holder = holder,
-        verifier = VerifierAgent(identifier = verifierId, validatorMdoc = validator),
+        verifier = NonceChallengeVerifier(
+            verifierId = verifierId,
+            verifier = VerifierAgent(identifier = verifierId, validatorMdoc = validator),
+        ),
         verifierId = verifierId,
-        challenge = uuid4().toString(),
         signer = SignCose(keyMaterial = holderKeyMaterial),
     )
 }
@@ -284,17 +288,13 @@ private fun statusListResolver(statusListIssuer: StatusListAgent) = TokenStatusR
 private suspend fun IsoMdocFixture.createPresexDeviceResponse(vararg attributeNames: String) =
     createPresexDeviceResponse(
         holder = holder,
-        challenge = challenge,
-        verifierId = verifierId,
-        signer = signer,
+        request = verifier.createPresentationRequest(calcIsoDeviceSignaturePlain = simpleSigner(signer)),
         attributeNames = attributeNames,
     )
 
 private suspend fun IsoMdocFixture.createDcqlDeviceResponse(vararg attributeNames: String) = createDcqlDeviceResponse(
     holder = holder,
-    challenge = challenge,
-    verifierId = verifierId,
-    signer = signer,
+    request = verifier.createPresentationRequest(calcIsoDeviceSignaturePlain = simpleSigner(signer)),
     attributeNames = attributeNames,
 )
 
@@ -322,17 +322,11 @@ private suspend fun IsoMdocFixture.revokeSingleStoredCredential(): Boolean {
 
 private suspend fun createPresexDeviceResponse(
     holder: HolderAgent,
-    challenge: String,
-    verifierId: String,
-    signer: SignCose<ByteArray>,
+    request: PresentationRequestParameters,
     attributeNames: Array<out String>,
 ): CreatePresentationResult.DeviceResponse {
     val presentationParameters = holder.createPresentation(
-        request = PresentationRequestParameters(
-            nonce = challenge,
-            audience = verifierId,
-            calcIsoDeviceSignaturePlain = simpleSigner(signer)
-        ),
+        request = request,
         credentialPresentation = buildPresentationDefinition(*attributeNames)
     ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
 
@@ -342,9 +336,7 @@ private suspend fun createPresexDeviceResponse(
 
 private suspend fun createDcqlDeviceResponse(
     holder: HolderAgent,
-    challenge: String,
-    verifierId: String,
-    signer: SignCose<ByteArray>,
+    request: PresentationRequestParameters,
     attributeNames: Array<out String>,
 ): CreatePresentationResult.DeviceResponse {
     val claimsQueries = attributeNames.map {
@@ -357,11 +349,7 @@ private suspend fun createDcqlDeviceResponse(
     }.toTypedArray()
 
     val presentationParameters = holder.createDefaultPresentation(
-        request = PresentationRequestParameters(
-            nonce = challenge,
-            audience = verifierId,
-            calcIsoDeviceSignaturePlain = simpleSigner(signer)
-        ),
+        request = request,
         credentialPresentationRequest = CredentialPresentationRequest.DCQLRequest(
             buildDCQLQuery(*claimsQueries)
         )

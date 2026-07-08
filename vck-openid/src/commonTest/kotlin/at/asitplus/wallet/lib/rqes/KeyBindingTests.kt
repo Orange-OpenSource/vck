@@ -21,6 +21,7 @@ import at.asitplus.wallet.lib.agent.ValidatorSdJwt
 import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
+import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.SdJwtConstants
@@ -323,11 +324,17 @@ val KeyBindingTests by matrixSuite {
 
         "Hash of transaction data is not changed during processing" {
             val referenceHash = it.cibaWalletTransactionData.toByteArray(Charsets.UTF_8).sha256()
+            val validNonces = mutableSetOf<String>()
 
             val verifierOid4Vp = OpenId4VpVerifier(
                 keyMaterial = EphemeralKeyWithoutCert(),
                 clientIdScheme = ClientIdScheme.RedirectUri(it.clientId),
-                stateToAuthnRequestStore = it.externalMapStore
+                stateToAuthnRequestStore = it.externalMapStore,
+                nonceService = object : NonceService {
+                    override suspend fun provideNonce() = uuid4().toString().also(validNonces::add)
+                    override suspend fun verifyNonce(it: String) = it in validNonces
+                    override suspend fun verifyAndRemoveNonce(it: String) = validNonces.remove(it)
+                },
             )
 
             val state = it.holderOid4vp.startAuthorizationResponsePreparation(it.cibaWalletTestVector)
@@ -335,9 +342,10 @@ val KeyBindingTests by matrixSuite {
                     request.parameters.transactionData.shouldNotBeEmpty().shouldNotBeNull()
                 }
 
+            validNonces += state.request.parameters.nonce.shouldNotBeNull()
             it.externalMapStore.put(
                 "iTGlKl-AJxmncWPbXHp2xy58bNy18wqZ4TR9EzhBl2R4ulxeTEO0VyWYR2qMDpCDV5JWeOxecTqcEJ61bFKrUg",
-                state.request.parameters
+                state.request.parameters,
             )
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(state.request).getOrThrow()

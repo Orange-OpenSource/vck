@@ -30,8 +30,10 @@ val AgentComplexSdJwtTest by matrixSuite {
             val holderKeyMaterial = EphemeralKeyWithSelfSignedCert()
             val holder = HolderAgent(holderKeyMaterial)
             val verifierId = "urn:${uuid4()}"
-            val verifier = VerifierAgent(identifier = verifierId)
-            val challenge = uuid4().toString()
+            val verifier = NonceChallengeVerifier(
+                verifierId = verifierId,
+                verifier = VerifierAgent(identifier = verifierId),
+            )
         }
     } - {
 
@@ -52,13 +54,13 @@ val AgentComplexSdJwtTest by matrixSuite {
             )
 
             val vp = it.holder.createDefaultPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = it.verifier.createPresentationRequest(),
                 credentialPresentationRequest = presentationRequest
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
                 .presentationResults.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 1 // for address only
                     reconstructedJsonObject[CLAIM_ADDRESS]?.jsonObject?.get(CLAIM_ADDRESS_REGION)
@@ -85,13 +87,13 @@ val AgentComplexSdJwtTest by matrixSuite {
             )
 
             val vp = it.holder.createDefaultPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = it.verifier.createPresentationRequest(),
                 credentialPresentationRequest = presentationRequest
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
                 .presentationResults.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 2 // for region, country
                     reconstructedJsonObject[CLAIM_ADDRESS]?.jsonObject?.get(CLAIM_ADDRESS_REGION)
@@ -119,13 +121,13 @@ val AgentComplexSdJwtTest by matrixSuite {
             )
 
             val vp = it.holder.createDefaultPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = it.verifier.createPresentationRequest(),
                 credentialPresentationRequest = presentationRequest
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
                 .presentationResults.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 3 // for address, region, country
                     reconstructedJsonObject[CLAIM_ADDRESS]?.jsonObject?.get(CLAIM_ADDRESS_REGION)
@@ -150,13 +152,13 @@ val AgentComplexSdJwtTest by matrixSuite {
             val presentationRequest = PresentationExchangeRequest.forAttributeNames("$.$CLAIM_ADDRESS")
 
             val vp = it.holder.createDefaultPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = it.verifier.createPresentationRequest(),
                 credentialPresentationRequest = presentationRequest
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
                 .presentationResults.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 3 // for address, region, country
                     reconstructedJsonObject[CLAIM_ADDRESS]?.jsonObject?.get(CLAIM_ADDRESS_REGION)
@@ -178,13 +180,13 @@ val AgentComplexSdJwtTest by matrixSuite {
             )
 
             val vp = it.holder.createDefaultPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = it.verifier.createPresentationRequest(),
                 credentialPresentationRequest = presentationRequest
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
                 .presentationResults.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 1
                     reconstructedJsonObject[CLAIM_ADDRESS] shouldBe null
@@ -207,13 +209,13 @@ val AgentComplexSdJwtTest by matrixSuite {
             )
 
             val vp = it.holder.createDefaultPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = it.verifier.createPresentationRequest(),
                 credentialPresentationRequest = presentationRequest
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
                 .presentationResults.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 2 // claim_given_name, claim_family_name
                     reconstructedJsonObject[CLAIM_GIVEN_NAME]
