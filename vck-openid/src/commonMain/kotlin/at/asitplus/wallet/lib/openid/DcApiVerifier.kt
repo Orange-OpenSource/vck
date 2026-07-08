@@ -227,9 +227,14 @@ class DcApiVerifier @JvmOverloads constructor(
                         )
                     )
 
-                    DcApiCreationOptions.Iso180137AnnexC -> IsoMdoc(
-                        createIsoMdocRequest(requestOptions)
-                    )
+                    DcApiCreationOptions.Iso180137AnnexC -> {
+                        requireNotNull(decryptHpke) {
+                            "ISO 18013-7 Annex C requires decryptHpke to be set, the response could never be validated"
+                        }
+                        IsoMdoc(
+                            createIsoMdocRequest(requestOptions)
+                        )
+                    }
                 }
             )
         )
@@ -450,7 +455,7 @@ class DcApiVerifier @JvmOverloads constructor(
             )
         )
         val encodedSessionTranscript = coseCompliantSerializer.encodeToByteArray(sessionTranscript)
-        val encodedDeviceResponse = decryptHpke!!(
+        val encodedDeviceResponse = requireNotNull(decryptHpke) { "decryptHpke required for ISO 18013-7 Annex C" }(
             encryptedResponseData.enc,
             encryptedResponseData.cipherText,
             privateKey,
