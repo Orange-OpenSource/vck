@@ -82,8 +82,6 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                         clientId = "dc-api-rp-${uuid4()}",
                         redirectUri = "https://example.com/callback",
                     ),
-                    // stub, response decryption is exercised in Iso180137AnnexCProtocolTest
-                    decryptHpke = { _, _, _, _ -> byteArrayOf() },
                 )
 
                 /** Extracts the unsigned authn request from the browser-facing [CredentialRequestOptions]. */
@@ -213,30 +211,6 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 expectedOrigins = listOf(callingOrigin),
             )
             f.dcApiVerifier.createAuthnRequest(reqOptions).isFailure shouldBe true
-        }
-
-        test("DC API Annex C: createAuthnRequest rejects verifier without HPKE decryption") {
-            val verifierWithoutHpke = DcApiVerifier(
-                clientIdScheme = ClientIdScheme.PreRegistered(
-                    clientId = "dc-api-rp-${uuid4()}",
-                    redirectUri = "https://example.com/callback",
-                ),
-            )
-            val isoDcqlRequest = CredentialPresentationRequestBuilder(
-                RequestOptionsCredential(
-                    credentialScheme = AtomicAttribute2023,
-                    representation = ISO_MDOC,
-                    attributePaths = setOf(DCQLClaimsPathPointer(CLAIM_GIVEN_NAME)),
-                ),
-            ).toDCQLRequest()
-            val reqOptions = OpenId4VpRequestOptions(
-                presentationRequest = isoDcqlRequest,
-                responseMode = OpenIdConstants.ResponseMode.DcApi,
-                expectedOrigins = listOf(callingOrigin),
-            )
-            // without decryptHpke, the verifier could never validate the response to this request
-            verifierWithoutHpke.createAuthnRequest(reqOptions, DcApiCreationOptions.Iso180137AnnexC)
-                .isFailure shouldBe true
         }
 
         test("DC API Annex C: createAuthnRequest rejects non-mdoc DCQL queries") { f ->

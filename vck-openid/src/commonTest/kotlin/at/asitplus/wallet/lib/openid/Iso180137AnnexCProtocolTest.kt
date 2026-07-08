@@ -20,22 +20,11 @@ import at.asitplus.iso.sha256
 import at.asitplus.iso.wrapInCborTag
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.dcql.DCQLClaimsPathPointer
-import at.asitplus.signum.indispensable.CryptoPrivateKey
 import at.asitplus.signum.indispensable.CryptoPublicKey
-import at.asitplus.signum.indispensable.ECCurve
-import at.asitplus.signum.indispensable.KeyAgreementPrivateValue
-import at.asitplus.signum.indispensable.cosef.CoseKey
+import at.asitplus.signum.supreme.asymmetric.HPKE
 import at.asitplus.signum.indispensable.cosef.io.ByteStringWrapper
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.cosef.toCoseKey
-import at.asitplus.signum.indispensable.symmetric.SymmetricEncryptionAlgorithm
-import at.asitplus.signum.indispensable.symmetric.authTag
-import at.asitplus.signum.indispensable.symmetric.keyFrom
-import at.asitplus.signum.indispensable.symmetric.nonce
-import at.asitplus.signum.supreme.agree.Ephemeral
-import at.asitplus.signum.supreme.agree.keyAgreement
-import at.asitplus.signum.supreme.symmetric.decrypt
-import at.asitplus.signum.supreme.symmetric.encrypt
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.RequestOptionsCredential
@@ -112,7 +101,6 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
                     ),
                     stateToIsoMdocRequestStore = stateToIsoMdocRequestStore,
                     decryptionKeyMaterial = decryptionKeyMaterial,
-                    decryptHpke = ::testHpkeOpen,
                 )
 
                 /** Extracts the Annex C request from the browser-facing [CredentialRequestOptions]. */
@@ -319,51 +307,17 @@ private suspend fun createWalletResponse(
         .shouldBeInstanceOf<CreatePresentationResult.DeviceResponse>()
         .deviceResponse
 
-    val encryptedResponseData = testHpkeSeal(
-        recipientPublicKey = isoMdocRequest.encryptionInfo.encryptionParameters.recipientPublicKey,
-        plaintext = coseCompliantSerializer.encodeToByteArray(deviceResponse),
+    val sealed = hpke.SealBase(
+        pkR = isoMdocRequest.encryptionInfo.encryptionParameters.recipientPublicKey
+            .toCryptoPublicKey().getOrThrow() as CryptoPublicKey.EC,
         info = coseCompliantSerializer.encodeToByteArray(sessionTranscript),
+        aad = byteArrayOf(),
+        pt = coseCompliantSerializer.encodeToByteArray(deviceResponse),
     )
-    return DCAPIResponse(EncryptedResponse(TYPE_DCAPI, encryptedResponseData))
-}
-
-// ponytail: stand-in for HPKE (RFC 9180), which is not available in signum supreme 0.14:
-// ephemeral ECDH + SHA-256 KDF over (sharedSecret || info) + AES-256-GCM.
-// [DcApiVerifier.validateResponse] takes the HPKE decryption function as a parameter,
-// so actual HPKE interop is out of scope here; this pair still binds the response to the
-// verifier's decryption key and the session transcript. Replace with signum HPKE once available.
-private suspend fun testHpkeSeal(
-    recipientPublicKey: CoseKey,
-    plaintext: ByteArray,
-    info: ByteArray,
-): EncryptedResponseData {
-    val recipientKey = recipientPublicKey.toCryptoPublicKey().getOrThrow() as CryptoPublicKey.EC
-    val ephemeralKey = KeyAgreementPrivateValue.ECDH.Ephemeral(ECCurve.SECP_256_R_1).getOrThrow()
-    val sharedSecret = ephemeralKey.keyAgreement(recipientKey).getOrThrow()
-    val sealedBox = testHpkeKey(sharedSecret, info).encrypt(plaintext).getOrThrow()
-    return EncryptedResponseData(
-        enc = ephemeralKey.publicValue.asCryptoPublicKey().iosEncoded,
-        cipherText = sealedBox.nonce + sealedBox.encryptedData + sealedBox.authTag,
+    return DCAPIResponse(
+        EncryptedResponse(TYPE_DCAPI, EncryptedResponseData(sealed.encapsulatedSecret, sealed.ciphertext))
     )
 }
 
-private suspend fun testHpkeOpen(
-    enc: ByteArray,
-    cipherText: ByteArray,
-    recipientPrivateKey: CryptoPrivateKey.EC.WithPublicKey,
-    info: ByteArray,
-): ByteArray {
-    val ephemeralPublicKey = CryptoPublicKey.fromIosEncoded(enc) as CryptoPublicKey.EC
-    val sharedSecret = (recipientPrivateKey as KeyAgreementPrivateValue).keyAgreement(ephemeralPublicKey).getOrThrow()
-    return testHpkeKey(sharedSecret, info).decrypt(
-        nonce = cipherText.copyOfRange(0, NONCE_LENGTH),
-        encryptedData = cipherText.copyOfRange(NONCE_LENGTH, cipherText.size - AUTH_TAG_LENGTH),
-        authTag = cipherText.copyOfRange(cipherText.size - AUTH_TAG_LENGTH, cipherText.size),
-    ).getOrThrow()
-}
-
-private fun testHpkeKey(sharedSecret: ByteArray, info: ByteArray) =
-    SymmetricEncryptionAlgorithm.AES_256.GCM.keyFrom((sharedSecret + info).sha256()).getOrThrow()
-
-private const val NONCE_LENGTH = 12
-private const val AUTH_TAG_LENGTH = 16
+/** Cipher suite to encrypt responses acc. to ISO/IEC 18013-7 Annex C */
+private val hpke = HPKE(HPKE.KEM.DHKEM_P256_HKDF_SHA256, HPKE.KDF.HKDF_SHA256, HPKE.AEAD.AES_128_GCM)

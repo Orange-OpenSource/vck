@@ -34,6 +34,8 @@ Release 7.0.0 (unreleased):
     - Add `issuer` property in `StoreEntry`, for evaluation of trust against trust list
  - Deprecations:
    - Remove code deprecated in 6.0.0, e.g. various `DCAPIWallet*` and related classes, `vckJsonSerializer`
+ - Dependencies:
+   - Update to [Signum 3.24.0](https://github.com/a-sit-plus/signum/releases/tag/3.24.0) for HPKE support
 
 Release 6.0.0:
  - JWS:

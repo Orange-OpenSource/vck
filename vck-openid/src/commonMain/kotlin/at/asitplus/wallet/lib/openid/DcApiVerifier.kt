@@ -53,6 +53,7 @@ import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.toJsonWebKey
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
+import at.asitplus.signum.supreme.asymmetric.HPKE
 import at.asitplus.wallet.lib.AbstractMdocVerifier
 import at.asitplus.wallet.lib.DefaultNonceService
 import at.asitplus.wallet.lib.NonceService
@@ -133,12 +134,10 @@ class DcApiVerifier @JvmOverloads constructor(
     private val stateToIsoMdocRequestStore: MapStore<String, IsoMdocRequest> = DefaultMapStore(),
     /** Algorithms supported to decrypt responses from wallets, for [metadataWithEncryption]. */
     private val supportedJweEncryptionAlgorithms: Set<JweEncryption> = JweEncryption.entries.toSet(),
-    /**
-     * Workaround until signum is ready. Required for ISO 18013-7 Annex decryption.
-     * Parameters: Serialized ephemeral key, cipher text, decryption key, encoded session transcript
-     */
-    private val decryptHpke: (suspend (ByteArray, ByteArray, CryptoPrivateKey.EC.WithPublicKey, ByteArray) -> ByteArray)? = null,
 ) : AbstractMdocVerifier() {
+
+    /** Cipher suite to decrypt responses acc. to ISO/IEC 18013-7 Annex C */
+    private val hpke = HPKE(HPKE.KEM.DHKEM_P256_HKDF_SHA256, HPKE.KDF.HKDF_SHA256, HPKE.AEAD.AES_128_GCM)
 
     private val nonceAwareVerifier = NonceChallengeVerifier(
         verifierId = clientIdScheme.clientId,
@@ -231,14 +230,9 @@ class DcApiVerifier @JvmOverloads constructor(
             )
         )
 
-        DcApiCreationOptions.Iso180137AnnexC -> {
-            requireNotNull(decryptHpke) {
-                "ISO 18013-7 Annex C requires decryptHpke to be set, the response could never be validated"
-            }
-            IsoMdoc(
-                createIsoMdocRequest(requestOptions)
-            )
-        }
+        DcApiCreationOptions.Iso180137AnnexC -> IsoMdoc(
+            createIsoMdocRequest(requestOptions)
+        )
     }
 
     private suspend fun createSignedRequestObject(
@@ -435,11 +429,12 @@ class DcApiVerifier @JvmOverloads constructor(
             )
         )
         val encodedSessionTranscript = coseCompliantSerializer.encodeToByteArray(sessionTranscript)
-        val encodedDeviceResponse = requireNotNull(decryptHpke) { "decryptHpke required for ISO 18013-7 Annex C" }(
-            encryptedResponseData.enc,
-            encryptedResponseData.cipherText,
-            privateKey,
-            encodedSessionTranscript
+        val encodedDeviceResponse = hpke.OpenBase(
+            enc = encryptedResponseData.enc,
+            skR = privateKey,
+            info = encodedSessionTranscript,
+            aad = byteArrayOf(),
+            ct = encryptedResponseData.cipherText,
         )
         val deviceResponse = coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(encodedDeviceResponse)
 
