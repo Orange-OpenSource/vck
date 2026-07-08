@@ -218,12 +218,12 @@ class DcApiVerifier @JvmOverloads constructor(
                 when (creationOptions) {
                     is DcApiCreationOptions.OpenId4VpUnsigned -> OpenId4VpUnsigned(
                         // client_id MUST be omitted in unsigned requests, per OpenID4VP 1.0 Appendix A.3.1
-                        createPlainAuthnRequest(requestOptions.copy(populateClientId = false))
+                        createPlainAuthnRequest(requestOptions.requireEncryptionKeyConveyed().copy(populateClientId = false))
                     )
 
                     is DcApiCreationOptions.OpenId4VpSigned -> OpenId4VpSigned(
                         SignedDataElement(
-                            createSignedRequestObject(requestOptions).getOrThrow().jws
+                            createSignedRequestObject(requestOptions.requireEncryptionKeyConveyed()).getOrThrow().jws
                         )
                     )
 
@@ -324,6 +324,19 @@ class DcApiVerifier @JvmOverloads constructor(
             ?: throw IllegalArgumentException("Neither externalId nor state has been provided"),
         value = authenticationRequestParameters,
     )
+
+    /**
+     * The DC API has no other channel to convey the verifier's encryption key: wallets can only encrypt responses
+     * with a key from [at.asitplus.openid.AuthenticationRequestParameters.clientMetadata] in the request itself.
+     */
+    private fun OpenId4VpRequestOptions.requireEncryptionKeyConveyed(): OpenId4VpRequestOptions = also {
+        if (responseMode.requiresEncryption) {
+            requireNotNull(clientMetadata()?.jsonWebKeySet) {
+                "Encrypted responses require client metadata with a JSON Web Key Set in the request, " +
+                        "which is not populated for this client identifier scheme"
+            }
+        }
+    }
 
     private fun OpenId4VpRequestOptions.clientMetadata(): RelyingPartyMetadata? = when (verifierMetadataMode) {
         VerifierMetadataMode.OMIT_IF_OUT_OF_BAND -> null

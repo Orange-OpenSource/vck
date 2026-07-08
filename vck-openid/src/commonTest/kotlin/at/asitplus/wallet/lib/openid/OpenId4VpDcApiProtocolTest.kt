@@ -20,6 +20,7 @@ import at.asitplus.signum.indispensable.josef.typed
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.RequestOptionsCredential
+import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.Holder
 import at.asitplus.wallet.lib.agent.HolderAgent
@@ -111,6 +112,41 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
                 .isFailure shouldBe true
             f.dcApiVerifier.createAuthnRequest(reqOptions, DcApiCreationOptions.OpenId4VpSigned)
                 .isFailure shouldBe true
+        }
+
+        test("createAuthnRequest rejects encrypted response mode when metadata conveys no encryption key") { f ->
+            val reqOptions = OpenId4VpRequestOptions(
+                presentationRequest = dcqlRequest,
+                responseMode = OpenIdConstants.ResponseMode.DcApiJwt,
+                expectedOrigins = listOf(callingOrigin),
+            )
+            // fixture verifier uses ClientIdScheme.PreRegistered, for which no client metadata is populated
+            f.dcApiVerifier.createAuthnRequest(reqOptions, DcApiCreationOptions.OpenId4VpUnsigned)
+                .isFailure shouldBe true
+            f.dcApiVerifier.createAuthnRequest(reqOptions, DcApiCreationOptions.OpenId4VpSigned)
+                .isFailure shouldBe true
+        }
+
+        test("createAuthnRequest with encrypted response mode conveys encryption key in metadata") {
+            val verifierKeyMaterial = EphemeralKeyWithSelfSignedCert()
+            val dcApiVerifier = DcApiVerifier(
+                keyMaterial = verifierKeyMaterial,
+                clientIdScheme = ClientIdScheme.CertificateHash(
+                    chain = listOf(verifierKeyMaterial.getCertificate()!!),
+                    redirectUri = "https://example.com/callback",
+                ),
+            )
+            val reqOptions = OpenId4VpRequestOptions(
+                presentationRequest = dcqlRequest,
+                responseMode = OpenIdConstants.ResponseMode.DcApiJwt,
+                expectedOrigins = listOf(callingOrigin),
+            )
+
+            val authnRequest = dcApiVerifier.createAuthnRequest(reqOptions, DcApiCreationOptions.OpenId4VpUnsigned)
+                .getOrThrow().singleRequest<DigitalCredentialGetRequest.OpenId4VpUnsigned>()
+                .data
+
+            authnRequest.clientMetadata.shouldNotBeNull().jsonWebKeySet.shouldNotBeNull().keys.shouldBeSingleton()
         }
 
         test("DC API Annex C: createAuthnRequest renders the DCQL query as ISO device request") { f ->
