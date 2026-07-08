@@ -245,16 +245,15 @@ class DcApiVerifier @JvmOverloads constructor(
         requestOptions: OpenId4VpRequestOptions,
     ): KmmResult<JwsCompactTyped<AuthenticationRequestParameters>> = catching {
         val requestObject = createPlainAuthnRequest(requestOptions)
-        val siopClientId = "https://self-issued.me/v2"
-        val issuer = when (clientIdScheme) {
-            is ClientIdScheme.PreRegistered -> clientIdScheme.issuerUri ?: clientIdScheme.clientId
-            else -> siopClientId
-        }
         signAuthnRequest(
             JwsContentTypeConstants.OAUTH_AUTHZ_REQUEST,
             requestObject.copy(
-                audience = siopClientId,
-                issuer = issuer,
+                // per RFC 9101, `iss` is the client identifier; wallets identify us via
+                // client_id and the request signature, an audience cannot be known upfront
+                issuer = when (clientIdScheme) {
+                    is ClientIdScheme.PreRegistered -> clientIdScheme.issuerUri ?: clientIdScheme.clientId
+                    else -> clientIdScheme.clientId
+                },
             ),
             AuthenticationRequestParameters.serializer(),
         ).getOrThrow()
