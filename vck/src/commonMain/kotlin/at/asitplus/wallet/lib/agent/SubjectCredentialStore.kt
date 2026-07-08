@@ -13,9 +13,7 @@ import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.pki.X509Certificate
 import at.asitplus.wallet.lib.data.AttributeIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
 import at.asitplus.wallet.lib.data.IsoMdocFallbackCredentialScheme
@@ -33,6 +31,7 @@ import io.ktor.utils.io.core.toByteArray
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToByteArray
+import kotlin.String
 
 /**
  * Stores all credentials that a subject has received
@@ -54,6 +53,20 @@ interface SubjectCredentialStore {
         issuer: X509Certificate? = null
     ): StoreEntry
 
+    @Deprecated("Use storeCredential(vc: VerifiableCredentialJws, vcSerialized: String, scheme: VcJwtCredentialScheme, renewalInfo: CredentialRenewalInfo?, issuer: X509Certificate?) instead")
+    suspend fun storeCredential(
+        vc: VerifiableCredentialJws,
+        vcSerialized: String,
+        scheme: VcJwtCredentialScheme,
+        renewalInfo: CredentialRenewalInfo? = null,
+    ): StoreEntry = storeCredential(
+        vc = vc,
+        vcSerialized = vcSerialized,
+        scheme = scheme,
+        renewalInfo = renewalInfo,
+        issuer = null
+    )
+
     /**
      * Implementations should store the passed credential in a secure way.
      * Passed credentials have been validated before.
@@ -70,6 +83,22 @@ interface SubjectCredentialStore {
         issuer: X509Certificate? = null
     ): StoreEntry
 
+    @Deprecated("Use storeCredential(vc: VerifiableCredentialSdJwt, vcSerialized: String, disclosures: Map<String, SelectiveDisclosureItem?>, scheme: SdJwtCredentialScheme, renewalInfo: CredentialRenewalInfo?, issuer: X509Certificate?) instead")
+    suspend fun storeCredential(
+        vc: VerifiableCredentialSdJwt,
+        vcSerialized: String,
+        disclosures: Map<String, SelectiveDisclosureItem?>,
+        scheme: SdJwtCredentialScheme,
+        renewalInfo: CredentialRenewalInfo? = null,
+    ): StoreEntry = storeCredential(
+        vc = vc,
+        vcSerialized = vcSerialized,
+        disclosures = disclosures,
+        scheme = scheme,
+        renewalInfo = renewalInfo,
+        issuer = null
+    )
+
     /**
      * Implementations should store the passed credential in a secure way.
      * Passed credentials have been validated before.
@@ -82,6 +111,18 @@ interface SubjectCredentialStore {
         renewalInfo: CredentialRenewalInfo? = null,
         issuer: X509Certificate? = null
     ): StoreEntry
+
+    @Deprecated("Use storeCredential(issuerSigned: IssuerSigned, scheme: IsoMdocCredentialScheme, renewalInfo: CredentialRenewalInfo?, issuer: X509Certificate?) instead")
+    suspend fun storeCredential(
+        issuerSigned: IssuerSigned,
+        scheme: IsoMdocCredentialScheme,
+        renewalInfo: CredentialRenewalInfo? = null,
+    ): StoreEntry = storeCredential(
+        issuerSigned = issuerSigned,
+        scheme = scheme,
+        renewalInfo = renewalInfo,
+        issuer = null
+    )
 
     /**
      * Return all stored credentials.
