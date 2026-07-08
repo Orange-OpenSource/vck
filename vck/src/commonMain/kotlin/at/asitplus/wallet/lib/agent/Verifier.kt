@@ -29,8 +29,8 @@ import kotlinx.serialization.json.JsonObject
 interface Verifier {
 
     /**
-     * Verifies a presentation of some credentials in [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT]
-     * from a holder,
+     * Verifies a presentation of some credentials in
+     * [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT] from a holder,
      * that shall include the [challenge] (sent by this verifier).
      * @param audience Expected audience in the key binding JWT, defaults to the verifier identifier.
      */
@@ -43,8 +43,8 @@ interface Verifier {
     ): KmmResult<VerifyPresentationResult.SuccessSdJwt>
 
     /**
-     * Verifies a presentation of some credentials in [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT]
-     * from a holder,
+     * Verifies a presentation of some credentials in
+     * [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT] from a holder,
      * that shall include the [challenge] (sent by this verifier).
      */
     suspend fun verifyPresentationVcJwt(
@@ -52,13 +52,18 @@ interface Verifier {
         challenge: String,
     ): KmmResult<VerifyPresentationResult.Success>
 
+    /**
+     * Verifies a presentation of one credential in
+     * [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT] from a holder,
+     * without a holder key binding, which would be chacked in [verifyPresentationVcJwt].
+     */
     suspend fun verifyUnsignedVcJws(
         input: String
     ): KmmResult<VerifyPresentationResult.SuccessUnsigned>
 
     /**
-     * Verifies a presentation of some credentials in [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC]
-     * from a holder,
+     * Verifies a presentation of some credentials in
+     * [at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC] from a holder,
      * with a challenge validated by the callback in [verifyDocument] (i.e. device authentication for OpenID4VP).
      */
     suspend fun verifyPresentationIsoMdoc(
