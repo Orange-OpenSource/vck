@@ -62,7 +62,8 @@ import at.asitplus.wallet.lib.agent.Verifier.VerifyPresentationResult
 import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKey
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKeyFun
-import at.asitplus.wallet.lib.data.CredentialPresentationRequest
+import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
+import at.asitplus.wallet.lib.data.CredentialPresentationRequest.PresentationExchangeRequest
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.data.toBase64UrlJsonString
 import at.asitplus.wallet.lib.extensions.sessionTranscriptThumbprint
@@ -187,7 +188,6 @@ class OpenId4VpVerifier @JvmOverloads constructor(
      * Creates the [RelyingPartyMetadata], but with parameters set to request encryption of pushed authentication
      * responses, see [RelyingPartyMetadata.encryptedResponseEncValues].
      */
-    @Suppress("DEPRECATION")
     val metadataWithEncryption by lazy {
         metadata.copy(
             encryptedResponseEncValuesSupportedString = supportedJweEncryptionAlgorithms.map { it.identifier }.toSet(),
@@ -378,8 +378,8 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         idTokenType = if (isSiop) IdTokenType.SUBJECT_SIGNED.text else null,
         responseMode = responseMode,
         state = if (!isAnyDcApi) state else null,
-        dcqlQuery = (presentationRequest as? CredentialPresentationRequest.DCQLRequest)?.dcqlQuery,
-        presentationDefinition = (presentationRequest as? CredentialPresentationRequest.PresentationExchangeRequest)?.presentationDefinition?.run {
+        dcqlQuery = (presentationRequest as? DCQLRequest)?.dcqlQuery,
+        presentationDefinition = (presentationRequest as? PresentationExchangeRequest)?.presentationDefinition?.run {
             copy(
                 inputDescriptors = inputDescriptors.map {
                     when (val inputDescriptor = it) {
@@ -426,7 +426,6 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         value = authenticationRequestParameters,
     )
 
-    @Suppress("DEPRECATION")
     private fun OpenId4VpRequestOptions.clientMetadata(): RelyingPartyMetadata? = when (verifierMetadataMode) {
         VerifierMetadataMode.OMIT_IF_OUT_OF_BAND -> null
         VerifierMetadataMode.AUTO -> when (clientIdScheme) {
@@ -508,11 +507,11 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         Napier.d("validateAuthnResponse: $input")
         val authnRequest = loadAuthnRequest(input, externalId)
 
-        val responseType = authnRequest.responseType?.let {
-            ResponseType(it)
-        } ?: throw IllegalStateException(
+        val responseType = authnRequest.responseType?.let { ResponseType(it) }
+        require(responseType != null) {
             "No response type was specified in the original authentication request."
-        )
+        }
+
         val expectedNonce = authnRequest.nonce
             ?: throw IllegalArgumentException("nonce not present in $authnRequest")
         val idTokenValidationResult = if (OpenIdConstants.ID_TOKEN in responseType) {
@@ -526,8 +525,8 @@ class OpenId4VpVerifier @JvmOverloads constructor(
             null
         }
 
-        if (listOfNotNull(idTokenValidationResult, vpTokenValidationResult).isEmpty()) {
-            throw IllegalStateException("Unsupported response type: $responseType")
+        require(listOfNotNull(idTokenValidationResult, vpTokenValidationResult).isNotEmpty()) {
+            "Unsupported response type: $responseType"
         }
 
         AuthnResponseResult(
@@ -536,9 +535,8 @@ class OpenId4VpVerifier @JvmOverloads constructor(
             request = authnRequest,
         ).also {
             if (it.isFullyValid()) {
-                if (!nonceAwareVerifier.verifyAndRemoveNonce(expectedNonce)) {
-                    throw IllegalArgumentException("nonce")
-                        .also { Napier.d("nonce not valid: $expectedNonce, not known to us") }
+                require(nonceAwareVerifier.verifyAndRemoveNonce(expectedNonce)) {
+                    "nonce not valid: $expectedNonce, not known to us"
                 }
             }
         }
@@ -584,28 +582,27 @@ class OpenId4VpVerifier @JvmOverloads constructor(
                 .also { Napier.w { "JWS of idToken not verified: $idTokenJws" } }
         }
         val idToken = jwsSigned.payload
-        if (idToken.issuer != idToken.subject)
-            throw IllegalArgumentException("idToken.iss")
-                .also { Napier.d("Wrong issuer: ${idToken.issuer}, expected: ${idToken.subject}") }
-        if (idToken.audience != clientIdScheme.clientId)
-            throw IllegalArgumentException("idToken.aud")
-                .also { Napier.d("audience not valid: ${idToken.audience}") }
-        if (idToken.expiration < (clock.now() - timeLeeway))
-            throw IllegalArgumentException("idToken.exp")
-                .also { Napier.d("expirationDate before now: ${idToken.expiration}") }
-        if (idToken.issuedAt > (clock.now() + timeLeeway))
-            throw IllegalArgumentException("idToken.iat")
-                .also { Napier.d("issuedAt after now: ${idToken.issuedAt}") }
-        if (idToken.nonce != expectedNonce || !nonceAwareVerifier.verifyNonce(expectedNonce)) {
-            throw IllegalArgumentException("idToken.nonce")
-                .also { Napier.d("nonce not valid: ${idToken.nonce}, expected $expectedNonce") }
+        require(idToken.issuer == idToken.subject) {
+            "Wrong issuer: ${idToken.issuer}, expected: ${idToken.subject}"
         }
-        if (idToken.subjectJwk == null)
-            throw IllegalArgumentException("idToken.sub_jwk")
-                .also { Napier.d("sub_jwk is null") }
-        if (idToken.subject != idToken.subjectJwk!!.jwkThumbprint)
-            throw IllegalArgumentException("idToken.sub")
-                .also { Napier.d("subject does not equal thumbprint of sub_jwk: ${idToken.subject}") }
+        require(idToken.audience == clientIdScheme.clientId) {
+            "audience not valid: ${idToken.audience}"
+        }
+        require(idToken.expiration >= (clock.now() - timeLeeway)) {
+            "expirationDate before now: ${idToken.expiration}"
+        }
+        require(idToken.issuedAt <= (clock.now() + timeLeeway)) {
+            "issuedAt after now: ${idToken.issuedAt}"
+        }
+        require(idToken.nonce == expectedNonce && nonceAwareVerifier.verifyNonce(expectedNonce)) {
+            "nonce not valid: ${idToken.nonce}, expected $expectedNonce"
+        }
+        require(idToken.subjectJwk != null) {
+            "sub_jwk is null"
+        }
+        require(idToken.subject == idToken.subjectJwk!!.jwkThumbprint) {
+            "subject does not equal thumbprint of sub_jwk: ${idToken.subject}"
+        }
         idToken
     }
 
@@ -631,7 +628,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
             authnRequest.verifyExpectedOrigin(it.origin)
         }
 
-        authnRequest.presentationDefinition?.let { presentationDefinition ->
+        authnRequest.presentationDefinition?.let {
             val presentationSubmission = responseParameters.parameters.presentationSubmission?.descriptorMap
                 ?: throw IllegalArgumentException("Presentation Exchange need to present a presentation submission.")
 
