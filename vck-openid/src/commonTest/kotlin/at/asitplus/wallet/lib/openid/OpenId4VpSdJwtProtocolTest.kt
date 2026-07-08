@@ -86,7 +86,7 @@ val OpenId4VpSdJwtProtocolTest by matrixSuite {
                         )
                     ).toDCQLRequest(),
                 ),
-                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             authnRequest shouldContain requestedClaim
@@ -116,7 +116,7 @@ val OpenId4VpSdJwtProtocolTest by matrixSuite {
                         )
                     ).toDCQLRequest(),
                 ),
-                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
@@ -143,7 +143,7 @@ val OpenId4VpSdJwtProtocolTest by matrixSuite {
                         )
                     ).toDCQLRequest(),
                 ),
-                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()

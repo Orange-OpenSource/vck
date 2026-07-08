@@ -365,7 +365,7 @@ val OpenId4VpEuRefInteropTest by matrixSuite {
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
                     responseUrl = "https://example.com/response",
                 ),
-                OpenId4VpVerifier.CreationOptions.SignedRequestByReference("https://wallet.a-sit.at/mobile", requestUrl)
+                CreationOptions.SignedRequestByReference("https://wallet.a-sit.at/mobile", requestUrl)
             ).getOrThrow()
             jar.shouldNotBeNull()
 

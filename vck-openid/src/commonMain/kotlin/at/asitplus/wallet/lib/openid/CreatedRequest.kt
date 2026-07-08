@@ -1,0 +1,19 @@
+package at.asitplus.wallet.lib.openid
+
+import at.asitplus.KmmResult
+import at.asitplus.openid.RequestObjectParameters
+
+data class CreatedRequest(
+    /** URL to invoke the wallet, may be rendered as a QR Code. */
+    val url: String,
+    /**
+     *  Optional content that needs to be served under the previously passed in `requestUrl`
+     *  (see [CreationOptions.RequestByReference.requestUrl] or
+     *  [CreationOptions.SignedRequestByReference.requestUrl] in call to [OpenId4VpVerifier.createAuthnRequest])
+     *  with content type `application/oauth-authz-req+jwt` (see
+     *  [at.asitplus.wallet.lib.data.MediaTypes.Application.AUTHZ_REQ_JWT]).
+     *
+     *  Pass in the [at.asitplus.openid.RequestObjectParameters] that the Wallet may have sent when requesting the request object.
+     */
+    val loadRequestObject: (suspend (RequestObjectParameters?) -> KmmResult<String>)? = null,
+)

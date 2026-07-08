@@ -48,7 +48,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
         "URL test $representation" {
             val authnRequest = verifierOid4vp.createAuthnRequest(
                 reqOptions,
-                OpenId4VpVerifier.CreationOptions.Query(walletUrl)
+                CreationOptions.Query(walletUrl)
             ).getOrThrow().url
 
             val params = holderOid4vp.startAuthorizationResponsePreparation(authnRequest).getOrThrow().request
@@ -95,7 +95,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
 
         "JwsSigned test $representation" {
             val authnRequestUrl = verifierOid4vp.createAuthnRequest(
-                reqOptions, OpenId4VpVerifier.CreationOptions.SignedRequestByValue(walletUrl)
+                reqOptions, CreationOptions.SignedRequestByValue(walletUrl)
             ).getOrThrow().url
 
             val jarRequest: JarRequestParameters = Url(authnRequestUrl).encodedQuery.decodeFromUrlQuery()
@@ -112,7 +112,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
 
         "DcApiSigned test $representation" {
             val authnRequestUrl = verifierOid4vp.createAuthnRequest(
-                reqOptions, OpenId4VpVerifier.CreationOptions.SignedRequestByValue(walletUrl)
+                reqOptions, CreationOptions.SignedRequestByValue(walletUrl)
             ).getOrThrow().url
 
             val jarRequest: JarRequestParameters = Url(authnRequestUrl).encodedQuery.decodeFromUrlQuery()
@@ -137,7 +137,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
 
         "DcApiMultiSigned test $representation" {
             val authnRequestUrl = verifierOid4vp.createAuthnRequest(
-                reqOptions, OpenId4VpVerifier.CreationOptions.SignedRequestByValue(walletUrl)
+                reqOptions, CreationOptions.SignedRequestByValue(walletUrl)
             ).getOrThrow().url
 
             val jarRequest: JarRequestParameters = Url(authnRequestUrl).encodedQuery.decodeFromUrlQuery()

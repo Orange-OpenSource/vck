@@ -91,7 +91,7 @@ val VerifierAttestationTest by matrixSuite {
                 clientIdScheme = ClientIdScheme.VerifierAttestation(attestationJwt, it.redirectUrl),
             )
             val authnRequestWithRequestObject = verifierOid4vp.createAuthnRequest(
-                requestOptionsAtomicAttribute(), OpenId4VpVerifier.CreationOptions.SignedRequestByValue(it.walletUrl)
+                requestOptionsAtomicAttribute(), CreationOptions.SignedRequestByValue(it.walletUrl)
             ).getOrThrow().url
 
             val holderOid4vp = OpenId4VpHolder(
@@ -127,7 +127,7 @@ val VerifierAttestationTest by matrixSuite {
                 clientIdScheme = ClientIdScheme.VerifierAttestation(attestationJwt, it.redirectUrl)
             )
             val authnRequestWithRequestObject = verifierOid4vp.createAuthnRequest(
-                requestOptionsAtomicAttribute(), OpenId4VpVerifier.CreationOptions.SignedRequestByValue(it.walletUrl)
+                requestOptionsAtomicAttribute(), CreationOptions.SignedRequestByValue(it.walletUrl)
             ).getOrThrow().url
 
             val holderOid4vp = OpenId4VpHolder(

@@ -111,7 +111,7 @@ val PreRegisteredClientTest by matrixSuite {
                     ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.Fragment,
                 ),
-                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
@@ -130,7 +130,7 @@ val PreRegisteredClientTest by matrixSuite {
                 .vp.freshVerifiableCredentials.shouldNotBeEmpty()
 
             it.verifierOid4vp.createAuthnRequest(
-                it.defaultRequestOptions, OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                it.defaultRequestOptions, CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url.let { newAuthnRequestUrl ->
                 verifySecondProtocolRun(
                     it.verifierOid4vp, newAuthnRequestUrl, it.holderOid4vp
@@ -148,7 +148,7 @@ val PreRegisteredClientTest by matrixSuite {
                     responseMode = OpenIdConstants.ResponseMode.Query,
                     state = expectedState,
                 ),
-                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
@@ -186,7 +186,7 @@ val PreRegisteredClientTest by matrixSuite {
                 responseType = OpenIdConstants.ID_TOKEN,
             )
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions, OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                requestOptions, CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
@@ -207,7 +207,7 @@ val PreRegisteredClientTest by matrixSuite {
                 },
             )
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                it.defaultRequestOptions, OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                it.defaultRequestOptions, CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
@@ -218,7 +218,7 @@ val PreRegisteredClientTest by matrixSuite {
 
         "test with QR Code" {
             val authnRequestUrl = it.verifierOid4vp.createAuthnRequest(
-                it.defaultRequestOptions, OpenId4VpVerifier.CreationOptions.SignedRequestByValue(it.walletUrl)
+                it.defaultRequestOptions, CreationOptions.SignedRequestByValue(it.walletUrl)
             ).getOrThrow().url
             val authnRequest: JarRequestParameters =
                 Url(authnRequestUrl).encodedQuery.decodeFromUrlQuery()
@@ -248,7 +248,7 @@ val PreRegisteredClientTest by matrixSuite {
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
                     responseUrl = it.redirectUrl
                 ),
-                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
@@ -273,7 +273,7 @@ val PreRegisteredClientTest by matrixSuite {
                     responseMode = OpenIdConstants.ResponseMode.DirectPostJwt,
                     responseUrl = it.redirectUrl
                 ),
-                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
@@ -305,7 +305,7 @@ val PreRegisteredClientTest by matrixSuite {
                     responseMode = OpenIdConstants.ResponseMode.DirectPostJwt,
                     responseUrl = it.redirectUrl
                 ),
-                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             shouldThrow<OAuth2Exception> {
@@ -341,7 +341,7 @@ val PreRegisteredClientTest by matrixSuite {
         "test specific credential" {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptionsAtomicAttribute(),
-                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
@@ -365,7 +365,7 @@ val PreRegisteredClientTest by matrixSuite {
 
         "test with request object" {
             val authnRequestWithRequestObject = it.verifierOid4vp.createAuthnRequest(
-                requestOptionsAtomicAttribute(), OpenId4VpVerifier.CreationOptions.SignedRequestByValue(it.walletUrl)
+                requestOptionsAtomicAttribute(), CreationOptions.SignedRequestByValue(it.walletUrl)
             ).getOrThrow().url
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequestWithRequestObject).getOrThrow()
@@ -392,7 +392,7 @@ val PreRegisteredClientTest by matrixSuite {
             val requestUrl = "https://www.example.com/request/${uuid4()}"
             val (authRequestUrlWithRequestUri, jar) = it.verifierOid4vp.createAuthnRequest(
                 requestOptionsAtomicAttribute(),
-                OpenId4VpVerifier.CreationOptions.SignedRequestByReference(it.walletUrl, requestUrl)
+                CreationOptions.SignedRequestByReference(it.walletUrl, requestUrl)
             ).getOrThrow()
             jar.shouldNotBeNull()
 
@@ -428,7 +428,7 @@ val PreRegisteredClientTest by matrixSuite {
             val requestUrl = "https://www.example.com/request/${uuid4()}"
             val (authRequestUrlWithRequestUri, jar) = it.verifierOid4vp.createAuthnRequest(
                 requestOptionsAtomicAttribute(),
-                OpenId4VpVerifier.CreationOptions.RequestByReference(it.walletUrl, requestUrl)
+                CreationOptions.RequestByReference(it.walletUrl, requestUrl)
             ).getOrThrow()
             jar.shouldNotBeNull()
 
@@ -466,7 +466,7 @@ val PreRegisteredClientTest by matrixSuite {
             val requestUrl = "https://www.example.com/request/${uuid4()}"
             val (authRequestUrlWithRequestUri, jar) = it.verifierOid4vp.createAuthnRequest(
                 requestOptionsAtomicAttribute(),
-                OpenId4VpVerifier.CreationOptions.SignedRequestByReference(it.walletUrl, requestUrl)
+                CreationOptions.SignedRequestByReference(it.walletUrl, requestUrl)
             ).getOrThrow()
             jar.shouldNotBeNull()
 

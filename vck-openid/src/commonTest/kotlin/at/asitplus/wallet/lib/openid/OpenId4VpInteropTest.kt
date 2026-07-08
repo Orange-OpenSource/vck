@@ -136,7 +136,7 @@ val OpenId4VpInteropTest by matrixSuite {
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
                     responseUrl = "https://verifier.example.com/response/$responseNonce",
                 ),
-                OpenId4VpVerifier.CreationOptions.SignedRequestByReference("haip://", requestUrl)
+                CreationOptions.SignedRequestByReference("haip://", requestUrl)
             ).getOrThrow()
             requestObject.shouldNotBeNull()
 

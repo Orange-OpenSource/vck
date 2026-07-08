@@ -2,6 +2,10 @@ package at.asitplus.wallet.lib.openid
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
+import at.asitplus.dcapi.DCAPIHandover
+import at.asitplus.dcapi.DigitalCredentialInterface
+import at.asitplus.dcapi.IsoMdocResponse
+import at.asitplus.dcapi.OpenID4VPDCAPIHandoverInfo
 import at.asitplus.dcapi.OpenId4VpResponse
 import at.asitplus.dcapi.SessionTranscriptContentHashable
 import at.asitplus.dif.ClaimFormat
@@ -10,9 +14,8 @@ import at.asitplus.dif.FormatContainerJwt
 import at.asitplus.dif.FormatContainerSdJwt
 import at.asitplus.dif.PresentationSubmissionDescriptor
 import at.asitplus.iso.DeviceResponse
-import at.asitplus.iso.OpenId4VpHandover
-import at.asitplus.iso.OpenId4VpHandoverInfo
 import at.asitplus.iso.SessionTranscript
+import at.asitplus.iso.serializeOrigin
 import at.asitplus.iso.sha256
 import at.asitplus.jsonpath.JsonPath
 import at.asitplus.openid.AuthenticationRequestParameters
@@ -42,7 +45,6 @@ import at.asitplus.signum.indispensable.josef.JsonWebKeySet
 import at.asitplus.signum.indispensable.josef.JweAlgorithm
 import at.asitplus.signum.indispensable.josef.JweEncryption
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
-import at.asitplus.signum.indispensable.josef.JwsHeader
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.toJsonWebKey
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
@@ -53,10 +55,10 @@ import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.NonceChallengeVerifier
 import at.asitplus.wallet.lib.agent.Verifier
-import at.asitplus.wallet.lib.agent.Verifier.VerifyPresentationResult
 import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKey
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKeyFun
+import at.asitplus.wallet.lib.data.CredentialPresentationRequest
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.PresentationExchangeRequest
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
@@ -65,7 +67,6 @@ import at.asitplus.wallet.lib.extensions.sessionTranscriptThumbprint
 import at.asitplus.wallet.lib.jws.DecryptJwe
 import at.asitplus.wallet.lib.jws.DecryptJweFun
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
-import at.asitplus.wallet.lib.jws.JwsHeaderIdentifierFun
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
@@ -95,15 +96,14 @@ import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
 /**
- * Combines Verifiable Presentations with OAuth 2.0.
- * Implements [OpenID4VP](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html) (1.0, 2025-07-09)
- * as well as [SIOP V2](https://openid.net/specs/openid-connect-self-issued-v2-1_0.html) (D13, 2023-11-28).
+ * Implements a verifier for the []Digital Credential API](https://www.w3.org/TR/digital-credentials/),
+ * similar to [OpenId4VpVerifier] for OpenID4VP.
  *
- * This class creates the Authentication Request (see [AuthenticationRequestParameters]),
+ * This class creates the Authentication Request (see [at.asitplus.openid.AuthenticationRequestParameters]),
  * clients need to send it to the holder (see [OpenId4VpHolder]) which will create the Authentication Response,
  * which will be verified here in [validateAuthnResponse].
  */
-class OpenId4VpVerifier @JvmOverloads constructor(
+class DcApiVerifier @JvmOverloads constructor(
     /** Scheme to use for our client identifier. */
     private val clientIdScheme: ClientIdScheme,
     /** Key material to sign the authentication request with [signAuthnRequest]. */
@@ -152,12 +152,6 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         kbJwtAlgorithmStrings = supportedJwsAlgorithms.toSet()
     )
 
-    @Deprecated("Moved to upper level", ReplaceWith("CreationOptions", "at.asitplus.wallet.lib.openid.CreationOptions"))
-    typealias CreationOptions = at.asitplus.wallet.lib.openid.CreationOptions
-
-    @Deprecated("Moved to upper level", ReplaceWith("CreatedRequest", "at.asitplus.wallet.lib.openid.CreatedRequest"))
-    typealias CreatedRequest = at.asitplus.wallet.lib.openid.CreatedRequest
-
     /**
      * Creates the [at.asitplus.openid.RelyingPartyMetadata], without encryption (see [metadataWithEncryption])
      */
@@ -203,8 +197,8 @@ class OpenId4VpVerifier @JvmOverloads constructor(
      */
     suspend fun createAuthnRequest(
         requestOptions: OpenId4VpRequestOptions,
-        creationOptions: at.asitplus.wallet.lib.openid.CreationOptions,
-    ): KmmResult<at.asitplus.wallet.lib.openid.CreatedRequest> = catching {
+        creationOptions: CreationOptions,
+    ): KmmResult<CreatedRequest> = catching {
         when (creationOptions) {
             is CreationOptions.Query -> {
                 require(clientIdScheme !is ClientIdScheme.CertificateSanDns) // per OpenID4VP d23 5.10.4
@@ -260,18 +254,12 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         }
     }
 
-    private fun String.toCreatedRequest() = at.asitplus.wallet.lib.openid.CreatedRequest(this)
+    private fun String.toCreatedRequest() = CreatedRequest(this)
     private fun String.toCreatedRequest(
         loadRequestObject: suspend (RequestObjectParameters?) -> KmmResult<String>,
-    ) = at.asitplus.wallet.lib.openid.CreatedRequest(this, loadRequestObject)
+    ) = CreatedRequest(this, loadRequestObject)
 
-    @Deprecated("Use createAuthnRequest instead with CreationOptions.SignedRequestByReference")
-    suspend fun createAuthnRequestAsSignedRequestObject(
-        requestOptions: OpenId4VpRequestOptions,
-        requestObjectParameters: RequestObjectParameters? = null,
-    ): KmmResult<JwsCompactTyped<AuthenticationRequestParameters>> =
-        createSignedRequestObject(requestOptions, requestObjectParameters)
-
+    // TODO Should be called by DCAPI Verifier only
     internal suspend fun createSignedRequestObject(
         requestOptions: OpenId4VpRequestOptions,
         requestObjectParameters: RequestObjectParameters? = null,
@@ -292,17 +280,13 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         ).getOrThrow()
     }
 
-    @Deprecated("Use createAuthnRequest instead with CreationOptions.SignedRequestByValue")
-    suspend fun createAuthnRequest(
-        requestOptions: OpenId4VpRequestOptions,
-        requestObjectParameters: RequestObjectParameters? = null,
-    ) = createPlainAuthnRequest(requestOptions, requestObjectParameters)
-
     internal suspend fun createPlainAuthnRequest(
         requestOptions: OpenId4VpRequestOptions,
         requestObjectParameters: RequestObjectParameters? = null,
     ) = requestOptions.toAuthnRequest(requestObjectParameters)
-        .also { storeAuthnRequest(it) }
+        .also {
+            storeAuthnRequest(it, requestOptions.state)
+        }
 
     private suspend fun OpenId4VpRequestOptions.toAuthnRequest(
         requestObjectParameters: RequestObjectParameters?,
@@ -318,7 +302,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         clientMetadata = clientMetadata(),
         idTokenType = if (isSiop) IdTokenType.SUBJECT_SIGNED.text else null,
         responseMode = responseMode,
-        state = state,
+        state = null,
         dcqlQuery = (presentationRequest as? DCQLRequest)?.dcqlQuery,
         presentationDefinition = (presentationRequest as? PresentationExchangeRequest)?.presentationDefinition?.run {
             copy(
@@ -345,17 +329,13 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         )
     )
 
-    @Deprecated("Should not be necessary at all, simply call [createAuthnRequest]")
-    suspend fun submitAuthnRequest(
-        authenticationRequestParameters: AuthenticationRequestParameters,
-        externalId: String? = null,
-    ) = storeAuthnRequest(authenticationRequestParameters)
-
     internal suspend fun storeAuthnRequest(
         authenticationRequestParameters: AuthenticationRequestParameters,
+        externalId: String? = null,
     ) = stateToAuthnRequestStore.put(
-        key = authenticationRequestParameters.state
-            ?: throw IllegalArgumentException("No state has been provided"),
+        key = externalId
+            ?: authenticationRequestParameters.state
+            ?: throw IllegalArgumentException("Neither externalId nor state has been provided"),
         value = authenticationRequestParameters,
     )
 
@@ -373,49 +353,53 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     }
 
     /**
-     * Validates an Authentication Response from the Wallet, where [input] is either:
-     * - a URL, containing parameters in the fragment, e.g. `https://example.com#id_token=...`
-     * - a URL, containing parameters in the query, e.g. `https://example.com?id_token=...`
-     * - parameters encoded as a POST body, e.g. `id_token=...&vp_token=...`
+     * Validates an Authentication Response from the Wallet, where [input] is a signed or unsigned DC API response.
+     *
+     * The [externalId] will be used to load the corresponding [AuthenticationRequestParameters] from the store.
      */
     suspend fun validateAuthnResponse(
         input: String,
-    ): KmmResult<AuthnResponseResult> = catching {
-        val response = responseParser.parseAuthnResponse(input)
-        validateAuthnResponse(response).getOrThrow()
-    }
-
-    @Suppress("DEPRECATION")
-    @Deprecated("OpenID4VP doesn't support externalId, the state is always available")
-    suspend fun validateAuthnResponse(
-        input: String,
-        externalId: String? = null,
-    ): KmmResult<AuthnResponseResult> = catching {
-        val response = responseParser.parseAuthnResponse(input)
-        validateAuthnResponse(response, externalId).getOrThrow()
-    }
-
-    @Suppress("DEPRECATION")
-    @Deprecated("Use DCAPI Verifier for that")
-    suspend fun validateAuthnResponse(
-        input: OpenId4VpResponse,
         externalId: String,
     ): KmmResult<AuthnResponseResult> = catching {
-        val response = responseParser.parseAuthnResponse(input)
-        validateAuthnResponse(response, externalId).getOrThrow()
+        validateAuthnResponse(
+            input = joseCompliantSerializer.decodeFromString<DigitalCredentialInterface>(input),
+            externalId = externalId
+        ).getOrThrow()
+    }
+
+    /**
+     * Validates an Authentication Response from the Wallet, where [input] is a signed or unsigned DC API response.
+     *
+     * The [externalId] will be used to load the corresponding [AuthenticationRequestParameters] from the store.
+     */
+    suspend fun validateAuthnResponse(
+        input: DigitalCredentialInterface,
+        externalId: String,
+    ): KmmResult<AuthnResponseResult> = catching {
+        when (input) {
+            is IsoMdocResponse -> TODO()
+            else -> validateAuthnResponse(
+                input = responseParser.parseAuthnResponse(input as OpenId4VpResponse),
+                externalId = externalId
+            ).getOrThrow()
+        }
     }
 
     /**
      * Validates an Authentication Response from the Wallet,
      * in case it has been parsed into [ResponseParametersFrom] with [ResponseParser].
+     *
+     * The [externalId] will be used to load the corresponding [AuthenticationRequestParameters] from the store,
+     * in case a `state` parameter was not available in the request (e.g., when using DCAPI).
      */
-    suspend fun validateAuthnResponse(
+    internal suspend fun validateAuthnResponse(
         input: ResponseParametersFrom,
-    ) = catching {
+        externalId: String
+    ): KmmResult<AuthnResponseResult> = catching {
         Napier.d("validateAuthnResponse: $input")
-        val authnRequest = loadAuthnRequest(input)
+        val authnRequest = loadAuthnRequest(input, externalId)
 
-        val responseType = authnRequest.responseType?.let { ResponseType(it) }
+        val responseType = authnRequest.responseType?.let { ResponseType.Companion(it) }
         require(responseType != null) {
             "No response type was specified in the original authentication request."
         }
@@ -450,12 +434,6 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         }
     }
 
-    @Deprecated("OpenID4VP doesn't support externalId, the state is always available")
-    suspend fun validateAuthnResponse(
-        input: ResponseParametersFrom,
-        externalId: String? = null,
-    ): KmmResult<AuthnResponseResult> = validateAuthnResponse(input)
-
     private fun AuthnResponseResult.isFullyValid(): Boolean =
         idTokenValidationResult?.isFailure != true &&
                 vpTokenValidationResult?.isFailure != true &&
@@ -468,9 +446,11 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     @Throws(IllegalArgumentException::class, CancellationException::class)
     private suspend fun loadAuthnRequest(
         input: ResponseParametersFrom,
+        externalId: String?,
     ): AuthenticationRequestParameters {
-        val storedId = input.parameters.state
-            ?: throw IllegalArgumentException("No state in input parameters")
+        val storedId = externalId
+            ?: input.parameters.state
+            ?: throw IllegalArgumentException("Neither externalId nor state given")
         val authnRequest = stateToAuthnRequestStore.get(storedId)
             ?: throw IllegalArgumentException("No authn request found for $storedId")
         if (authnRequest.responseMode?.requiresEncryption == true)
@@ -533,9 +513,11 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         val vpToken = responseParameters.parameters.vpToken
             ?: throw IllegalArgumentException("vp_token not present in ${responseParameters.parameters}")
         val clientIdRequired = responseParameters.clientIdRequired
+
         val originalResponseParameters = responseParameters.originalResponseParameters
-        require(originalResponseParameters !is ResponseParametersFrom.DcApi) {
-            "DCAPI verification is not supported, use DcApiVerifier"
+
+        (originalResponseParameters as? ResponseParametersFrom.DcApi)?.let {
+            authnRequest.verifyExpectedOrigin(it.origin)
         }
 
         authnRequest.presentationDefinition?.let {
@@ -552,7 +534,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
                     responseUrl = authnRequest.responseUrl ?: authnRequest.redirectUrlExtracted,
                     transactionData = authnRequest.transactionData,
                     clientIdRequired = clientIdRequired,
-                    origin = null,
+                    origin = (originalResponseParameters as? ResponseParametersFrom.DcApi)?.origin,
                 )
             }
 
@@ -577,7 +559,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
                             ?: authnRequest.redirectUrlExtracted,
                         transactionData = authnRequest.transactionData,
                         clientIdRequired = clientIdRequired,
-                        origin = null,
+                        origin = (originalResponseParameters as? ResponseParametersFrom.DcApi)?.origin,
                         requireCryptographicHolderBinding = query.credentialQuery(credentialQueryId)?.requireCryptographicHolderBinding,
                     )
                 }
@@ -634,7 +616,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         clientIdRequired: Boolean,
         origin: String?,
         requireCryptographicHolderBinding: Boolean? = null,
-    ): KmmResult<VerifyPresentationResult> = catching {
+    ): KmmResult<Verifier.VerifyPresentationResult> = catching {
         when (claimFormat) {
             ClaimFormat.SD_JWT -> {
                 val sdJwt = SdJwtSigned.parseCatching(relatedPresentation.extractContent()).getOrElse {
@@ -660,7 +642,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
                 nonceAwareVerifier.verifyUnsignedVcJws(
                     input = relatedPresentation.extractContent()
                 ).map {
-                    VerifyPresentationResult.SuccessUnsigned(it.vc)
+                    Verifier.VerifyPresentationResult.SuccessUnsigned(it.vc)
                 }
             }
 
@@ -695,31 +677,40 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     ): SessionTranscript {
         require((!clientIdRequired || clientId != null)) { "Missing required parameter: clientId" }
         require(responseUrl != null) { "Missing required parameter: responseUrl" }
-        require(input.originalResponseParameters !is ResponseParametersFrom.DcApi) {
-            "DCAPI verification is not supported, use DcApiVerifier"
+        require(input.originalResponseParameters is ResponseParametersFrom.DcApi) {
+            "Unsupported response mechanism: ${input.originalResponseParameters}"
         }
-
-        return SessionTranscript.forOpenId(
-            OpenId4VpHandover(
-                type = OpenId4VpHandover.TYPE_OPENID4VP,
-                hash = coseCompliantSerializer.encodeToByteArray<OpenId4VpHandoverInfo>(
-                    OpenId4VpHandoverInfo(
-                        clientId = clientId,
-                        nonce = expectedNonce,
-                        jwkThumbprint = if (hasBeenEncrypted) {
-                            decryptionKeyMaterial.jsonWebKey.sessionTranscriptThumbprint()
-                        } else null,
-                        responseUrl = responseUrl,
-                    )
-                ).sha256(),
+        require(origin != null) { "Missing required parameter: origin" }
+        val serializedOrigin = requireNotNull(origin.serializeOrigin()) {
+            "Invalid parameter: origin"
+        }
+        return createDcApiSessionTranscript(
+            OpenID4VPDCAPIHandoverInfo(
+                // Device signatures are bound to the HTML-serialized origin used by OpenID4VP/DCAPI.
+                // Hashing the raw URL would make `https://example.com/` differ from `https://example.com`.
+                origin = serializedOrigin,
+                nonce = expectedNonce,
+                jwkThumbprint = if (hasBeenEncrypted) {
+                    decryptionKeyMaterial.jsonWebKey.sessionTranscriptThumbprint()
+                } else null,
             )
         )
     }
 
+    /**
+     * Performs calculation of the [SessionTranscript] for DC API according to OID4VP
+     */
     override fun createDcApiSessionTranscript(
         toBeHashed: SessionTranscriptContentHashable,
-    ): SessionTranscript =
-        throw IllegalArgumentException("DCAPI verification is not supported, use DcApiVerifier")
+    ): SessionTranscript = SessionTranscript.forDcApi(
+        DCAPIHandover(
+            type = DCAPIHandover.TYPE_OPENID4VP,
+            hash = coseCompliantSerializer.encodeToByteArray<OpenID4VPDCAPIHandoverInfo>(
+                toBeHashed as? OpenID4VPDCAPIHandoverInfo
+                    ?: throw IllegalArgumentException("Unsupported DCAPIHandoverInfo")
+            ).sha256(),
+        )
+    )
 
     // To be reconsidered when supporting [DCQLCredentialQueryInstance.multiple]
     private fun JsonElement.extractContent(): String = when (this) {
@@ -743,20 +734,3 @@ private val PresentationSubmissionDescriptor.cumulativeJsonPath: String
         }
         return cummulativeJsonPath
     }
-
-
-class JwsHeaderClientIdScheme(val clientIdScheme: ClientIdScheme) : JwsHeaderIdentifierFun {
-    override suspend operator fun invoke(
-        it: JwsHeader,
-        keyMaterial: KeyMaterial,
-    ) = when (clientIdScheme) {
-        is ClientIdScheme.CertificateHash -> it.copy(certificateChain = clientIdScheme.chain)
-        is ClientIdScheme.CertificateSanDns -> it.copy(certificateChain = clientIdScheme.chain)
-        is ClientIdScheme.VerifierAttestation -> it.copy(
-            jsonWebKey = keyMaterial.jsonWebKey,
-            attestationJwt = clientIdScheme.attestationJwt.jws
-        )
-
-        else -> it.copy(jsonWebKey = keyMaterial.jsonWebKey)
-    }
-}

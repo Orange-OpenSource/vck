@@ -106,7 +106,7 @@ val OpenId4VpComplexSdJwtProtocolTest by matrixSuite {
             }
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions,
-                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
+                CreationOptions.Query(it.walletUrl)
             ).getOrThrow().url
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()

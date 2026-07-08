@@ -99,7 +99,7 @@ val OpenId4VpX509SanDnsTest by matrixSuite {
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
                     responseUrl = "https://example.com/response",
                 ),
-                OpenId4VpVerifier.CreationOptions.SignedRequestByReference("haip://", requestUrl)
+                CreationOptions.SignedRequestByReference("haip://", requestUrl)
             ).getOrThrow()
             jar.shouldNotBeNull()
 
@@ -140,7 +140,7 @@ val OpenId4VpX509SanDnsTest by matrixSuite {
                     responseMode = OpenIdConstants.ResponseMode.DirectPostJwt,
                     responseUrl = "https://example.com/response",
                 ),
-                OpenId4VpVerifier.CreationOptions.SignedRequestByReference("haip://", requestUrl)
+                CreationOptions.SignedRequestByReference("haip://", requestUrl)
             ).getOrThrow()
             jar.shouldNotBeNull()
 
