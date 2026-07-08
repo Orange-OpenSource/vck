@@ -5,6 +5,7 @@ import at.asitplus.dif.PresentationSubmission
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParametersFrom
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.signum.indispensable.Digest
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
 import at.asitplus.signum.indispensable.josef.JwsCompact
@@ -51,67 +52,70 @@ import kotlinx.serialization.json.jsonPrimitive
  * Tests our OpenID4VP/SIOP implementation against POTENTIAL Piloting Definition Scope
  */
 val OpenId4VpInteropTest by matrixSuite {
-    fixture({ kotlinx.coroutines.runBlocking {
-        var sdAlgorithm: Digest? = null
-        val issuerKeyId = uuid4().toString()
-        val issuerIdentifier = "https://issuer.example.com"
-        val issuerKeyMaterial = EphemeralKeyWithoutCert(customKeyId = issuerKeyId)
-        val issuerAgent = IssuerAgent(
-            issuerKeyMaterial, identifier = issuerIdentifier.toUri(),
-            randomSource = RandomSource.Default
-        )
-        val holderKeyMaterial = EphemeralKeyWithoutCert()
-        val holderAgent = HolderAgent(
-            holderKeyMaterial,
-            validatorSdJwt = ValidatorSdJwt(
-                verifyJwsObject = VerifyJwsObject(publicKeyLookup = { setOf(issuerKeyMaterial.publicKey.toJsonWebKey()) })
+    fixture({
+        kotlinx.coroutines.runBlocking {
+            var sdAlgorithm: Digest? = null
+            val issuerKeyId = uuid4().toString()
+            val issuerIdentifier = "https://issuer.example.com"
+            val issuerKeyMaterial = EphemeralKeyWithoutCert(customKeyId = issuerKeyId)
+            val issuerAgent = IssuerAgent(
+                issuerKeyMaterial, identifier = issuerIdentifier.toUri(),
+                randomSource = RandomSource.Default
             )
-        ).also {
-            it.storeCredential(
-                issuerAgent.issueCredential(
-                    DummyCredentialDataProvider.getCredential(
-                        holderKeyMaterial.publicKey,
-                        ConstantIndex.AtomicAttribute2023,
-                        SD_JWT,
-                    ).getOrThrow().also {
-                        sdAlgorithm = (it as CredentialToBeIssued.VcSd).sdAlgorithm
-                    }
-                ).getOrThrow().toStoreCredentialInput()
-            )
-        }
-        object {
+            val holderKeyMaterial = EphemeralKeyWithoutCert()
+            val holderAgent = HolderAgent(
+                holderKeyMaterial,
+                validatorSdJwt = ValidatorSdJwt(
+                    verifyJwsObject = VerifyJwsObject(publicKeyLookup = { setOf(issuerKeyMaterial.publicKey.toJsonWebKey()) })
+                )
+            ).also {
+                it.storeCredential(
+                    issuerAgent.issueCredential(
+                        DummyCredentialDataProvider.getCredential(
+                            holderKeyMaterial.publicKey,
+                            ConstantIndex.AtomicAttribute2023,
+                            SD_JWT,
+                        ).getOrThrow().also {
+                            sdAlgorithm = (it as CredentialToBeIssued.VcSd).sdAlgorithm
+                        }
+                    ).getOrThrow().toStoreCredentialInput()
+                )
+            }
+            object {
 
-            val sdAlgorithm = sdAlgorithm!!
-            val holderKeyMaterial = holderKeyMaterial
-            val holderAgent = holderAgent
-            val issuerKeyId = issuerKeyId
-            val issuerIdentifier = issuerIdentifier
-            var holderOid4vp = OpenId4VpHolder(holderKeyMaterial, holderAgent, randomSource = RandomSource.Default)
+                val sdAlgorithm = sdAlgorithm!!
+                val holderKeyMaterial = holderKeyMaterial
+                val holderAgent = holderAgent
+                val issuerKeyId = issuerKeyId
+                val issuerIdentifier = issuerIdentifier
+                var holderOid4vp = OpenId4VpHolder(holderKeyMaterial, holderAgent, randomSource = RandomSource.Default)
 
-            val verifierKeyId = uuid4().toString()
-            val verifierClientId = "AT-GV-EGIZ-CUSTOMVERIFIER"
-            val verifierRedirectUrl = "https://verifier.example.com/cb"
-            val verifierIssuerUrl = "https://verifier.example.com/"
-            val clientIdScheme = ClientIdScheme.PreRegistered(verifierClientId, verifierRedirectUrl, verifierIssuerUrl)
-            val verifierKeyMaterial = EphemeralKeyWithoutCert(customKeyId = verifierKeyId)
-            val verifierOid4vp = OpenId4VpVerifier(
-                keyMaterial = verifierKeyMaterial,
-                verifier = VerifierAgent(
-                    identifier = clientIdScheme.clientId,
-                    validatorSdJwt = ValidatorSdJwt(
-                        verifyJwsObject = VerifyJwsObject(
-                            publicKeyLookup = {
-                                setOf(
-                                    issuerKeyMaterial.publicKey.toJsonWebKey(),
-                                    holderKeyMaterial.publicKey.toJsonWebKey(),
-                                )
-                            })
-                    )
-                ),
-                clientIdScheme = clientIdScheme,
-            )
+                val verifierKeyId = uuid4().toString()
+                val verifierClientId = "AT-GV-EGIZ-CUSTOMVERIFIER"
+                val verifierRedirectUrl = "https://verifier.example.com/cb"
+                val verifierIssuerUrl = "https://verifier.example.com/"
+                val clientIdScheme =
+                    ClientIdScheme.PreRegistered(verifierClientId, verifierRedirectUrl, verifierIssuerUrl)
+                val verifierKeyMaterial = EphemeralKeyWithoutCert(customKeyId = verifierKeyId)
+                val verifierOid4vp = OpenId4VpVerifier(
+                    keyMaterial = verifierKeyMaterial,
+                    verifier = VerifierAgent(
+                        identifier = clientIdScheme.clientId,
+                        validatorSdJwt = ValidatorSdJwt(
+                            verifyJwsObject = VerifyJwsObject(
+                                publicKeyLookup = {
+                                    setOf(
+                                        issuerKeyMaterial.publicKey.toJsonWebKey(),
+                                        holderKeyMaterial.publicKey.toJsonWebKey(),
+                                    )
+                                })
+                        )
+                    ),
+                    clientIdScheme = clientIdScheme,
+                )
+            }
         }
-    } }) - {
+    }) - {
 
         "process with cross-device flow with request_uri and pre-trusted" {
             val responseNonce = uuid4().toString()
@@ -120,11 +124,12 @@ val OpenId4VpInteropTest by matrixSuite {
             val (requestUrlForWallet, requestObject) = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(
-                                ConstantIndex.AtomicAttribute2023,
-                                SD_JWT,
-                                setOf(CLAIM_FAMILY_NAME, CLAIM_GIVEN_NAME)
+                        RequestOptionsCredential(
+                            credentialScheme = ConstantIndex.AtomicAttribute2023,
+                            representation = SD_JWT,
+                            attributePaths = setOf(
+                                DCQLClaimsPathPointer(CLAIM_FAMILY_NAME),
+                                DCQLClaimsPathPointer(CLAIM_GIVEN_NAME)
                             )
                         )
                     ).toPresentationExchangeRequest(),

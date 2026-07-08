@@ -41,7 +41,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
     representations.forEach { representation ->
         val reqOptions = OpenId4VpRequestOptions(
             presentationRequest = CredentialPresentationRequestBuilder(
-                credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, representation))
+                RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, representation)
             ).toPresentationExchangeRequest(),
         )
 

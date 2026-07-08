@@ -6,6 +6,7 @@ import at.asitplus.csc.enums.SignatureQualifier
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.QesAuthorization
 import at.asitplus.openid.TransactionData
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.signum.indispensable.Digest
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
@@ -62,14 +63,12 @@ internal suspend fun buildRequestOptions(
             "https://example.com/rp/${uuid4()}"
         else null,
         presentationRequest = CredentialPresentationRequestBuilder(
-            credentials = setOf(
-                RequestOptionsCredential(
-                    credentialScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT),
-                    representation = SD_JWT,
-                    requestedAttributes = setOf(FAMILY_NAME, GIVEN_NAME),
-                    id = credentialId
-                )
-            ),
+            RequestOptionsCredential(
+                credentialScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT),
+                representation = SD_JWT,
+                attributePaths = setOf(DCQLClaimsPathPointer(FAMILY_NAME), DCQLClaimsPathPointer(GIVEN_NAME)),
+                id = credentialId
+            )
         ).toPresentationExchangeRequest(),
         transactionData = listOf(
             getTransactionData(setOf(credentialId), transactionDataHashAlgorithms),

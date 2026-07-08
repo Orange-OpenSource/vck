@@ -41,20 +41,11 @@ data class Rfc3986Authority(
         }
     }
 
-    fun toString(incldueSensitiveInformation: Boolean) = listOfNotNull(
-        userInfo?.toString(incldueSensitiveInformation)?.let {
-            "$it@"
-        },
+    fun toString(includeSensitiveInformation: Boolean) = listOfNotNull(
+        userInfo?.toString(includeSensitiveInformation)?.let { "$it@" },
         host,
-        port?.let {
-            ":$it"
-        }
+        port?.let { ":$it" }
     ).joinToString("")
 
-    @Suppress("POTENTIALLY_NON_REPORTED_ANNOTATION")
-    @Deprecated(
-        "Usage of toString in authority is discouraged as a decision should be made on whether to include sensitive information within userInfo or not, if it exists.",
-        ReplaceWith("toString(includeSensitiveInformation)")
-    )
-    override fun toString() = toString(false) // this may throw, but let's prefer that over exposin
+    override fun toString() = toString(false)
 }

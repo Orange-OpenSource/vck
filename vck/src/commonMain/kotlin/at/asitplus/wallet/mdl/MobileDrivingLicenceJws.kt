@@ -8,7 +8,7 @@ import kotlin.time.Instant
 
 /**
  * JWS representation of a [MobileDrivingLicence], used e.g. in the payload of a JWS in a single
- * instance of [at.asitplus.iso.ServerResponse.documents]
+ * instance of [at.asitplus.iso.ServerResponse.documentsJws]
  */
 @Serializable
 data class MobileDrivingLicenceJws(

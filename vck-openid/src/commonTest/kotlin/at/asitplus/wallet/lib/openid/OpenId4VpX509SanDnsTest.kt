@@ -1,6 +1,7 @@
 package at.asitplus.wallet.lib.openid
 
 import at.asitplus.openid.OpenIdConstants
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.signum.indispensable.asn1.Asn1EncapsulatingOctetString
 import at.asitplus.signum.indispensable.asn1.Asn1Primitive
 import at.asitplus.signum.indispensable.asn1.Asn1String
@@ -30,65 +31,69 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 
 val OpenId4VpX509SanDnsTest by matrixSuite {
 
-    fixture({ kotlinx.coroutines.runBlocking {
-        val holderKeyMaterial = EphemeralKeyWithoutCert()
-        val holderAgent = HolderAgent(holderKeyMaterial).also {
-            it.storeCredential(
-                IssuerAgent(
-                    identifier = "https://issuer.example.com/".toUri(),
-                    randomSource = RandomSource.Default
-                ).issueCredential(
-                    DummyCredentialDataProvider.getCredential(
-                        holderKeyMaterial.publicKey,
-                        AtomicAttribute2023,
-                        SD_JWT,
-                    ).getOrThrow()
-                ).getOrThrow().toStoreCredentialInput()
+    fixture({
+        kotlinx.coroutines.runBlocking {
+            val holderKeyMaterial = EphemeralKeyWithoutCert()
+            val holderAgent = HolderAgent(holderKeyMaterial).also {
+                it.storeCredential(
+                    IssuerAgent(
+                        identifier = "https://issuer.example.com/".toUri(),
+                        randomSource = RandomSource.Default
+                    ).issueCredential(
+                        DummyCredentialDataProvider.getCredential(
+                            holderKeyMaterial.publicKey,
+                            AtomicAttribute2023,
+                            SD_JWT,
+                        ).getOrThrow()
+                    ).getOrThrow().toStoreCredentialInput()
+                )
+            }
+            val clientId = "example.com"
+            val extensions = listOf(
+                X509CertificateExtension(
+                    KnownOIDs.subjectAltName_2_5_29_17,
+                    critical = false,
+                    Asn1EncapsulatingOctetString(
+                        listOf(
+                            Asn1.Sequence {
+                                +Asn1Primitive(
+                                    SubjectAltNameImplicitTags.dNSName,
+                                    Asn1String.UTF8(clientId).encodeToTlv().content
+                                )
+                            }
+                        ))))
+            val verifierKeyMaterial = EphemeralKeyWithSelfSignedCert(extensions = extensions)
+            val verifierOid4vp = OpenId4VpVerifier(
+                keyMaterial = verifierKeyMaterial,
+                clientIdScheme = ClientIdScheme.CertificateSanDns(
+                    listOf(verifierKeyMaterial.getCertificate()!!),
+                    clientId,
+                    clientId
+                ),
             )
-        }
-        val clientId = "example.com"
-        val extensions = listOf(
-            X509CertificateExtension(
-                KnownOIDs.subjectAltName_2_5_29_17,
-                critical = false,
-                Asn1EncapsulatingOctetString(
-                    listOf(
-                        Asn1.Sequence {
-                            +Asn1Primitive(
-                                SubjectAltNameImplicitTags.dNSName,
-                                Asn1String.UTF8(clientId).encodeToTlv().content
-                            )
-                        }
-                    ))))
-        val verifierKeyMaterial = EphemeralKeyWithSelfSignedCert(extensions = extensions)
-        val verifierOid4vp = OpenId4VpVerifier(
-            keyMaterial = verifierKeyMaterial,
-            clientIdScheme = ClientIdScheme.CertificateSanDns(
-                listOf(verifierKeyMaterial.getCertificate()!!),
-                clientId,
-                clientId
-            ),
-        )
-        object {
-            val verifierOid4vp = verifierOid4vp
-            val holderKeyMaterial = holderKeyMaterial
-            val holderAgent = holderAgent
-            var holderOid4vp = OpenId4VpHolder(
-                keyMaterial = holderKeyMaterial,
-                holder = holderAgent,
-                randomSource = RandomSource.Default,
-            )
+            object {
+                val verifierOid4vp = verifierOid4vp
+                val holderKeyMaterial = holderKeyMaterial
+                val holderAgent = holderAgent
+                var holderOid4vp = OpenId4VpHolder(
+                    keyMaterial = holderKeyMaterial,
+                    holder = holderAgent,
+                    randomSource = RandomSource.Default,
+                )
 
+            }
         }
-    } }) - {
+    }) - {
 
         "test with request object" {
             val requestUrl = "https://example.com/request"
             val (walletUrl, jar) = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, SD_JWT, setOf(CLAIM_GIVEN_NAME))
+                        RequestOptionsCredential(
+                            credentialScheme = AtomicAttribute2023,
+                            representation = SD_JWT,
+                            attributePaths = setOf(DCQLClaimsPathPointer(CLAIM_GIVEN_NAME))
                         ),
                     ).toDCQLRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
@@ -126,8 +131,10 @@ val OpenId4VpX509SanDnsTest by matrixSuite {
             val (walletUrl, jar) = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, SD_JWT, setOf(CLAIM_GIVEN_NAME))
+                        RequestOptionsCredential(
+                            credentialScheme = AtomicAttribute2023,
+                            representation = SD_JWT,
+                            attributePaths = setOf(DCQLClaimsPathPointer(CLAIM_GIVEN_NAME))
                         ),
                     ).toDCQLRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPostJwt,

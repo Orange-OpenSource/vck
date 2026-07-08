@@ -1,5 +1,6 @@
 package at.asitplus.wallet.lib.openid
 
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.RequestOptionsCredential
@@ -23,6 +24,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Clock
@@ -30,106 +32,67 @@ import kotlin.time.Duration.Companion.minutes
 
 val OpenId4VpComplexSdJwtProtocolTest by matrixSuite {
 
-    fixture({ kotlinx.coroutines.runBlocking {
-        val randomRegion = uuid4().toString()
-        val randomCountry = uuid4().toString()
-        val holderKeyMaterial = EphemeralKeyWithoutCert()
-        val holderAgent = HolderAgent(holderKeyMaterial).also {
-            it.storeCredential(
-                IssuerAgent(
-                    identifier = "https://issuer.example.com/".toUri(),
-                    randomSource = RandomSource.Default
-                ).issueCredential(
-                    CredentialToBeIssued.VcSd(
-                        claims = listOf(
-                            ClaimToBeIssued(
-                                CLAIM_ADDRESS, listOf(
-                                    ClaimToBeIssued(CLAIM_ADDRESS_REGION, randomRegion),
-                                    ClaimToBeIssued(CLAIM_ADDRESS_COUNTRY, randomCountry)
+    fixture({
+        runBlocking {
+            val randomRegion = uuid4().toString()
+            val randomCountry = uuid4().toString()
+            val holderKeyMaterial = EphemeralKeyWithoutCert()
+            val holderAgent = HolderAgent(holderKeyMaterial).also {
+                it.storeCredential(
+                    IssuerAgent(
+                        identifier = "https://issuer.example.com/".toUri(),
+                        randomSource = RandomSource.Default
+                    ).issueCredential(
+                        CredentialToBeIssued.VcSd(
+                            claims = listOf(
+                                ClaimToBeIssued(
+                                    CLAIM_ADDRESS, listOf(
+                                        ClaimToBeIssued(CLAIM_ADDRESS_REGION, randomRegion),
+                                        ClaimToBeIssued(CLAIM_ADDRESS_COUNTRY, randomCountry)
+                                    )
                                 )
-                            )
-                        ),
-                        expiration = Clock.System.now().plus(5.minutes),
-                        scheme = AtomicAttribute2023,
-                        subjectPublicKey = holderKeyMaterial.publicKey,
-                        userInfo = DummyUserProvider.user,
-                        sdAlgorithm = supportedSdAlgorithms.random(),
-                    )
-                ).getOrThrow().toStoreCredentialInput()
-            )
+                            ),
+                            expiration = Clock.System.now().plus(5.minutes),
+                            scheme = AtomicAttribute2023,
+                            subjectPublicKey = holderKeyMaterial.publicKey,
+                            userInfo = DummyUserProvider.user,
+                            sdAlgorithm = supportedSdAlgorithms.random(),
+                        )
+                    ).getOrThrow().toStoreCredentialInput()
+                )
+            }
+            object {
+
+                val randomRegion = randomRegion
+                val randomCountry = randomCountry
+
+                val verifierKeyMaterial = EphemeralKeyWithoutCert()
+                val clientId = "https://example.com/rp/${uuid4()}"
+                val walletUrl = "https://example.com/wallet/${uuid4()}"
+
+                val holderOid4vp = OpenId4VpHolder(
+                    holder = holderAgent,
+                    randomSource = RandomSource.Default,
+                )
+                val verifierOid4vp = OpenId4VpVerifier(
+                    keyMaterial = verifierKeyMaterial,
+                    clientIdScheme = ClientIdScheme.RedirectUri(clientId)
+                )
+            }
         }
-        object {
-
-            val randomRegion = randomRegion
-            val randomCountry = randomCountry
-
-            val verifierKeyMaterial = EphemeralKeyWithoutCert()
-            val clientId = "https://example.com/rp/${uuid4()}"
-            val walletUrl = "https://example.com/wallet/${uuid4()}"
-
-            val holderOid4vp = OpenId4VpHolder(
-                holder = holderAgent,
-                randomSource = RandomSource.Default,
-            )
-            val verifierOid4vp = OpenId4VpVerifier(
-                keyMaterial = verifierKeyMaterial,
-                clientIdScheme = ClientIdScheme.RedirectUri(clientId)
-            )
-        }
-    } }) - {
-
-        "Nested paths with DCQL" {
-            val requestedClaims = setOf(
-                "$CLAIM_ADDRESS.$CLAIM_ADDRESS_REGION",
-                "$CLAIM_ADDRESS.$CLAIM_ADDRESS_COUNTRY"
-            )
-
-            val requestOptions = OpenId4VpRequestOptions(
-                presentationRequest = CredentialPresentationRequestBuilder(
-                    setOf(
-                        RequestOptionsCredential(AtomicAttribute2023, SD_JWT, requestedClaims)
-                    )
-                ).toDCQLRequest().shouldNotBeNull().apply {
-                    dcqlQuery.credentials.shouldBeSingleton().first().apply {
-                        claims.shouldNotBeNull().forEach {
-                            it.path.shouldNotBeNull().shouldHaveSize(2)
-                        }
-                    }
-                }
-            )
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions,
-                OpenId4VpVerifier.CreationOptions.Query(it.walletUrl)
-            ).getOrThrow().url
-
-            val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
-                .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
-
-            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
-                .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
-                .shouldBeInstanceOf<VpTokenValidationResultDCQL>()
-                .credentialQueryResponseValidations.values
-                .shouldBeSingleton().first().shouldBeSingleton().first().getOrThrow()
-                .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
-                    verifiableCredentialSdJwt.shouldNotBeNull()
-                    CLAIM_ADDRESS shouldBeIn reconstructedJsonObject.keys
-                    reconstructedJsonObject[CLAIM_ADDRESS].shouldNotBeNull().jsonObject.apply {
-                        CLAIM_ADDRESS_REGION shouldBeIn this.keys
-                        this[CLAIM_ADDRESS_COUNTRY].shouldNotBeNull().jsonPrimitive.content shouldBe it.randomCountry
-                        this[CLAIM_ADDRESS_REGION].shouldNotBeNull().jsonPrimitive.content shouldBe it.randomRegion
-                    }
-                }
-        }
+    }) - {
 
         "Nested paths with DCQL in request options" {
             val requestedClaims = setOf(
-                "$CLAIM_ADDRESS.$CLAIM_ADDRESS_REGION",
-                "$CLAIM_ADDRESS.$CLAIM_ADDRESS_COUNTRY"
+                DCQLClaimsPathPointer(CLAIM_ADDRESS, CLAIM_ADDRESS_REGION),
+                DCQLClaimsPathPointer(CLAIM_ADDRESS, CLAIM_ADDRESS_COUNTRY),
             )
             val requestOptions = OpenId4VpRequestOptions(
                 presentationRequest = CredentialPresentationRequestBuilder(
-                    setOf(
-                        RequestOptionsCredential(AtomicAttribute2023, SD_JWT, requestedClaims)
+                    RequestOptionsCredential(
+                        credentialScheme = AtomicAttribute2023,
+                        representation = SD_JWT,
+                        attributePaths = requestedClaims
                     )
                 ).toDCQLRequest()
             ).apply {
@@ -152,7 +115,8 @@ val OpenId4VpComplexSdJwtProtocolTest by matrixSuite {
             it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
                 .vpTokenValidationResult.shouldNotBeNull().getOrThrow().apply {
                     shouldBeInstanceOf<VpTokenValidationResultDCQL>()
-                    credentialQueryResponseValidations.values.shouldBeSingleton().first().shouldBeSingleton().first().getOrThrow().apply {
+                    credentialQueryResponseValidations.values.shouldBeSingleton().first().shouldBeSingleton().first()
+                        .getOrThrow().apply {
                         shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                         verifiableCredentialSdJwt.shouldNotBeNull()
                         CLAIM_ADDRESS shouldBeIn reconstructedJsonObject.keys

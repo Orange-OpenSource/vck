@@ -1,5 +1,6 @@
 package at.asitplus.wallet.lib.openid
 
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
@@ -13,6 +14,7 @@ import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
 import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
+import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import com.benasher44.uuid.uuid4
@@ -72,12 +74,14 @@ val OpenId4VpSdJwtProtocolTest by matrixSuite {
     }) - {
 
         "Selective Disclosure with custom credential" {
-            val requestedClaim = AtomicAttribute2023.CLAIM_GIVEN_NAME
+            val requestedClaim = CLAIM_GIVEN_NAME
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, SD_JWT, setOf(requestedClaim))
+                        RequestOptionsCredential(
+                            credentialScheme = AtomicAttribute2023,
+                            representation = SD_JWT,
+                            attributePaths = setOf(DCQLClaimsPathPointer(requestedClaim))
                         )
                     ).toDCQLRequest(),
                 ),
@@ -110,8 +114,10 @@ val OpenId4VpSdJwtProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(it.euPidSdJwtScheme, SD_JWT, requestedClaims)
+                        RequestOptionsCredential(
+                            credentialScheme = it.euPidSdJwtScheme,
+                            representation = SD_JWT,
+                            attributePaths = requestedClaims.map { DCQLClaimsPathPointer(it) }.toSet()
                         )
                     ).toDCQLRequest(),
                 ),

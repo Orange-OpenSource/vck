@@ -2,6 +2,7 @@ package at.asitplus.wallet.lib.openid
 
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.OpenIdConstants
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.signum.indispensable.asn1.Asn1EncapsulatingOctetString
 import at.asitplus.signum.indispensable.asn1.Asn1Primitive
 import at.asitplus.signum.indispensable.asn1.Asn1String
@@ -352,11 +353,12 @@ val OpenId4VpEuRefInteropTest by matrixSuite {
             val (walletUrl, jar) = verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(
-                                ConstantIndex.AtomicAttribute2023,
-                                SD_JWT,
-                                setOf(CLAIM_FAMILY_NAME, CLAIM_GIVEN_NAME)
+                        RequestOptionsCredential(
+                            credentialScheme = ConstantIndex.AtomicAttribute2023,
+                            representation = SD_JWT,
+                            attributePaths = setOf(
+                                DCQLClaimsPathPointer(CLAIM_FAMILY_NAME),
+                                DCQLClaimsPathPointer(CLAIM_GIVEN_NAME)
                             )
                         )
                     ).toPresentationExchangeRequest(),

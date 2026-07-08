@@ -26,6 +26,8 @@ Release 7.0.0 (unreleased):
     - Add signature and time validity checks of certificate against the trust list
     - Add JAdES B-B validation (Used when fetching LoTE)
     - Add `issuer` property in `StoreEntry`, for evaluation of trust against trust list
+ - Deprecations:
+   - Remove code deprecated in 6.0.0, e.g. various `DCAPIWallet*` and related classes, `vckJsonSerializer`
 
 Release 6.0.0:
  - JWS:

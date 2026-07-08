@@ -14,6 +14,7 @@ package at.asitplus.wallet.lib.openid
 
 import at.asitplus.data.NonEmptyList.Companion.toNonEmptyList
 import at.asitplus.openid.AuthenticationRequestParameters
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.openid.dcql.DCQLCredentialQueryIdentifier
 import at.asitplus.openid.dcql.DCQLCredentialQueryList
 import at.asitplus.openid.dcql.DCQLIsoMdocCredentialQuery
@@ -38,6 +39,7 @@ import at.asitplus.wallet.lib.agent.toStoreCredentialInput
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_DATE_OF_BIRTH
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
@@ -94,9 +96,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
-                        ),
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
                     ).toDCQLRequest()
                 )
             )
@@ -114,9 +114,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
-                        )
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
                     ).toDCQLRequest(),
                 )
             )
@@ -150,9 +148,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
-                        )
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT)
                     ).toDCQLRequest()?.let {
                         CredentialPresentationRequest.DCQLRequest(
                             it.dcqlQuery.copy(
@@ -194,9 +190,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
-                        )
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
                     ).toPresentationExchangeRequest()
                 )
             )
@@ -214,9 +208,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
-                        )
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
                     ).toPresentationExchangeRequest(),
                 ),
             )
@@ -239,9 +231,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.prepareAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
-                        ),
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
                     ).toDCQLRequest(),
                 ),
             )
@@ -260,9 +250,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
-                        ),
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
                     ).toDCQLRequest(),
                 ),
             )
@@ -281,7 +269,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 .verifiableCredentialSdJwt.verifiableCredentialType shouldBe ConstantIndex.AtomicAttribute2023.sdJwtType
         }
 
-        "mdoc presex: if not available despite others with correct format or correct attribute, but not both" { it ->
+        "mdoc presex: if not available despite others with correct format or correct attribute, but not both" {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
@@ -289,9 +277,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
-                        )
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
                 ),
             )
@@ -300,7 +286,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 .error.shouldNotBeNull()
         }
 
-        "mdoc presex: if available despite others with correct format or correct attribute, but not both" { it ->
+        "mdoc presex: if available despite others with correct format or correct attribute, but not both" {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
@@ -309,9 +295,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
-                        )
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
                 ),
             )
@@ -325,7 +309,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>()
         }
 
-        "mdoc dcql: if not available despite others with correct format or correct attribute, but not both" { it ->
+        "mdoc dcql: if not available despite others with correct format or correct attribute, but not both" {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
@@ -333,9 +317,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
-                        ),
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
                     ).toDCQLRequest(),
                 ),
             )
@@ -345,7 +327,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 .error.shouldNotBeNull()
         }
 
-        "mdoc dcql: if available despite others with correct format or correct attribute, but not both" { it ->
+        "mdoc dcql: if available despite others with correct format or correct attribute, but not both" {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
@@ -354,9 +336,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
-                        ),
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
                     ).toDCQLRequest(),
                 ),
             )
@@ -371,16 +351,14 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 .submissionRequirementsValidationResult.isSuccess.shouldBeTrue()
         }
 
-        "mdoc dcql: presenting for incorrect query identifiers is invalid" { it ->
+        "mdoc dcql: presenting for incorrect query identifiers is invalid" {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val dcqlRequest = CredentialPresentationRequestBuilder(
-                credentials = setOf(
-                    RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
-                ),
+                RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
             ).toDCQLRequest().shouldNotBeNull()
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
@@ -411,16 +389,14 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
             authnResponse.error.shouldNotBeNull()
         }
 
-        "mdoc dcql: presenting incorrect credentials yields invalid submission validation result" { it ->
+        "mdoc dcql: presenting incorrect credentials yields invalid submission validation result" {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val originalDcqlRequest = CredentialPresentationRequestBuilder(
-                credentials = setOf(
-                    RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
-                ),
+                RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
             ).toDCQLRequest().shouldNotBeNull()
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
@@ -433,9 +409,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 it.holderOid4vp.startAuthorizationResponsePreparation(authnRequest.serialize()).getOrThrow()
 
             val otherDcqlQuery = CredentialPresentationRequestBuilder(
-                credentials = setOf(
-                    RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
-                ),
+                RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, SD_JWT)
             ).toDCQLRequest().shouldNotBeNull().dcqlQuery
 
             val otherQueryWithOriginalIds = originalDcqlRequest.dcqlQuery.copy(
@@ -474,16 +448,14 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
         }
 
 
-        "mdoc dcql: presenting correct credentials yields valid submission validation result" { it ->
+        "mdoc dcql: presenting correct credentials yields valid submission validation result" {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val dcqlRequest = CredentialPresentationRequestBuilder(
-                credentials = setOf(
-                    RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
-                ),
+                RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, ISO_MDOC)
             ).toDCQLRequest().shouldNotBeNull()
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
@@ -514,17 +486,15 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 .submissionRequirementsValidationResult.isSuccess.shouldBeTrue()
         }
 
-        "presentation of multiple credentials with different formats in one request/response" { it ->
+        "presentation of multiple credentials with different formats in one request/response" {
             it.holderAgent.storeJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, it.mdlScheme)
 
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT),
-                            RequestOptionsCredential(it.mdlScheme, ISO_MDOC)
-                        )
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, PLAIN_JWT),
+                        RequestOptionsCredential(it.mdlScheme, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
                 ),
             )
@@ -537,26 +507,24 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                 .inputDescriptorResponseValidations.values.shouldHaveSize(2)
         }
 
-        "presentation of multiple SD-JWT credentials in one request/response" { it ->
+        "presentation of multiple SD-JWT credentials in one request/response" {
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, it.euPidSdJwtScheme)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, ConstantIndex.AtomicAttribute2023)
 
             val requestOptions = OpenId4VpRequestOptions(
                 presentationRequest = CredentialPresentationRequestBuilder(
-                    credentials = setOf(
-                        RequestOptionsCredential(
-                            credentialScheme = ConstantIndex.AtomicAttribute2023,
-                            representation = SD_JWT,
-                            requestedAttributes = setOf(ConstantIndex.AtomicAttribute2023.CLAIM_DATE_OF_BIRTH),
+                    RequestOptionsCredential(
+                        credentialScheme = ConstantIndex.AtomicAttribute2023,
+                        representation = SD_JWT,
+                        attributePaths = setOf(DCQLClaimsPathPointer(CLAIM_DATE_OF_BIRTH))
+                    ),
+                    RequestOptionsCredential(
+                        credentialScheme = it.euPidSdJwtScheme,
+                        representation = SD_JWT,
+                        attributePaths = setOf(
+                            DCQLClaimsPathPointer(EuPidSdJwtDataElements.FAMILY_NAME),
+                            DCQLClaimsPathPointer(EuPidSdJwtDataElements.GIVEN_NAME)
                         ),
-                        RequestOptionsCredential(
-                            credentialScheme = it.euPidSdJwtScheme,
-                            representation = SD_JWT,
-                            requestedAttributes = setOf(
-                                EuPidSdJwtDataElements.FAMILY_NAME,
-                                EuPidSdJwtDataElements.GIVEN_NAME
-                            ),
-                        )
                     )
                 ).toPresentationExchangeRequest(),
             )
@@ -582,7 +550,7 @@ val OpenId4VpCombinedProtocolTest by matrixSuite {
                     }
 
                     ConstantIndex.AtomicAttribute2023.sdJwtType -> {
-                        result.reconstructedJsonObject[ConstantIndex.AtomicAttribute2023.CLAIM_DATE_OF_BIRTH].shouldNotBeNull()
+                        result.reconstructedJsonObject[CLAIM_DATE_OF_BIRTH].shouldNotBeNull()
                     }
 
                     else -> {

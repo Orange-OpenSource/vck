@@ -1,6 +1,7 @@
 package at.asitplus.wallet.lib.openid
 
 import at.asitplus.openid.OpenIdConstants
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.RequestOptionsCredential
@@ -23,52 +24,56 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 
 val OpenId4VpX509HashTest by matrixSuite {
 
-    fixture({ kotlinx.coroutines.runBlocking {
-        val holderKeyMaterial = EphemeralKeyWithoutCert()
-        val verifierKeyMaterial = EphemeralKeyWithSelfSignedCert()
-        val holderAgent = HolderAgent(holderKeyMaterial).also {
-            it.storeCredential(
-                IssuerAgent(
-                    identifier = "https://issuer.example.com/".toUri(),
-                    randomSource = RandomSource.Default
-                ).issueCredential(
-                    DummyCredentialDataProvider.getCredential(
-                        holderKeyMaterial.publicKey,
-                        AtomicAttribute2023,
-                        SD_JWT,
-                    ).getOrThrow()
-                ).getOrThrow().toStoreCredentialInput()
+    fixture({
+        kotlinx.coroutines.runBlocking {
+            val holderKeyMaterial = EphemeralKeyWithoutCert()
+            val verifierKeyMaterial = EphemeralKeyWithSelfSignedCert()
+            val holderAgent = HolderAgent(holderKeyMaterial).also {
+                it.storeCredential(
+                    IssuerAgent(
+                        identifier = "https://issuer.example.com/".toUri(),
+                        randomSource = RandomSource.Default
+                    ).issueCredential(
+                        DummyCredentialDataProvider.getCredential(
+                            holderKeyMaterial.publicKey,
+                            AtomicAttribute2023,
+                            SD_JWT,
+                        ).getOrThrow()
+                    ).getOrThrow().toStoreCredentialInput()
+                )
+            }
+
+            val verifierOid4vp = OpenId4VpVerifier(
+                keyMaterial = verifierKeyMaterial,
+                clientIdScheme = ClientIdScheme.CertificateHash(
+                    listOf(verifierKeyMaterial.getCertificate()!!),
+                    "https://example.com/redirect"
+                )
+
             )
+
+            object {
+                val holderKeyMaterial = holderKeyMaterial
+                val holderAgent = holderAgent
+                var holderOid4vp = OpenId4VpHolder(
+                    keyMaterial = holderKeyMaterial,
+                    holder = holderAgent,
+                    randomSource = RandomSource.Default,
+                )
+                val verifierOid4vp = verifierOid4vp
+            }
         }
-
-        val verifierOid4vp = OpenId4VpVerifier(
-            keyMaterial = verifierKeyMaterial,
-            clientIdScheme = ClientIdScheme.CertificateHash(
-                listOf(verifierKeyMaterial.getCertificate()!!),
-                "https://example.com/redirect"
-            )
-
-        )
-
-        object {
-            val holderKeyMaterial = holderKeyMaterial
-            val holderAgent = holderAgent
-            var holderOid4vp = OpenId4VpHolder(
-                keyMaterial = holderKeyMaterial,
-                holder = holderAgent,
-                randomSource = RandomSource.Default,
-            )
-            val verifierOid4vp = verifierOid4vp
-        }
-    } }) - {
+    }) - {
 
         "test with request object" {
             val requestUrl = "https://example.com/request"
             val (walletUrl, jar) = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, SD_JWT, setOf(CLAIM_GIVEN_NAME))
+                        RequestOptionsCredential(
+                            credentialScheme = AtomicAttribute2023,
+                            representation = SD_JWT,
+                            attributePaths = setOf(DCQLClaimsPathPointer(CLAIM_GIVEN_NAME))
                         ),
                     ).toDCQLRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
@@ -106,9 +111,11 @@ val OpenId4VpX509HashTest by matrixSuite {
             val (walletUrl, jar) = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, SD_JWT, setOf(CLAIM_GIVEN_NAME))
-                        ),
+                        RequestOptionsCredential(
+                            credentialScheme = AtomicAttribute2023,
+                            representation = SD_JWT,
+                            attributePaths = setOf(DCQLClaimsPathPointer(CLAIM_GIVEN_NAME))
+                        )
                     ).toDCQLRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPostJwt,
                     responseUrl = "https://example.com/response",

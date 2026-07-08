@@ -51,35 +51,37 @@ import kotlin.time.Duration.Companion.seconds
 
 val VerifierAttestationTest by matrixSuite {
 
-    fixture({ kotlinx.coroutines.runBlocking {
-        val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
-        val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
-            agent.storeCredential(
-                IssuerAgent(
-                    identifier = "https://issuer.example.com/".toUri(),
-                    randomSource = RandomSource.Default
-                ).issueCredential(
-                    DummyCredentialDataProvider.getCredential(
-                        holderKeyMaterial.publicKey,
-                        ConstantIndex.AtomicAttribute2023,
-                        PLAIN_JWT,
-                    ).getOrThrow()
-                ).getOrThrow().toStoreCredentialInput()
-            )
-        }
-        object {
-            val holderAgent = holderAgent
-            val verifierKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
-            val clientId: String = "${uuid4()}"
-            val redirectUrl: String = "https://example.com/rp/${uuid4()}"
-            val walletUrl: String = "https://example.com/wallet/${uuid4()}"
+    fixture({
+        kotlinx.coroutines.runBlocking {
+            val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
+            val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
+                agent.storeCredential(
+                    IssuerAgent(
+                        identifier = "https://issuer.example.com/".toUri(),
+                        randomSource = RandomSource.Default
+                    ).issueCredential(
+                        DummyCredentialDataProvider.getCredential(
+                            holderKeyMaterial.publicKey,
+                            ConstantIndex.AtomicAttribute2023,
+                            PLAIN_JWT,
+                        ).getOrThrow()
+                    ).getOrThrow().toStoreCredentialInput()
+                )
+            }
+            object {
+                val holderAgent = holderAgent
+                val verifierKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
+                val clientId: String = "${uuid4()}"
+                val redirectUrl: String = "https://example.com/rp/${uuid4()}"
+                val walletUrl: String = "https://example.com/wallet/${uuid4()}"
 
-            val holderOid4vp: OpenId4VpHolder = OpenId4VpHolder(
-                holder = holderAgent,
-                randomSource = RandomSource.Default,
-            )
+                val holderOid4vp: OpenId4VpHolder = OpenId4VpHolder(
+                    holder = holderAgent,
+                    randomSource = RandomSource.Default,
+                )
+            }
         }
-    } }) - {
+    }) - {
 
         "test with request object and Attestation JWT" {
             val sprsKeyMaterial = EphemeralKeyWithoutCert()
@@ -143,9 +145,7 @@ val VerifierAttestationTest by matrixSuite {
 
 private fun requestOptionsAtomicAttribute() = OpenId4VpRequestOptions(
     presentationRequest = CredentialPresentationRequestBuilder(
-        credentials = setOf(
-            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
-        ),
+        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
     ).toPresentationExchangeRequest(),
 )
 

@@ -4,7 +4,6 @@ import at.asitplus.signum.indispensable.josef.JwsCompact
 import at.asitplus.signum.indispensable.josef.JwsCompactStringSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 
 /**
  * Part of the ISO/IEC 18013-5:2021 standard: Data structure for Server retrieval mdoc response (8.3.2.2.2.2)
@@ -18,9 +17,6 @@ data class ServerResponse(
     @SerialName("documentErrors")
     val documentErrors: Map<String, Int>? = null,
 ) {
-    @Transient
-    @Deprecated("Please use documentsJws instead", ReplaceWith("documentsJws"))
-    val documents = documentsJws.map { it.toString() }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

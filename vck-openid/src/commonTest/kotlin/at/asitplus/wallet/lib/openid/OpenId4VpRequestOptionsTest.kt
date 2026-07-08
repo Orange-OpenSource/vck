@@ -23,7 +23,7 @@ val OpenId4VpRequestOptionsTest by matrixSuite {
             credentialIds = setOf("cred-2")
         )
 
-        val requestBuilder = CredentialPresentationRequestBuilder(setOf(credential))
+        val requestBuilder = CredentialPresentationRequestBuilder(credential)
         listOf(
             requestBuilder.toDCQLRequest(),
             requestBuilder.toDCQLRequest()
@@ -41,7 +41,7 @@ val OpenId4VpRequestOptionsTest by matrixSuite {
         shouldThrowAny {
             OpenId4VpRequestOptions(
                 presentationRequest = CredentialPresentationRequestBuilder(
-                    setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023))
+                    RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
                 ).toPresentationExchangeRequest(),
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = listOf("https://wallet.example")
@@ -51,7 +51,7 @@ val OpenId4VpRequestOptionsTest by matrixSuite {
         shouldThrowAny {
             OpenId4VpRequestOptions(
                 presentationRequest = CredentialPresentationRequestBuilder(
-                    setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023))
+                    RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
                 ).toDCQLRequest(),
                 responseMode = OpenIdConstants.ResponseMode.DcApi,
                 expectedOrigins = null
@@ -63,7 +63,7 @@ val OpenId4VpRequestOptionsTest by matrixSuite {
         shouldThrowAny {
             OpenId4VpRequestOptions(
                 presentationRequest = CredentialPresentationRequestBuilder(
-                    setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023))
+                    RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
                 ).toDCQLRequest(),
                 responseMode = OpenIdConstants.ResponseMode.Fragment,
                 populateClientId = false
@@ -75,7 +75,7 @@ val OpenId4VpRequestOptionsTest by matrixSuite {
         shouldThrowAny {
             OpenId4VpRequestOptions(
                 presentationRequest = CredentialPresentationRequestBuilder(
-                    setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023))
+                    RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
                 ).toDCQLRequest(),
                 responseMode = OpenIdConstants.ResponseMode.DirectPostJwt,
                 responseUrl = "https://example.com/response",

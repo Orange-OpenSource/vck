@@ -1,6 +1,7 @@
 package at.asitplus.wallet.lib.openid
 
 import at.asitplus.openid.AuthenticationRequestParameters
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
@@ -58,9 +59,7 @@ val OpenId4VpCombinedProtocolTwoStepTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
-                        )
+                        RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
                 )
             )
@@ -93,9 +92,7 @@ val OpenId4VpCombinedProtocolTwoStepTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
-                        )
+                        RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
                 )
             )
@@ -148,14 +145,12 @@ val OpenId4VpCombinedProtocolTwoStepTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(
-                                credentialScheme = AtomicAttribute2023,
-                                representation = ISO_MDOC,
-                                requestedOptionalAttributes = setOf(
-                                    AtomicAttribute2023.CLAIM_FAMILY_NAME,
-                                    AtomicAttribute2023.CLAIM_GIVEN_NAME
-                                )
+                        RequestOptionsCredential(
+                            credentialScheme = AtomicAttribute2023,
+                            representation = ISO_MDOC,
+                            optionalAttributePaths = setOf(
+                                DCQLClaimsPathPointer(AtomicAttribute2023.CLAIM_FAMILY_NAME),
+                                DCQLClaimsPathPointer(AtomicAttribute2023.CLAIM_GIVEN_NAME)
                             ),
                         )
                     ).toPresentationExchangeRequest(),
@@ -212,9 +207,7 @@ val OpenId4VpCombinedProtocolTwoStepTest by matrixSuite {
                 val authnRequestSdJwt = it.verifierOid4vp.createAuthnRequest(
                     requestOptions = OpenId4VpRequestOptions(
                         presentationRequest = CredentialPresentationRequestBuilder(
-                            credentials = setOf(
-                                RequestOptionsCredential(AtomicAttribute2023, SD_JWT)
-                            )
+                            RequestOptionsCredential(AtomicAttribute2023, SD_JWT)
                         ).toPresentationExchangeRequest(),
                     )
                 )
@@ -247,9 +240,7 @@ val OpenId4VpCombinedProtocolTwoStepTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 requestOptions = OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
-                        )
+                        RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
                 )
             )

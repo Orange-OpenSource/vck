@@ -1,6 +1,5 @@
 package at.asitplus.wallet.lib
 
-import at.asitplus.data.NonEmptyList.Companion.toNonEmptyList
 import at.asitplus.dif.Constraint
 import at.asitplus.dif.ConstraintField
 import at.asitplus.dif.ConstraintFilter
@@ -10,7 +9,6 @@ import at.asitplus.dif.FormatContainerSdJwt
 import at.asitplus.dif.FormatHolder
 import at.asitplus.dif.RequirementEnum
 import at.asitplus.jsonpath.core.NormalizedJsonPath
-import at.asitplus.jsonpath.core.NormalizedJsonPathSegment
 import at.asitplus.jsonpath.core.NormalizedJsonPathSegment.NameSegment
 import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.openid.dcql.DCQLClaimsPathPointerSegment
@@ -35,32 +33,6 @@ data class RequestOptionsCredential(
     val credentialScheme: CredentialScheme,
     /** Required representation, see [CredentialRepresentation]. */
     val representation: CredentialRepresentation = PLAIN_JWT,
-    /**
-     * List of attributes that shall be requested explicitly (selective disclosure),
-     * or `null` to make no restrictions.
-     *
-     * Use `address.formatted` to request the `formatted` claim nested inside `address`.
-     *
-     * Use [attributePaths] for literal claim names containing dots.
-     */
-    @Deprecated(
-        "Use attributePaths. Strings are kept as dot-splitting nested-path shorthand.",
-        ReplaceWith("attributePaths")
-    )
-    val requestedAttributes: RequestedAttributes? = null,
-    /**
-     * List of attributes that shall be requested explicitly (selective disclosure),
-     * but are not required (i.e. marked as optional), or `null` to make no restrictions.
-     *
-     * Use `address.formatted` to request the `formatted` claim nested inside `address`.
-     *
-     * Use [optionalAttributePaths] for literal claim names containing dots.
-     */
-    @Deprecated(
-        "Use optionalAttributePaths. Strings are kept as dot-splitting nested-path shorthand.",
-        ReplaceWith("optionalAttributePaths")
-    )
-    val requestedOptionalAttributes: RequestedAttributes? = null,
     /** ID to be used in [DifInputDescriptor], or [DCQLCredentialQuery] */
     val id: String = uuid4().toString(),
     /**
@@ -91,11 +63,9 @@ data class RequestOptionsCredential(
         fields = (requiredAttributes() + optionalAttributes() + toTypeConstraint()).filterNotNull().toSet()
     )
 
-    @Suppress("DEPRECATION")
     private fun requiredAttributes() =
         effectiveRequestedAttributePaths().createConstraints(credentialScheme, false)
 
-    @Suppress("DEPRECATION")
     private fun optionalAttributes() =
         effectiveRequestedOptionalAttributePaths().createConstraints(credentialScheme, true)
 
@@ -112,20 +82,11 @@ data class RequestOptionsCredential(
             ISO_MDOC -> FormatHolder(msoMdoc = containerJwt)
         }
 
-    @Suppress("DEPRECATION")
     fun effectiveRequestedAttributePaths(): RequestedAttributePaths =
-        (attributePaths ?: emptySet()) + requestedAttributes.toNestedClaimPaths()
+        attributePaths ?: emptySet()
 
-    @Suppress("DEPRECATION")
     fun effectiveRequestedOptionalAttributePaths(): RequestedAttributePaths =
-        (optionalAttributePaths ?: emptySet()) + requestedOptionalAttributes.toNestedClaimPaths()
-
-    private fun RequestedAttributes?.toNestedClaimPaths(): RequestedAttributePaths =
-        this?.map { it.splitByDotToDcqlPath() }?.toSet() ?: emptySet()
-
-    private fun String.splitByDotToDcqlPath() = DCQLClaimsPathPointer(
-        split(".").map { DCQLClaimsPathPointerSegment.NameSegment(it) }.toNonEmptyList()
-    )
+        optionalAttributePaths ?: emptySet()
 
     private fun RequestedAttributePaths.createConstraints(
         scheme: CredentialScheme?,
@@ -146,16 +107,6 @@ data class RequestOptionsCredential(
 
     private fun DCQLClaimsPathPointer.toJwtConstraintField(optional: Boolean): ConstraintField =
         ConstraintField(path = listOf(toJsonPath()), optional = optional)
-
-    private fun DCQLClaimsPathPointer.toNormalizedJsonPath(): NormalizedJsonPath =
-        NormalizedJsonPath(segments.map {
-            when (it) {
-                is DCQLClaimsPathPointerSegment.NameSegment -> NameSegment(it.name)
-                is DCQLClaimsPathPointerSegment.IndexSegment -> NormalizedJsonPathSegment.IndexSegment(it.index)
-                DCQLClaimsPathPointerSegment.NullSegment ->
-                    throw IllegalArgumentException("Presentation Exchange constraints do not support null path segments")
-            }
-        })
 
     private fun DCQLClaimsPathPointer.toJsonPath(): String =
         buildString {

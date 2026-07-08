@@ -43,6 +43,8 @@ data class CredentialPresentationRequestBuilder(
     /** Requested credentials, should be at least one. */
     val credentials: Collection<RequestOptionsCredential>,
 ) {
+    constructor(vararg credentials: RequestOptionsCredential) : this(credentials.toList())
+
     fun toPresentationExchangeRequest() = CredentialPresentationRequest.PresentationExchangeRequest(
         PresentationDefinition(
             id = uuid4().toString(),

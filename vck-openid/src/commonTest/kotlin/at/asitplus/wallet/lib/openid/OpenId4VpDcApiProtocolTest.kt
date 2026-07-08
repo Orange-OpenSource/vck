@@ -34,42 +34,44 @@ val OpenId4VpDcApiProtocolTest by matrixSuite {
     val credentialId = "credential-1"
 
     val dcqlRequest = CredentialPresentationRequestBuilder(
-        credentials = setOf(RequestOptionsCredential(AtomicAttribute2023, SD_JWT)),
+        RequestOptionsCredential(AtomicAttribute2023, SD_JWT),
     ).toDCQLRequest()
 
-    fixture({ kotlinx.coroutines.runBlocking {
-        val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
-        val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
-            agent.storeCredential(
-                IssuerAgent(
-                    identifier = "https://issuer.example.com/".toUri(),
+    fixture({
+        kotlinx.coroutines.runBlocking {
+            val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
+            val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
+                agent.storeCredential(
+                    IssuerAgent(
+                        identifier = "https://issuer.example.com/".toUri(),
+                        randomSource = RandomSource.Default,
+                    ).issueCredential(
+                        DummyCredentialDataProvider.getCredential(
+                            holderKeyMaterial.publicKey,
+                            AtomicAttribute2023,
+                            SD_JWT,
+                        ).getOrThrow()
+                    ).getOrThrow().toStoreCredentialInput()
+                )
+            }
+            object {
+                val holderAgent: Holder = holderAgent
+                val holderOid4vp: OpenId4VpHolder = OpenId4VpHolder(
+                    keyMaterial = holderKeyMaterial,
+                    holder = holderAgent,
                     randomSource = RandomSource.Default,
-                ).issueCredential(
-                    DummyCredentialDataProvider.getCredential(
-                        holderKeyMaterial.publicKey,
-                        AtomicAttribute2023,
-                        SD_JWT,
-                    ).getOrThrow()
-                ).getOrThrow().toStoreCredentialInput()
-            )
+                )
+                val clientId: String = "dc-api-rp-${uuid4()}"
+                val verifierOid4vp: OpenId4VpVerifier = OpenId4VpVerifier(
+                    keyMaterial = EphemeralKeyWithoutCert(),
+                    clientIdScheme = ClientIdScheme.PreRegistered(
+                        clientId = clientId,
+                        redirectUri = "https://example.com/callback",
+                    ),
+                )
+            }
         }
-        object {
-            val holderAgent: Holder = holderAgent
-            val holderOid4vp: OpenId4VpHolder = OpenId4VpHolder(
-                keyMaterial = holderKeyMaterial,
-                holder = holderAgent,
-                randomSource = RandomSource.Default,
-            )
-            val clientId: String = "dc-api-rp-${uuid4()}"
-            val verifierOid4vp: OpenId4VpVerifier = OpenId4VpVerifier(
-                keyMaterial = EphemeralKeyWithoutCert(),
-                clientIdScheme = ClientIdScheme.PreRegistered(
-                    clientId = clientId,
-                    redirectUri = "https://example.com/callback",
-                ),
-            )
-        }
-    } }) - {
+    }) - {
 
         test("DC API unsigned: parsed as DcApiUnsigned, validates and responds with OpenId4VpResponseUnsigned") { f ->
             val reqOptions = OpenId4VpRequestOptions(
