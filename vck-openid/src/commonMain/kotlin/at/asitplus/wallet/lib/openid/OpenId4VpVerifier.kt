@@ -9,10 +9,6 @@ import at.asitplus.dif.FormatContainerJwt
 import at.asitplus.dif.FormatContainerSdJwt
 import at.asitplus.dif.PresentationSubmissionDescriptor
 import at.asitplus.iso.DeviceResponse
-import at.asitplus.iso.OpenId4VpHandover
-import at.asitplus.iso.OpenId4VpHandoverInfo
-import at.asitplus.iso.SessionTranscript
-import at.asitplus.iso.sha256
 import at.asitplus.jsonpath.JsonPath
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.CredentialFormatEnum
@@ -59,7 +55,6 @@ import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.PresentationExchangeRequest
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.data.toBase64UrlJsonString
-import at.asitplus.wallet.lib.extensions.sessionTranscriptThumbprint
 import at.asitplus.wallet.lib.jws.DecryptJwe
 import at.asitplus.wallet.lib.jws.DecryptJweFun
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
@@ -76,7 +71,6 @@ import io.github.aakira.napier.Napier
 import io.ktor.http.*
 import io.matthewnelson.encoding.core.Decoder.Companion.decodeToByteArray
 import kotlinx.serialization.decodeFromByteArray
-import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -667,7 +661,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
                 input = relatedPresentation.extractContent().decodeToByteArray(Base64UrlStrict)
                     .let { coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(it) },
                 verifyDocument = mdocDeviceSignatureVerifier.verifyDocument(
-                    sessionTranscript = createSessionTranscript(
+                    sessionTranscript = UrlSessionTranscriptCalculator(decryptionKeyMaterial)(
                         input = input,
                         clientId = clientId,
                         expectedNonce = expectedNonce,
@@ -681,38 +675,6 @@ class OpenId4VpVerifier @JvmOverloads constructor(
 
             else -> throw IllegalArgumentException("descriptor.format: $claimFormat")
         }.getOrThrow()
-    }
-
-    private fun createSessionTranscript(
-        input: ResponseParametersFrom,
-        clientId: String?,
-        expectedNonce: String,
-        hasBeenEncrypted: Boolean,
-        responseUrl: String?,
-        clientIdRequired: Boolean,
-        origin: String?,
-    ): SessionTranscript {
-        require((!clientIdRequired || clientId != null)) { "Missing required parameter: clientId" }
-        require(responseUrl != null) { "Missing required parameter: responseUrl" }
-        require(input.originalResponseParameters !is ResponseParametersFrom.DcApi) {
-            "DCAPI verification is not supported, use DcApiVerifier"
-        }
-
-        return SessionTranscript.forOpenId(
-            OpenId4VpHandover(
-                type = OpenId4VpHandover.TYPE_OPENID4VP,
-                hash = coseCompliantSerializer.encodeToByteArray<OpenId4VpHandoverInfo>(
-                    OpenId4VpHandoverInfo(
-                        clientId = clientId,
-                        nonce = expectedNonce,
-                        jwkThumbprint = if (hasBeenEncrypted) {
-                            decryptionKeyMaterial.jsonWebKey.sessionTranscriptThumbprint()
-                        } else null,
-                        responseUrl = responseUrl,
-                    )
-                ).sha256(),
-            )
-        )
     }
 
     // To be reconsidered when supporting [DCQLCredentialQueryInstance.multiple]

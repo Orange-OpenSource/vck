@@ -8,7 +8,6 @@ import at.asitplus.dcapi.DCAPIInfo
 import at.asitplus.dcapi.DCAPIResponse
 import at.asitplus.dcapi.DigitalCredentialInterface
 import at.asitplus.dcapi.IsoMdocResponse
-import at.asitplus.dcapi.OpenID4VPDCAPIHandoverInfo
 import at.asitplus.dcapi.OpenId4VpResponse
 import at.asitplus.dcapi.SessionTranscriptContentHashable
 import at.asitplus.dcapi.request.IsoMdocRequest
@@ -67,7 +66,6 @@ import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKeyFun
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.data.toBase64UrlJsonString
-import at.asitplus.wallet.lib.extensions.sessionTranscriptThumbprint
 import at.asitplus.wallet.lib.jws.DecryptJwe
 import at.asitplus.wallet.lib.jws.DecryptJweFun
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
@@ -610,7 +608,7 @@ class DcApiVerifier @JvmOverloads constructor(
                 input = relatedPresentation.extractContent().decodeToByteArray(Base64UrlStrict)
                     .let { coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(it) },
                 verifyDocument = mdocDeviceSignatureVerifier.verifyDocument(
-                    sessionTranscript = createSessionTranscript(
+                    sessionTranscript = DcApiSessionTranscriptCalculator(decryptionKeyMaterial)(
                         input = input,
                         clientId = clientId,
                         expectedNonce = expectedNonce,
@@ -625,52 +623,6 @@ class DcApiVerifier @JvmOverloads constructor(
             else -> throw IllegalArgumentException("descriptor.format: $claimFormat")
         }.getOrThrow()
     }
-
-    private fun createSessionTranscript(
-        input: ResponseParametersFrom,
-        clientId: String?,
-        expectedNonce: String,
-        hasBeenEncrypted: Boolean,
-        responseUrl: String?,
-        clientIdRequired: Boolean,
-        origin: String?,
-    ): SessionTranscript {
-        require((!clientIdRequired || clientId != null)) { "Missing required parameter: clientId" }
-        require(responseUrl != null) { "Missing required parameter: responseUrl" }
-        require(input.originalResponseParameters is ResponseParametersFrom.DcApi) {
-            "Unsupported response mechanism: ${input.originalResponseParameters}"
-        }
-        require(origin != null) { "Missing required parameter: origin" }
-        val serializedOrigin = requireNotNull(origin.serializeOrigin()) {
-            "Invalid parameter: origin"
-        }
-        return createDcApiSessionTranscript(
-            OpenID4VPDCAPIHandoverInfo(
-                // Device signatures are bound to the HTML-serialized origin used by OpenID4VP/DCAPI.
-                // Hashing the raw URL would make `https://example.com/` differ from `https://example.com`.
-                origin = serializedOrigin,
-                nonce = expectedNonce,
-                jwkThumbprint = if (hasBeenEncrypted) {
-                    decryptionKeyMaterial.jsonWebKey.sessionTranscriptThumbprint()
-                } else null,
-            )
-        )
-    }
-
-    /**
-     * Performs calculation of the [SessionTranscript] for DC API according to OID4VP
-     */
-    private fun createDcApiSessionTranscript(
-        toBeHashed: SessionTranscriptContentHashable,
-    ): SessionTranscript = SessionTranscript.forDcApi(
-        DCAPIHandover(
-            type = DCAPIHandover.TYPE_OPENID4VP,
-            hash = coseCompliantSerializer.encodeToByteArray<OpenID4VPDCAPIHandoverInfo>(
-                toBeHashed as? OpenID4VPDCAPIHandoverInfo
-                    ?: throw IllegalArgumentException("Unsupported DCAPIHandoverInfo")
-            ).sha256(),
-        )
-    )
 
     fun createDcApiSessionTranscriptAnnexC(
         toBeHashed: SessionTranscriptContentHashable,
