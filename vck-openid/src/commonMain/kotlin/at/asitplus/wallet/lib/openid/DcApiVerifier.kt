@@ -65,7 +65,6 @@ import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKey
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKeyFun
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
-import at.asitplus.wallet.lib.data.IsoDocumentParsed
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.data.toBase64UrlJsonString
 import at.asitplus.wallet.lib.extensions.sessionTranscriptThumbprint
@@ -694,8 +693,3 @@ class DcApiVerifier @JvmOverloads constructor(
     private fun JsonWebKey.withAlgorithm(): JsonWebKey = this.copy(algorithm = JweAlgorithm.ECDH_ES)
 }
 
-sealed class DcApiResponseResult {
-
-}
-
-data class Iso180137AnnexCWrapper(val documents: Collection<IsoDocumentParsed>) : DcApiResponseResult()
