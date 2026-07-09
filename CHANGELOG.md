@@ -25,6 +25,7 @@ Release 7.0.0 (unreleased):
     - Move OpenID4VP request nonce handling out of `VerifierAgent` and consume nonces after successful response validation to prevent replay.
     - Deprecate abstract base class `AbstractMdocVerifier`
     - Extract `MdocDeviceSignatureVerifier` from `AbstractMdocVerifier`
+    - Extract `VpTokenValidator` from common code in `OpenId4VpVerifier` and `DcApiVerifier`
 - JVM interoperability:
     - Add `@JvmOverloads` to public API constructors with default parameters across the published modules.
 - Refactorings:

@@ -3,15 +3,10 @@ package at.asitplus.wallet.lib.openid
 import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.dcapi.OpenId4VpResponse
-import at.asitplus.dif.ClaimFormat
 import at.asitplus.dif.DifInputDescriptor
 import at.asitplus.dif.FormatContainerJwt
 import at.asitplus.dif.FormatContainerSdJwt
-import at.asitplus.dif.PresentationSubmissionDescriptor
-import at.asitplus.iso.DeviceResponse
-import at.asitplus.jsonpath.JsonPath
 import at.asitplus.openid.AuthenticationRequestParameters
-import at.asitplus.openid.CredentialFormatEnum
 import at.asitplus.openid.IdToken
 import at.asitplus.openid.IdTokenType
 import at.asitplus.openid.JarRequestParameters
@@ -22,16 +17,10 @@ import at.asitplus.openid.ResponseParametersFrom
 import at.asitplus.openid.SupportedAlgorithmsContainerIso
 import at.asitplus.openid.SupportedAlgorithmsContainerJwt
 import at.asitplus.openid.SupportedAlgorithmsContainerSdJwt
-import at.asitplus.openid.TransactionDataBase64Url
 import at.asitplus.openid.VpFormatsSupported
-import at.asitplus.openid.dcql.DCQLCredentialQueryIdentifier
-import at.asitplus.openid.dcql.DCQLQuery
-import at.asitplus.openid.dcql.DCQLQueryResponse
 import at.asitplus.rfc6749OAuth2AuthorizationFramework.ResponseType
 import at.asitplus.signum.indispensable.SignatureAlgorithm
-import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.cosef.toCoseAlgorithm
-import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.JsonWebKey
 import at.asitplus.signum.indispensable.josef.JsonWebKeySet
 import at.asitplus.signum.indispensable.josef.JweAlgorithm
@@ -47,38 +36,24 @@ import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.NonceChallengeVerifier
 import at.asitplus.wallet.lib.agent.Verifier
-import at.asitplus.wallet.lib.agent.Verifier.VerifyPresentationResult
 import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKey
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKeyFun
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.PresentationExchangeRequest
-import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.data.toBase64UrlJsonString
 import at.asitplus.wallet.lib.jws.DecryptJwe
 import at.asitplus.wallet.lib.jws.DecryptJweFun
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
-import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
 import at.asitplus.wallet.lib.jws.VerifyJwsObject
 import at.asitplus.wallet.lib.jws.VerifyJwsObjectFun
 import at.asitplus.wallet.lib.oidvci.encodeToParameters
-import at.asitplus.wallet.lib.procedures.dcql.DCQLQueryAdapter
 import at.asitplus.wallet.lib.utils.DefaultMapStore
 import at.asitplus.wallet.lib.utils.MapStore
 import io.github.aakira.napier.Napier
 import io.ktor.http.*
-import io.matthewnelson.encoding.core.Decoder.Companion.decodeToByteArray
-import kotlinx.serialization.decodeFromByteArray
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
@@ -126,12 +101,15 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     private val supportedJweEncryptionAlgorithms: Set<JweEncryption> = JweEncryption.entries.toSet(),
 ) {
 
-    private val mdocDeviceSignatureVerifier = MdocDeviceSignatureVerifier(verifyCoseSignature = verifyCoseSignature)
-
     private val nonceAwareVerifier = NonceChallengeVerifier(
         verifierId = clientIdScheme.clientId,
         verifier = verifier,
         nonceService = nonceService,
+    )
+    private val vpTokenValidator = VpTokenValidator(
+        nonceAwareVerifier = nonceAwareVerifier,
+        mdocDeviceSignatureVerifier = MdocDeviceSignatureVerifier(verifyCoseSignature = verifyCoseSignature),
+        createSessionTranscript = UrlSessionTranscriptCalculator(decryptionKeyMaterial),
     )
     private val supportedJwsAlgorithms = supportedAlgorithms
         .mapNotNull { it.toJwsAlgorithm().getOrNull()?.identifier }
@@ -512,192 +490,26 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     }
 
     /**
-     * Extract and verifies verifiable presentations, according to format defined in
-     * [OpenID for VCI](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html),
-     * as referenced by [OpenID for VP](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html).
+     * Validates the `vp_token` of the response with the shared [VpTokenValidator],
+     * enforcing this verifier's transport: URL/QR, i.e. anything but the Digital Credentials API.
      */
     @Throws(IllegalArgumentException::class, CancellationException::class)
     private suspend fun validateVpToken(
         authnRequest: AuthenticationRequestParameters,
         responseParameters: ResponseParametersFrom,
     ): KmmResult<VpTokenValidationResult> = catching {
-        val expectedNonce = authnRequest.nonce
-            ?: throw IllegalArgumentException("nonce not present in $authnRequest")
-        val vpToken = responseParameters.parameters.vpToken
-            ?: throw IllegalArgumentException("vp_token not present in ${responseParameters.parameters}")
-        val clientIdRequired = responseParameters.clientIdRequired
-        val originalResponseParameters = responseParameters.originalResponseParameters
-        require(originalResponseParameters !is ResponseParametersFrom.DcApi) {
+        require(responseParameters.originalResponseParameters !is ResponseParametersFrom.DcApi) {
             "DCAPI verification is not supported, use DcApiVerifier"
         }
-
-        authnRequest.presentationDefinition?.let {
-            val presentationSubmission = responseParameters.parameters.presentationSubmission?.descriptorMap
-                ?: throw IllegalArgumentException("Presentation Exchange need to present a presentation submission.")
-
-            val presentation = presentationSubmission.associate { descriptor ->
-                descriptor.id to verifyPresentationResult(
-                    claimFormat = descriptor.format,
-                    relatedPresentation = descriptor.relatedPresentation(vpToken),
-                    expectedNonce = expectedNonce,
-                    input = responseParameters,
-                    clientId = authnRequest.clientId,
-                    responseUrl = authnRequest.responseUrl ?: authnRequest.redirectUrlExtracted,
-                    transactionData = authnRequest.transactionData,
-                    clientIdRequired = clientIdRequired,
-                    origin = null,
-                )
-            }
-
-            VpTokenValidationResultPresentationExchange(
-                inputDescriptorResponseValidations = presentation,
-            )
-        } ?: authnRequest.dcqlQuery?.let { query ->
-            val presentation = vpToken.jsonObject.mapKeys {
-                DCQLCredentialQueryIdentifier(it.key)
-            }.mapValues { (credentialQueryId, relatedPresentation) ->
-                val credentialQuery = query.credentialQuery(credentialQueryId)
-                    ?: throw IllegalArgumentException("Unknown credential query identifier.")
-
-                relatedPresentation.jsonArray.map {
-                    verifyPresentationResult(
-                        claimFormat = credentialQuery.format.toClaimFormat(),
-                        relatedPresentation = it.jsonPrimitive,
-                        expectedNonce = expectedNonce,
-                        input = responseParameters,
-                        clientId = authnRequest.clientId,
-                        responseUrl = authnRequest.responseUrl
-                            ?: authnRequest.redirectUrlExtracted,
-                        transactionData = authnRequest.transactionData,
-                        clientIdRequired = clientIdRequired,
-                        origin = null,
-                        requireCryptographicHolderBinding = query.credentialQuery(credentialQueryId)?.requireCryptographicHolderBinding,
-                    )
-                }
-            }
-            val submissionRequirementsValidationResult = catching {
-                val queryResponse = presentation.mapValues {
-                    it.value.map {
-                        it.getOrThrow()
-                    }
-                }
-                DCQLQueryAdapter(query).checkSubmissionRequirements(
-                    DCQLQueryResponse(queryResponse)
-                ).getOrThrow()
-            }
-
-            // TODO: Validation errors are (sometimes) put into a VerifiableDCQLPresentationValidationResults which means that the success page is shown
-            // However, if we return a ValidationError, a BadRequest is sent, which is not shown to the user in the UI
-            VpTokenValidationResultDCQL(
-                credentialQueryResponseValidations = presentation,
-                submissionRequirementsValidationResult = submissionRequirementsValidationResult,
-            )
-        } ?: throw IllegalArgumentException("Unsupported presentation mechanism")
-    }
-
-    private fun DCQLQuery.credentialQuery(id: DCQLCredentialQueryIdentifier) =
-        credentials.associateBy { it.id }[id]
-
-    private fun PresentationSubmissionDescriptor.relatedPresentation(vpToken: JsonElement) =
-        JsonPath(cumulativeJsonPath).query(vpToken).first().value
-
-    private fun CredentialFormatEnum.toClaimFormat(): ClaimFormat = when (this) {
-        CredentialFormatEnum.JWT_VC -> ClaimFormat.JWT_VP
-        CredentialFormatEnum.DC_SD_JWT -> ClaimFormat.SD_JWT
-        CredentialFormatEnum.MSO_MDOC -> ClaimFormat.MSO_MDOC
-        CredentialFormatEnum.NONE,
-        CredentialFormatEnum.JWT_VC_JSON_LD,
-        CredentialFormatEnum.JSON_LD,
-            -> throw IllegalStateException("Unsupported credential format")
-    }
-
-    /**
-     * Extract and verifies verifiable presentations, according to format defined in
-     * [OpenID for VCI](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html),
-     * as referenced by [OpenID for VP](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html).
-     */
-    private suspend fun verifyPresentationResult(
-        claimFormat: ClaimFormat,
-        relatedPresentation: JsonElement,
-        expectedNonce: String,
-        input: ResponseParametersFrom,
-        clientId: String?,
-        responseUrl: String?,
-        transactionData: List<TransactionDataBase64Url>?,
-        clientIdRequired: Boolean,
-        origin: String?,
-        requireCryptographicHolderBinding: Boolean? = null,
-    ): KmmResult<VerifyPresentationResult> = catching {
-        when (claimFormat) {
-            ClaimFormat.SD_JWT -> {
-                val sdJwt = SdJwtSigned.parseCatching(relatedPresentation.extractContent()).getOrElse {
-                    throw IllegalArgumentException("relatedPresentation")
-                }
-                nonceAwareVerifier.verifyPresentationSdJwt(
-                    input = sdJwt,
-                    challenge = expectedNonce,
-                    transactionData = transactionData,
-                    requireCryptographicHolderBinding = requireCryptographicHolderBinding != false,
-                    audience = origin?.let { "origin:$it" },
-                )
-            }
-
-            ClaimFormat.JWT_VP -> if (requireCryptographicHolderBinding != false) {
-                nonceAwareVerifier.verifyPresentationVcJwt(
-                    input = JwsCompactTyped<VerifiablePresentationJws>(
-                        relatedPresentation.extractContent()
-                    ),
-                    challenge = expectedNonce
-                )
-            } else {
-                nonceAwareVerifier.verifyUnsignedVcJws(
-                    input = relatedPresentation.extractContent()
-                ).map {
-                    VerifyPresentationResult.SuccessUnsigned(it.vc)
-                }
-            }
-
-            ClaimFormat.MSO_MDOC -> nonceAwareVerifier.verifyPresentationIsoMdoc(
-                input = relatedPresentation.extractContent().decodeToByteArray(Base64UrlStrict)
-                    .let { coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(it) },
-                verifyDocument = mdocDeviceSignatureVerifier.verifyDocument(
-                    sessionTranscript = UrlSessionTranscriptCalculator(decryptionKeyMaterial)(
-                        input = input,
-                        clientId = clientId,
-                        expectedNonce = expectedNonce,
-                        hasBeenEncrypted = input.hasBeenEncrypted,
-                        responseUrl = responseUrl,
-                        clientIdRequired = clientIdRequired,
-                        origin = origin
-                    )
-                )
-            )
-
-            else -> throw IllegalArgumentException("descriptor.format: $claimFormat")
-        }.getOrThrow()
-    }
-
-    // To be reconsidered when supporting [DCQLCredentialQueryInstance.multiple]
-    private fun JsonElement.extractContent(): String = when (this) {
-        is JsonArray -> first().extractContent()
-        is JsonObject -> toString()
-        is JsonPrimitive -> content
-        JsonNull -> throw IllegalArgumentException("Can't extract string from JsonNull")
+        vpTokenValidator.validateVpToken(
+            authnRequest = authnRequest,
+            responseParameters = responseParameters,
+            origin = null,
+        ).getOrThrow()
     }
 
     // should always be ecdh-es for encryption
     private fun JsonWebKey.withAlgorithm(): JsonWebKey = this.copy(algorithm = JweAlgorithm.ECDH_ES)
 }
-
-private val PresentationSubmissionDescriptor.cumulativeJsonPath: String
-    get() {
-        var cummulativeJsonPath = this.path
-        var descriptorIterator = this.nestedPath
-        while (descriptorIterator != null) {
-            cummulativeJsonPath += descriptorIterator.path.substring(1)
-            descriptorIterator = descriptorIterator.nestedPath
-        }
-        return cummulativeJsonPath
-    }
 
 
