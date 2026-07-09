@@ -42,7 +42,6 @@ import at.asitplus.signum.indispensable.josef.JsonWebKeySet
 import at.asitplus.signum.indispensable.josef.JweAlgorithm
 import at.asitplus.signum.indispensable.josef.JweEncryption
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
-import at.asitplus.signum.indispensable.josef.JwsHeader
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.toJsonWebKey
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
@@ -65,7 +64,6 @@ import at.asitplus.wallet.lib.extensions.sessionTranscriptThumbprint
 import at.asitplus.wallet.lib.jws.DecryptJwe
 import at.asitplus.wallet.lib.jws.DecryptJweFun
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
-import at.asitplus.wallet.lib.jws.JwsHeaderIdentifierFun
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
@@ -745,18 +743,3 @@ private val PresentationSubmissionDescriptor.cumulativeJsonPath: String
     }
 
 
-class JwsHeaderClientIdScheme(val clientIdScheme: ClientIdScheme) : JwsHeaderIdentifierFun {
-    override suspend operator fun invoke(
-        it: JwsHeader,
-        keyMaterial: KeyMaterial,
-    ) = when (clientIdScheme) {
-        is ClientIdScheme.CertificateHash -> it.copy(certificateChain = clientIdScheme.chain)
-        is ClientIdScheme.CertificateSanDns -> it.copy(certificateChain = clientIdScheme.chain)
-        is ClientIdScheme.VerifierAttestation -> it.copy(
-            jsonWebKey = keyMaterial.jsonWebKey,
-            attestationJwt = clientIdScheme.attestationJwt.jws
-        )
-
-        else -> it.copy(jsonWebKey = keyMaterial.jsonWebKey)
-    }
-}
