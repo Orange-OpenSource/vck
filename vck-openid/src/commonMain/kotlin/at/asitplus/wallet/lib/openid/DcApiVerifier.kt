@@ -25,26 +25,15 @@ import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RelyingPartyMetadata
 import at.asitplus.openid.ResponseParametersFrom
-import at.asitplus.openid.SupportedAlgorithmsContainerIso
-import at.asitplus.openid.SupportedAlgorithmsContainerJwt
-import at.asitplus.openid.SupportedAlgorithmsContainerSdJwt
-import at.asitplus.openid.VpFormatsSupported
 import at.asitplus.openid.dcql.toIso180137AnnexCDeviceRequest
 import at.asitplus.rfc6749OAuth2AuthorizationFramework.ResponseType
 import at.asitplus.signum.indispensable.CryptoPrivateKey
 import at.asitplus.signum.indispensable.SecretExposure
 import at.asitplus.signum.indispensable.SignatureAlgorithm
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
-import at.asitplus.signum.indispensable.cosef.toCoseAlgorithm
 import at.asitplus.signum.indispensable.cosef.toCoseKey
-import at.asitplus.signum.indispensable.josef.JsonWebKey
-import at.asitplus.signum.indispensable.josef.JsonWebKeySet
-import at.asitplus.signum.indispensable.josef.JweAlgorithm
 import at.asitplus.signum.indispensable.josef.JweEncryption
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.signum.indispensable.josef.toJsonWebKey
-import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
 import at.asitplus.signum.supreme.asymmetric.HPKE
 import at.asitplus.wallet.lib.DefaultNonceService
 import at.asitplus.wallet.lib.MdocDeviceSignatureVerifier
@@ -57,10 +46,8 @@ import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKey
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKeyFun
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
-import at.asitplus.wallet.lib.data.toBase64UrlJsonString
 import at.asitplus.wallet.lib.jws.DecryptJwe
 import at.asitplus.wallet.lib.jws.DecryptJweFun
-import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
 import at.asitplus.wallet.lib.jws.VerifyJwsObject
@@ -95,7 +82,7 @@ class DcApiVerifier @JvmOverloads constructor(
     private val decryptionKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
     /** Decrypts encrypted responses from holders. */
     private val decryptJwe: DecryptJweFun = DecryptJwe(decryptionKeyMaterial),
-    /** Signs authentication requests in [createSignedRequestObject]. */
+    /** Signs authentication requests for signed DC API requests. */
     private val signAuthnRequest: SignJwtFun<AuthenticationRequestParameters> =
         SignJwt(keyMaterial, JwsHeaderClientIdScheme(clientIdScheme)),
     /** Validates signed responses from holders. */
@@ -124,56 +111,32 @@ class DcApiVerifier @JvmOverloads constructor(
         verifier = verifier,
         nonceService = nonceService,
     )
+    private val requestFactory = OpenId4VpRequestFactory(
+        clientIdScheme = clientIdScheme,
+        decryptionKeyMaterial = decryptionKeyMaterial,
+        signAuthnRequest = signAuthnRequest,
+        nonceService = nonceService,
+        supportedAlgorithms = supportedAlgorithms,
+        stateToAuthnRequestStore = stateToAuthnRequestStore,
+        supportedJweEncryptionAlgorithms = supportedJweEncryptionAlgorithms,
+    )
     private val vpTokenValidator = VpTokenValidator(
         nonceAwareVerifier = nonceAwareVerifier,
         mdocDeviceSignatureVerifier = mdocDeviceSignatureVerifier,
         createSessionTranscript = DcApiSessionTranscriptCalculator(decryptionKeyMaterial),
     )
-    private val supportedJwsAlgorithms = supportedAlgorithms
-        .mapNotNull { it.toJwsAlgorithm().getOrNull()?.identifier }
-    private val supportedCoseAlgorithms = supportedAlgorithms
-        .mapNotNull { it.toCoseAlgorithm().getOrNull()?.coseValue }
     private val responseParser = ResponseParser(decryptJwe, verifyJwsObject)
 
     /**
      * Creates the [at.asitplus.openid.RelyingPartyMetadata], without encryption (see [metadataWithEncryption])
      */
-    val metadata by lazy {
-        RelyingPartyMetadata(
-            redirectUris = listOfNotNull((clientIdScheme as? ClientIdScheme.RedirectUri)?.redirectUri),
-            jsonWebKeySet = JsonWebKeySet(
-                listOf(
-                    decryptionKeyMaterial.publicKey.toJsonWebKey(decryptionKeyMaterial.identifier).withAlgorithm()
-                )
-            ),
-            vpFormatsSupported = VpFormatsSupported(
-                vcJwt = SupportedAlgorithmsContainerJwt(
-                    algorithmStrings = supportedJwsAlgorithms.toSet()
-                ),
-                dcSdJwt = SupportedAlgorithmsContainerSdJwt(
-                    sdJwtAlgorithmStrings = supportedJwsAlgorithms.toSet(),
-                    kbJwtAlgorithmStrings = supportedJwsAlgorithms.toSet(),
-                ),
-                msoMdoc = SupportedAlgorithmsContainerIso(
-                    issuerAuthAlgorithmInts = supportedCoseAlgorithms.toSet(),
-                    deviceAuthAlgorithmInts = supportedCoseAlgorithms.toSet(),
-                ),
-            )
-        )
-    }
+    val metadata get() = requestFactory.metadata
 
     /**
      * Creates the [RelyingPartyMetadata], but with parameters set to request encryption of pushed authentication
      * responses, see [RelyingPartyMetadata.encryptedResponseEncValues].
      */
-    val metadataWithEncryption by lazy {
-        metadata.copy(
-            encryptedResponseEncValuesSupportedString = supportedJweEncryptionAlgorithms.map { it.identifier }.toSet(),
-            jsonWebKeySet = metadata.jsonWebKeySet?.let {
-                JsonWebKeySet(it.keys.map { it.copy(publicKeyUse = "enc") })
-            }
-        )
-    }
+    val metadataWithEncryption get() = requestFactory.metadataWithEncryption
 
     /**
      * Creates a new authentication request for the W3C Digital Credentials API, i.e. the object that the
@@ -206,12 +169,17 @@ class DcApiVerifier @JvmOverloads constructor(
     ): DigitalCredentialGetRequest = when (this) {
         is DcApiCreationOptions.OpenId4VpUnsigned -> OpenId4VpUnsigned(
             // client_id MUST be omitted in unsigned requests, per OpenID4VP 1.0 Appendix A.3.1
-            createPlainAuthnRequest(requestOptions.requireEncryptionKeyConveyed().copy(populateClientId = false))
+            requestFactory.createPlainAuthnRequest(
+                requestFactory.requireEncryptionKeyConveyed(requestOptions).copy(populateClientId = false)
+            )
         )
 
         is DcApiCreationOptions.OpenId4VpSigned -> OpenId4VpSigned(
             SignedDataElement(
-                createSignedRequestObject(requestOptions.requireEncryptionKeyConveyed()).getOrThrow().jws
+                requestFactory.createSignedRequestObject(
+                    requestFactory.requireEncryptionKeyConveyed(requestOptions),
+                    RequestObjectSigning.DcApi,
+                ).getOrThrow().jws
             )
         )
 
@@ -219,31 +187,6 @@ class DcApiVerifier @JvmOverloads constructor(
             createIsoMdocRequest(requestOptions)
         )
     }
-
-    private suspend fun createSignedRequestObject(
-        requestOptions: OpenId4VpRequestOptions,
-    ): KmmResult<JwsCompactTyped<AuthenticationRequestParameters>> = catching {
-        val requestObject = createPlainAuthnRequest(requestOptions)
-        signAuthnRequest(
-            JwsContentTypeConstants.OAUTH_AUTHZ_REQUEST,
-            requestObject.copy(
-                // per RFC 9101, `iss` is the client identifier; wallets identify us via
-                // client_id and the request signature, an audience cannot be known upfront
-                issuer = when (clientIdScheme) {
-                    is ClientIdScheme.PreRegistered -> clientIdScheme.issuerUri ?: clientIdScheme.clientId
-                    else -> clientIdScheme.clientId
-                },
-            ),
-            AuthenticationRequestParameters.serializer(),
-        ).getOrThrow()
-    }
-
-    private suspend fun createPlainAuthnRequest(
-        requestOptions: OpenId4VpRequestOptions,
-    ) = requestOptions.toAuthnRequest()
-        .also {
-            storeAuthnRequest(it, requestOptions.state)
-        }
 
     private suspend fun createIsoMdocRequest(
         requestOptions: OpenId4VpRequestOptions,
@@ -258,61 +201,6 @@ class DcApiVerifier @JvmOverloads constructor(
         )
         return IsoMdocRequest(deviceRequest, EncryptionInfo(TYPE_DCAPI, encryptionParameters))
             .also { stateToIsoMdocRequestStore.put(requestOptions.state, it) }
-    }
-
-    private suspend fun OpenId4VpRequestOptions.toAuthnRequest(): AuthenticationRequestParameters =
-        AuthenticationRequestParameters(
-            responseType = responseType,
-            clientId = if (populateClientId) clientIdScheme.clientId else null,
-            redirectUrl = if (!isAnyDirectPost) clientIdScheme.redirectUri else null,
-            responseUrl = responseUrl,
-            // Using scope as an alias for a well-defined Presentation Exchange or DCQL is not supported
-            scope = null,
-            nonce = nonceAwareVerifier.provideNonce(),
-            clientMetadata = clientMetadata(),
-            idTokenType = null,
-            responseMode = responseMode,
-            state = null,
-            // Presentation Exchange is not available for the DC API, only DCQL
-            dcqlQuery = (presentationRequest as? DCQLRequest)?.dcqlQuery,
-            transactionData = transactionData?.map { it.toBase64UrlJsonString() },
-            expectedOrigins = expectedOrigins,
-        )
-
-    private suspend fun storeAuthnRequest(
-        authenticationRequestParameters: AuthenticationRequestParameters,
-        externalId: String? = null,
-    ) = stateToAuthnRequestStore.put(
-        key = externalId
-            ?: authenticationRequestParameters.state
-            ?: throw IllegalArgumentException("Neither externalId nor state has been provided"),
-        value = authenticationRequestParameters,
-    )
-
-    /**
-     * The DC API has no other channel to convey the verifier's encryption key: wallets can only encrypt responses
-     * with a key from [at.asitplus.openid.AuthenticationRequestParameters.clientMetadata] in the request itself.
-     */
-    private fun OpenId4VpRequestOptions.requireEncryptionKeyConveyed(): OpenId4VpRequestOptions = also {
-        if (responseMode.requiresEncryption) {
-            requireNotNull(clientMetadata()?.jsonWebKeySet) {
-                "Encrypted responses require client metadata with a JSON Web Key Set in the request, " +
-                        "which is not populated for this client identifier scheme"
-            }
-        }
-    }
-
-    private fun OpenId4VpRequestOptions.clientMetadata(): RelyingPartyMetadata? = when (verifierMetadataMode) {
-        VerifierMetadataMode.OMIT_IF_OUT_OF_BAND -> null
-        VerifierMetadataMode.AUTO -> when (clientIdScheme) {
-            is ClientIdScheme.RedirectUri,
-            is ClientIdScheme.VerifierAttestation,
-            is ClientIdScheme.CertificateSanDns,
-            is ClientIdScheme.CertificateHash,
-                -> if (responseMode.requiresEncryption) metadataWithEncryption else metadata
-
-            else -> null
-        }
     }
 
     /**
@@ -365,7 +253,7 @@ class DcApiVerifier @JvmOverloads constructor(
         externalId: String
     ): KmmResult<AuthnResponseResult> = catching {
         Napier.d("validateAuthnResponse: $input")
-        val authnRequest = loadAuthnRequest(input, externalId)
+        val authnRequest = requestFactory.loadAuthnRequest(input, externalId)
 
         val responseType = authnRequest.responseType?.let { ResponseType.Companion(it) }
         require(responseType != null) {
@@ -450,23 +338,6 @@ class DcApiVerifier @JvmOverloads constructor(
         presentationResults.all { it.isSuccess } &&
                 (this !is VpTokenValidationResultDCQL || submissionRequirementsValidationResult.isSuccess)
 
-    @Throws(IllegalArgumentException::class, CancellationException::class)
-    private suspend fun loadAuthnRequest(
-        input: ResponseParametersFrom,
-        externalId: String?,
-    ): AuthenticationRequestParameters {
-        val storedId = externalId
-            ?: input.parameters.state
-            ?: throw IllegalArgumentException("Neither externalId nor state given")
-        val authnRequest = stateToAuthnRequestStore.get(storedId)
-            ?: throw IllegalArgumentException("No authn request found for $storedId")
-        if (authnRequest.responseMode?.requiresEncryption == true)
-            require(input.hasBeenEncrypted) {
-                "response_mode requires encryption, but no encrypted response was given"
-            }
-        return authnRequest
-    }
-
     /**
      * Validates the `vp_token` of the response with the shared [VpTokenValidator],
      * enforcing this verifier's transport: the Digital Credentials API.
@@ -498,8 +369,5 @@ class DcApiVerifier @JvmOverloads constructor(
             ).sha256(),
         )
     )
-
-    // should always be ecdh-es for encryption
-    private fun JsonWebKey.withAlgorithm(): JsonWebKey = this.copy(algorithm = JweAlgorithm.ECDH_ES)
 }
 
