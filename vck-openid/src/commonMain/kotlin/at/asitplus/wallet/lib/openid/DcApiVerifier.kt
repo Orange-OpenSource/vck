@@ -54,7 +54,6 @@ import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.toJsonWebKey
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
 import at.asitplus.signum.supreme.asymmetric.HPKE
-import at.asitplus.wallet.lib.AbstractMdocVerifier
 import at.asitplus.wallet.lib.DefaultNonceService
 import at.asitplus.wallet.lib.MdocDeviceSignatureVerifier
 import at.asitplus.wallet.lib.NonceService
@@ -114,7 +113,7 @@ class DcApiVerifier @JvmOverloads constructor(
     /** Verifies the holder's response against our identifier from [clientIdScheme]. */
     val verifier: Verifier = VerifierAgent(identifier = clientIdScheme.clientId),
     /** Advertised in [metadata] so that holders can encrypt responses. */
-    override val decryptionKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
+    private val decryptionKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
     /** Decrypts encrypted responses from holders. */
     private val decryptJwe: DecryptJweFun = DecryptJwe(decryptionKeyMaterial),
     /** Signs authentication requests in [createSignedRequestObject]. */
@@ -125,16 +124,16 @@ class DcApiVerifier @JvmOverloads constructor(
     /** Advertised in [metadata]. */
     private val supportedAlgorithms: Set<SignatureAlgorithm> = setOf(SignatureAlgorithm.ECDSAwithSHA256),
     /** Used to verify session transcripts from mDoc responses. */
-    override val verifyCoseSignature: VerifyCoseSignatureWithKeyFun<ByteArray> = VerifyCoseSignatureWithKey(),
+    private val verifyCoseSignature: VerifyCoseSignatureWithKeyFun<ByteArray> = VerifyCoseSignatureWithKey(),
     /** Creates and validates OpenID4VP request nonces. */
-    override val nonceService: NonceService = DefaultNonceService(),
+    private val nonceService: NonceService = DefaultNonceService(),
     /** Used to store issued authn requests to verify the authn response to it */
     private val stateToAuthnRequestStore: MapStore<String, AuthenticationRequestParameters> = DefaultMapStore(),
     /** Used to store issued requests to verify the response to it */
     private val stateToIsoMdocRequestStore: MapStore<String, IsoMdocRequest> = DefaultMapStore(),
     /** Algorithms supported to decrypt responses from wallets, for [metadataWithEncryption]. */
     private val supportedJweEncryptionAlgorithms: Set<JweEncryption> = JweEncryption.entries.toSet(),
-) : AbstractMdocVerifier() {
+) {
 
     private val mdocDeviceSignatureVerifier = MdocDeviceSignatureVerifier(verifyCoseSignature = verifyCoseSignature)
 
@@ -661,7 +660,7 @@ class DcApiVerifier @JvmOverloads constructor(
     /**
      * Performs calculation of the [SessionTranscript] for DC API according to OID4VP
      */
-    override fun createDcApiSessionTranscript(
+    private fun createDcApiSessionTranscript(
         toBeHashed: SessionTranscriptContentHashable,
     ): SessionTranscript = SessionTranscript.forDcApi(
         DCAPIHandover(

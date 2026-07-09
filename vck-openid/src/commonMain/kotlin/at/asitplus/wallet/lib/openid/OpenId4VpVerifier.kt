@@ -3,7 +3,6 @@ package at.asitplus.wallet.lib.openid
 import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.dcapi.OpenId4VpResponse
-import at.asitplus.dcapi.SessionTranscriptContentHashable
 import at.asitplus.dif.ClaimFormat
 import at.asitplus.dif.DifInputDescriptor
 import at.asitplus.dif.FormatContainerJwt
@@ -45,7 +44,6 @@ import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.toJsonWebKey
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
-import at.asitplus.wallet.lib.AbstractMdocVerifier
 import at.asitplus.wallet.lib.DefaultNonceService
 import at.asitplus.wallet.lib.MdocDeviceSignatureVerifier
 import at.asitplus.wallet.lib.NonceService
@@ -110,7 +108,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     /** Verifies the holder's response against our identifier from [clientIdScheme]. */
     val verifier: Verifier = VerifierAgent(identifier = clientIdScheme.clientId),
     /** Advertised in [metadata] so that holders can encrypt responses. */
-    override val decryptionKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
+    private val decryptionKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
     /** Decrypts encrypted responses from holders. */
     private val decryptJwe: DecryptJweFun = DecryptJwe(decryptionKeyMaterial),
     /** Signs authentication requests in [createSignedRequestObject]. */
@@ -121,18 +119,18 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     /** Advertised in [metadata]. */
     private val supportedAlgorithms: Set<SignatureAlgorithm> = setOf(SignatureAlgorithm.ECDSAwithSHA256),
     /** Used to verify session transcripts from mDoc responses. */
-    override val verifyCoseSignature: VerifyCoseSignatureWithKeyFun<ByteArray> = VerifyCoseSignatureWithKey(),
+    private val verifyCoseSignature: VerifyCoseSignatureWithKeyFun<ByteArray> = VerifyCoseSignatureWithKey(),
     /** Leeway for time validity checks. */
     timeLeewaySeconds: Long = 300L,
     /** Clock for time validity checks. */
     private val clock: Clock = Clock.System,
     /** Creates and validates OpenID4VP request nonces. */
-    override val nonceService: NonceService = DefaultNonceService(),
+    private val nonceService: NonceService = DefaultNonceService(),
     /** Used to store issued authn requests to verify the authn response to it */
     private val stateToAuthnRequestStore: MapStore<String, AuthenticationRequestParameters> = DefaultMapStore(),
     /** Algorithms supported to decrypt responses from wallets, for [metadataWithEncryption]. */
     private val supportedJweEncryptionAlgorithms: Set<JweEncryption> = JweEncryption.entries.toSet(),
-) : AbstractMdocVerifier() {
+) {
 
     private val mdocDeviceSignatureVerifier = MdocDeviceSignatureVerifier(verifyCoseSignature = verifyCoseSignature)
 
@@ -716,11 +714,6 @@ class OpenId4VpVerifier @JvmOverloads constructor(
             )
         )
     }
-
-    override fun createDcApiSessionTranscript(
-        toBeHashed: SessionTranscriptContentHashable,
-    ): SessionTranscript =
-        throw IllegalArgumentException("DCAPI verification is not supported, use DcApiVerifier")
 
     // To be reconsidered when supporting [DCQLCredentialQueryInstance.multiple]
     private fun JsonElement.extractContent(): String = when (this) {

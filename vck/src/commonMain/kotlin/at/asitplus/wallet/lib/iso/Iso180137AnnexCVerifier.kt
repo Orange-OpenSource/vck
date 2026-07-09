@@ -21,8 +21,8 @@ import at.asitplus.signum.indispensable.CryptoPrivateKey
 import at.asitplus.signum.indispensable.SecretExposure
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.cosef.toCoseKey
-import at.asitplus.wallet.lib.AbstractMdocVerifier
 import at.asitplus.wallet.lib.DefaultNonceService
+import at.asitplus.wallet.lib.MdocDeviceSignatureVerifier
 import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.KeyMaterial
@@ -41,14 +41,15 @@ import kotlin.jvm.JvmOverloads
 @Deprecated("Use DcApiVerifier instead")
 class Iso180137AnnexCVerifier @JvmOverloads constructor(
     /** Creates challenges in authentication requests. */
-    override val nonceService: NonceService = DefaultNonceService(),
+    private val nonceService: NonceService = DefaultNonceService(),
     /** Used to store issued requests to verify the response to it */
     private val stateToIsoMdocRequestStore: MapStore<String, IsoMdocRequest> = DefaultMapStore(),
-    override val decryptionKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
+    private val decryptionKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
     /** Used to verify session transcripts from mDoc responses. */
-    override val verifyCoseSignature: VerifyCoseSignatureWithKeyFun<ByteArray> = VerifyCoseSignatureWithKey(),
+    private val verifyCoseSignature: VerifyCoseSignatureWithKeyFun<ByteArray> = VerifyCoseSignatureWithKey(),
     private val validatorMdoc: ValidatorMdoc = ValidatorMdoc(),
-) : AbstractMdocVerifier() {
+)  {
+    private val mdocDeviceSignatureVerifier = MdocDeviceSignatureVerifier(verifyCoseSignature = verifyCoseSignature)
 
     /**
      * Remembers [authenticationRequestParameters] to link responses to requests in [validateResponse].
@@ -83,7 +84,7 @@ class Iso180137AnnexCVerifier @JvmOverloads constructor(
     /**
      * Performs calculation of the [at.asitplus.iso.SessionTranscript] for DC API according to ISO/IEC 18013-7
      */
-    override fun createDcApiSessionTranscript(
+    fun createDcApiSessionTranscript(
         toBeHashed: SessionTranscriptContentHashable,
     ): SessionTranscript = SessionTranscript.forDcApi(
         DCAPIHandover(
@@ -131,7 +132,7 @@ class Iso180137AnnexCVerifier @JvmOverloads constructor(
 
         return validatorMdoc.verifyDeviceResponse(
             deviceResponse,
-            verifyDocumentCallback = verifyDocument(
+            verifyDocumentCallback = mdocDeviceSignatureVerifier.verifyDocument(
                 sessionTranscript = sessionTranscript
             )
         ).mapToResponseResult()
