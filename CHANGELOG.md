@@ -23,6 +23,8 @@ Release 7.0.0 (unreleased):
 - Verifier:
     - Add `NonceChallengeVerifier`, a thin `Verifier` wrapper that creates presentation challenges from a `NonceService` and verifies SD-JWT/VC-JWT presentations against the embedded challenge.
     - Move OpenID4VP request nonce handling out of `VerifierAgent` and consume nonces after successful response validation to prevent replay.
+    - Deprecate abstract base class `AbstractMdocVerifier`
+    - Extract `MdocDeviceSignatureVerifier` from `AbstractMdocVerifier`
 - JVM interoperability:
     - Add `@JvmOverloads` to public API constructors with default parameters across the published modules.
 - Refactorings:

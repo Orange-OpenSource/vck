@@ -47,6 +47,7 @@ import at.asitplus.signum.indispensable.josef.toJsonWebKey
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
 import at.asitplus.wallet.lib.AbstractMdocVerifier
 import at.asitplus.wallet.lib.DefaultNonceService
+import at.asitplus.wallet.lib.MdocDeviceSignatureVerifier
 import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.KeyMaterial
@@ -132,6 +133,8 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     /** Algorithms supported to decrypt responses from wallets, for [metadataWithEncryption]. */
     private val supportedJweEncryptionAlgorithms: Set<JweEncryption> = JweEncryption.entries.toSet(),
 ) : AbstractMdocVerifier() {
+
+    private val mdocDeviceSignatureVerifier = MdocDeviceSignatureVerifier(verifyCoseSignature = verifyCoseSignature)
 
     private val nonceAwareVerifier = NonceChallengeVerifier(
         verifierId = clientIdScheme.clientId,
@@ -665,7 +668,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
             ClaimFormat.MSO_MDOC -> nonceAwareVerifier.verifyPresentationIsoMdoc(
                 input = relatedPresentation.extractContent().decodeToByteArray(Base64UrlStrict)
                     .let { coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(it) },
-                verifyDocument = verifyDocument(
+                verifyDocument = mdocDeviceSignatureVerifier.verifyDocument(
                     sessionTranscript = createSessionTranscript(
                         input = input,
                         clientId = clientId,

@@ -56,6 +56,7 @@ import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
 import at.asitplus.signum.supreme.asymmetric.HPKE
 import at.asitplus.wallet.lib.AbstractMdocVerifier
 import at.asitplus.wallet.lib.DefaultNonceService
+import at.asitplus.wallet.lib.MdocDeviceSignatureVerifier
 import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.KeyMaterial
@@ -134,6 +135,8 @@ class DcApiVerifier @JvmOverloads constructor(
     /** Algorithms supported to decrypt responses from wallets, for [metadataWithEncryption]. */
     private val supportedJweEncryptionAlgorithms: Set<JweEncryption> = JweEncryption.entries.toSet(),
 ) : AbstractMdocVerifier() {
+
+    private val mdocDeviceSignatureVerifier = MdocDeviceSignatureVerifier(verifyCoseSignature = verifyCoseSignature)
 
     /** Cipher suite to decrypt responses acc. to ISO/IEC 18013-7 Annex C */
     private val hpke = HPKE(HPKE.KEM.DHKEM_P256_HKDF_SHA256, HPKE.KDF.HKDF_SHA256, HPKE.AEAD.AES_128_GCM)
@@ -439,7 +442,7 @@ class DcApiVerifier @JvmOverloads constructor(
 
         val documents = verifier.verifyPresentationIsoMdoc(
             input = deviceResponse,
-            verifyDocument = verifyDocument(
+            verifyDocument = mdocDeviceSignatureVerifier.verifyDocument(
                 sessionTranscript = sessionTranscript
             )
         ).getOrThrow().documents
@@ -607,7 +610,7 @@ class DcApiVerifier @JvmOverloads constructor(
             ClaimFormat.MSO_MDOC -> nonceAwareVerifier.verifyPresentationIsoMdoc(
                 input = relatedPresentation.extractContent().decodeToByteArray(Base64UrlStrict)
                     .let { coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(it) },
-                verifyDocument = verifyDocument(
+                verifyDocument = mdocDeviceSignatureVerifier.verifyDocument(
                     sessionTranscript = createSessionTranscript(
                         input = input,
                         clientId = clientId,
