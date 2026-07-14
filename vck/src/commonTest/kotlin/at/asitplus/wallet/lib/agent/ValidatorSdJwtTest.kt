@@ -1,5 +1,6 @@
 package at.asitplus.wallet.lib.agent
 
+import at.asitplus.KmmResult
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.ConfirmationClaim
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
@@ -17,6 +18,7 @@ import at.asitplus.wallet.lib.jws.JwsHeaderModifierFun
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
+import at.asitplus.wallet.lib.jws.VerifyJwsObjectFun
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadata
 import at.asitplus.wallet.sdjwt.SdJwtVcType
 import io.kotest.assertions.throwables.shouldThrowAny
@@ -120,6 +122,18 @@ val ValidatorSdJwtTest by matrixSuite {
                 }
 
             it.validator.verifySdJwt(credential.signedSdJwtVc, it.holderKeyMaterial.publicKey).getOrThrow()
+        }
+
+        test("signature verification exception is preserved") {
+            val exception = IllegalStateException("Signature verification failed")
+            val validator = ValidatorSdJwt(
+                verifyJwsObject = VerifyJwsObjectFun { KmmResult.failure(exception) }
+            )
+            val credential = it.issuer.issueCredential(it.buildCredentialData()).getOrThrow()
+                .shouldBeInstanceOf<Issuer.IssuedCredential.VcSdJwt>()
+
+            validator.verifySdJwt(credential.signedSdJwtVc, it.holderKeyMaterial.publicKey)
+                .exceptionOrNull() shouldBe exception
         }
 
         test("credentials are not valid for some other key") {

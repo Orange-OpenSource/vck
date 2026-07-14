@@ -67,7 +67,7 @@ data class SdJwtInputValidator @JvmOverloads constructor(
 
         return SdJwtInputValidationResult(
             input = sdJwtSigned,
-            isIntegrityGood = verifyJwsObject(sdJwtSigned.jws).isSuccess,
+            integrityValidationResult = verifyJwsObject(sdJwtSigned.jws),
             payloadCredentialValidationSummary = payloadCredentialValidationSummary,
             payloadJsonValidationSummary = payloadJsonValidationSummary,
             payload = payloadValidationSummary,

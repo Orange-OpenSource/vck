@@ -116,7 +116,8 @@ class ValidatorSdJwt @JvmOverloads constructor(
         Napier.d("Verifying SD-JWT $sdJwtSigned for $publicKey")
         val validationResult = sdJwtInputValidator.invoke(sdJwtSigned, publicKey)
         return when {
-            !validationResult.isIntegrityGood -> throw Throwable("Signature not verified")
+            validationResult.integrityValidationResult.isFailure ->
+                throw validationResult.integrityValidationResult.exceptionOrNull()!!
 
             validationResult.payloadCredentialValidationSummary.getOrNull()?.isSuccess == false
                 -> throw IllegalArgumentException(

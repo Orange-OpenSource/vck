@@ -30,6 +30,7 @@ Release 7.0.0 (unreleased):
     - Add `@JvmOverloads` to public API constructors with default parameters across the published modules.
 - Refactorings:
     - `OpenId4VpHolder.getMatchingCredentials()` returns `KmmResult` instead of `Result`
+    - In `SdJwtInputValidationResult` transport error during integrity validation in `integrityValidationResult` instead of `isIntegrityGood`
 - Trust Evaluation:
     - Add `LoTEFilterService` for extracting trust list certificates from `LoTE` based on `ServiceTypeIdentifier`
     - Add signature and time validity checks of certificate against the trust list
