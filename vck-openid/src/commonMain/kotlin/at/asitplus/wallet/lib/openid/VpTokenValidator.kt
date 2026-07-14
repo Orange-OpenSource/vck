@@ -103,8 +103,7 @@ internal class VpTokenValidator(
                         expectedNonce = expectedNonce,
                         input = responseParameters,
                         clientId = authnRequest.clientId,
-                        responseUrl = authnRequest.responseUrl
-                            ?: authnRequest.redirectUrlExtracted,
+                        responseUrl = authnRequest.responseUrl ?: authnRequest.redirectUrlExtracted,
                         transactionData = authnRequest.transactionData,
                         clientIdRequired = clientIdRequired,
                         origin = origin,
@@ -112,21 +111,21 @@ internal class VpTokenValidator(
                     )
                 }
             }
-            val submissionRequirementsValidationResult = catching {
-                val queryResponse = presentation.mapValues {
-                    it.value.map {
-                        it.getOrThrow()
-                    }
-                }
-                DCQLQueryAdapter(query).checkSubmissionRequirements(
-                    DCQLQueryResponse(queryResponse)
-                ).getOrThrow()
-            }
+            val validationResult = DCQLQueryAdapter(query).validateSubmissionRequirements(presentation)
             VpTokenValidationResultDCQL(
                 credentialQueryResponseValidations = presentation,
-                submissionRequirementsValidationResult = submissionRequirementsValidationResult,
+                submissionRequirementsValidationResult = validationResult,
             )
         } ?: throw IllegalArgumentException("Unsupported presentation mechanism")
+    }
+
+    private fun DCQLQueryAdapter.validateSubmissionRequirements(
+        presentation: Map<DCQLCredentialQueryIdentifier, List<KmmResult<VerifyPresentationResult>>>
+    ): KmmResult<Unit> = catching {
+        val queryResponse = DCQLQueryResponse(presentation.mapValues { entry ->
+            entry.value.map { result -> result.getOrThrow() }
+        })
+        checkSubmissionRequirements(queryResponse).getOrThrow()
     }
 
     private fun DCQLQuery.credentialQuery(id: DCQLCredentialQueryIdentifier) =
