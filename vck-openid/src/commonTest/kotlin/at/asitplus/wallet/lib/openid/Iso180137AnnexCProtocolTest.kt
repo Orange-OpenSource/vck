@@ -6,6 +6,7 @@ import at.asitplus.dcapi.DCAPIInfo
 import at.asitplus.dcapi.DCAPIResponse
 import at.asitplus.dcapi.EncryptedResponse
 import at.asitplus.dcapi.EncryptedResponseData
+import at.asitplus.dcapi.IsoMdocResponse
 import at.asitplus.dcapi.request.IsoMdocRequest
 import at.asitplus.dcapi.request.verifier.CredentialRequestOptions
 import at.asitplus.dcapi.request.verifier.DigitalCredentialGetRequest
@@ -163,6 +164,30 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
                     .shouldNotBeNull().elementValue shouldBe LocalDate(1990, 1, 1)
                 invalidItems shouldBe emptyList()
             }
+        }
+
+        test("public API forwards the expected origin for Annex C") { f ->
+            val transactionId = uuid4().toString()
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
+
+            f.verifier.validateAuthnResponse(
+                input = IsoMdocResponse(f.walletResponse(isoMdocRequest)),
+                externalId = transactionId,
+                expectedOrigin = callingOrigin,
+            ).getOrThrow().shouldBeInstanceOf<Iso180137AnnexCWrapper>()
+        }
+
+        test("mixed-case configured host matches the browser's lowercase origin") { f ->
+            val transactionId = uuid4().toString()
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
+
+            f.verifier.validateAuthnResponse(
+                input = IsoMdocResponse(
+                    f.walletResponse(isoMdocRequest, "https://macbook-air.local:8443")
+                ),
+                externalId = transactionId,
+                expectedOrigin = "https://MacBook-Air.local:8443",
+            ).getOrThrow().shouldBeInstanceOf<Iso180137AnnexCWrapper>()
         }
 
         test("origin mismatch: session transcript differs, device signature verification fails") { f ->

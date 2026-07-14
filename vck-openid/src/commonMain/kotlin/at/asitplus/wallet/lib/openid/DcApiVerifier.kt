@@ -211,10 +211,12 @@ class DcApiVerifier @JvmOverloads constructor(
     suspend fun validateAuthnResponse(
         input: String,
         externalId: String,
+        expectedOrigin: String? = null,
     ): KmmResult<DcApiResponseResult> = catching {
         validateAuthnResponse(
             input = joseCompliantSerializer.decodeFromString<DigitalCredentialInterface>(input),
-            externalId = externalId
+            externalId = externalId,
+            expectedOrigin = expectedOrigin,
         ).getOrThrow()
     }
 
@@ -226,12 +228,15 @@ class DcApiVerifier @JvmOverloads constructor(
     suspend fun validateAuthnResponse(
         input: DigitalCredentialInterface,
         externalId: String,
+        expectedOrigin: String? = null,
     ): KmmResult<DcApiResponseResult> = catching {
         when (input) {
             is IsoMdocResponse -> validateIsoResponse(
                 receivedData = input.data,
                 externalId = externalId,
-                expectedOrigin = "TODO"
+                expectedOrigin = requireNotNull(expectedOrigin) {
+                    "expectedOrigin is required for ISO mdoc responses"
+                },
             ).getOrThrow()
 
             else -> validateAuthnResponse(
@@ -370,4 +375,3 @@ class DcApiVerifier @JvmOverloads constructor(
         )
     )
 }
-
