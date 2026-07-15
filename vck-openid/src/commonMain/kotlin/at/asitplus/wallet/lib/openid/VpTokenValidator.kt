@@ -122,9 +122,6 @@ internal class VpTokenValidator(
                     DCQLQueryResponse(queryResponse)
                 ).getOrThrow()
             }
-
-            // TODO: Validation errors are (sometimes) put into a VerifiableDCQLPresentationValidationResults which means that the success page is shown
-            // However, if we return a ValidationError, a BadRequest is sent, which is not shown to the user in the UI
             VpTokenValidationResultDCQL(
                 credentialQueryResponseValidations = presentation,
                 submissionRequirementsValidationResult = submissionRequirementsValidationResult,
