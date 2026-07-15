@@ -12,6 +12,7 @@ package at.asitplus.openid.dcql
  * see the "LICENSE" file for more details
  */
 
+import at.asitplus.openid.dcql.DCQLIsoMdocCredentialMetadataAndValidityConstraints.SerialNames
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrowAny
@@ -24,7 +25,7 @@ import kotlinx.serialization.json.jsonObject
 val DCQLIsoMdocCredentialMetadataAndValidityConstraintsTest by matrixSuite {
     "specification" - {
         "serial names" {
-            DCQLIsoMdocCredentialMetadataAndValidityConstraints.SerialNames.DOCTYPE_VALUE shouldBe "doctype_value"
+            SerialNames.DOCTYPE_VALUE shouldBe "doctype_value"
         }
     }
     "instance serialization" {
@@ -33,7 +34,7 @@ val DCQLIsoMdocCredentialMetadataAndValidityConstraintsTest by matrixSuite {
                 doctypeValue = "dummy document type"
             )
         ).jsonObject
-        DCQLIsoMdocCredentialMetadataAndValidityConstraints.SerialNames.DOCTYPE_VALUE shouldBeIn serialized.keys
+        SerialNames.DOCTYPE_VALUE shouldBeIn serialized.keys
     }
     "constraints query" {
         shouldNotThrowAny {

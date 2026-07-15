@@ -12,6 +12,8 @@ package at.asitplus.openid.dcql
  * see the "LICENSE" file for more details
  */
 
+import at.asitplus.openid.dcql.DCQLCredentialClaimStructure.JsonBasedStructure
+import at.asitplus.openid.dcql.DCQLSdJwtCredentialMetadataAndValidityConstraints.SerialNames
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrowAny
@@ -25,7 +27,7 @@ import kotlinx.serialization.json.jsonObject
 val DCQLSdJwtCredentialMetadataAndValidityConstraintsTest by matrixSuite {
     "specification" - {
         "serial names" {
-            DCQLSdJwtCredentialMetadataAndValidityConstraints.SerialNames.VCT_VALUES shouldBe "vct_values"
+            SerialNames.VCT_VALUES shouldBe "vct_values"
         }
     }
     "instance serialization" {
@@ -34,7 +36,7 @@ val DCQLSdJwtCredentialMetadataAndValidityConstraintsTest by matrixSuite {
                 vctValues = listOf("dummy document type")
             )
         ).jsonObject
-        DCQLSdJwtCredentialMetadataAndValidityConstraints.SerialNames.VCT_VALUES shouldBeIn serialized.keys
+        SerialNames.VCT_VALUES shouldBeIn serialized.keys
     }
     "constraints query" {
         shouldNotThrowAny {
@@ -46,7 +48,7 @@ val DCQLSdJwtCredentialMetadataAndValidityConstraintsTest by matrixSuite {
                 vctValues = listOf("dummy document type"),
             ).validateCredentialConformance(
                 DCQLSdJwtCredential(
-                    claimStructure = DCQLCredentialClaimStructure.JsonBasedStructure(buildJsonObject {  }),
+                    claimStructure = JsonBasedStructure(buildJsonObject {  }),
                     type = "dummy document type",
                     satisfiesCryptographicHolderBinding = false,
                     authorityKeyIdentifiers = listOf()
@@ -63,7 +65,7 @@ val DCQLSdJwtCredentialMetadataAndValidityConstraintsTest by matrixSuite {
                 vctValues = listOf("dummy document type"),
             ).validateCredentialConformance(
                 DCQLSdJwtCredential(
-                    claimStructure = DCQLCredentialClaimStructure.JsonBasedStructure(buildJsonObject {  }),
+                    claimStructure = JsonBasedStructure(buildJsonObject {  }),
                     type = "DIFFERENT dummy document type",
                     satisfiesCryptographicHolderBinding = false,
                     authorityKeyIdentifiers = listOf()

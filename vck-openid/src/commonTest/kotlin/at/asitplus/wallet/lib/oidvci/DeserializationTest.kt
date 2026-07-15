@@ -4,6 +4,7 @@ import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.CredentialFormatEnum
 import at.asitplus.openid.IssuerMetadata
 import at.asitplus.openid.OpenId4VciClaimsPathPointer
+import at.asitplus.openid.OpenId4VciClaimsPathPointerSegmentString
 import at.asitplus.openid.SupportedCredentialFormatIsoMdoc
 import at.asitplus.openid.SupportedCredentialFormatSdJwt
 import at.asitplus.signum.indispensable.SignatureAlgorithm
@@ -323,6 +324,7 @@ val DeserializationTest by matrixSuite {
                         ]
                       },
                       {"path": ["address", "street_address"]},
+                      {"path": ["degrees", null, "type"]},
                       {"path": ["address", "locality"]},
                       {"path": ["address", "region"]},
                       {"path": ["address", "country"]},
@@ -367,6 +369,13 @@ val DeserializationTest by matrixSuite {
                             firstOrNull { it.path == OpenId4VciClaimsPathPointer("phone_number") }.shouldNotBeNull()
                             firstOrNull { it.path == OpenId4VciClaimsPathPointer("address") }.shouldNotBeNull()
                             firstOrNull { it.path == OpenId4VciClaimsPathPointer("address", "street_address") }.shouldNotBeNull()
+                            firstOrNull {
+                                it.path == OpenId4VciClaimsPathPointer(
+                                    OpenId4VciClaimsPathPointerSegmentString("degrees"),
+                                    null,
+                                    OpenId4VciClaimsPathPointerSegmentString("type"),
+                                )
+                            }.shouldNotBeNull()
                         }
                     }
                 }

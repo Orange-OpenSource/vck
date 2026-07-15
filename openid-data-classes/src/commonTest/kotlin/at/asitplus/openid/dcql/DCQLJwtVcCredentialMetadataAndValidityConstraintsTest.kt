@@ -10,6 +10,7 @@ package at.asitplus.openid.dcql
  */
 
 import at.asitplus.data.NonEmptyList.Companion.nonEmptyListOf
+import at.asitplus.openid.dcql.DCQLJwtVcCredentialMetadataAndValidityConstraints.SerialNames
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
@@ -24,7 +25,7 @@ import kotlinx.serialization.json.jsonObject
 val DCQLJwtVcCredentialMetadataAndValidityConstraintsTest by matrixSuite {
     "specification" - {
         "serial names" {
-            DCQLJwtVcCredentialMetadataAndValidityConstraints.SerialNames.TYPE_VALUES shouldBe "type_values"
+            SerialNames.TYPE_VALUES shouldBe "type_values"
         }
     }
     "instance serialization" {
@@ -33,7 +34,7 @@ val DCQLJwtVcCredentialMetadataAndValidityConstraintsTest by matrixSuite {
                 typeValues = nonEmptyListOf(listOf("dummy document type"))
             )
         ).jsonObject
-        DCQLJwtVcCredentialMetadataAndValidityConstraints.SerialNames.TYPE_VALUES shouldBeIn serialized.keys
+        SerialNames.TYPE_VALUES shouldBeIn serialized.keys
     }
     "handle null or empty " {
         shouldThrow<IllegalArgumentException> {
