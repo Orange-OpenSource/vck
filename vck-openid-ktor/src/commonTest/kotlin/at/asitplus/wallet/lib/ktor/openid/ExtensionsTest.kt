@@ -75,7 +75,9 @@ val ExtensionsTest by matrixSuite {
         val problem = buildJsonObject {
             put("type", "https://example.com/problems/out-of-credit")
             put("title", "No credit")
+            put("status", 403)
             put("detail", "Balance is too low")
+            put("instance", "/accounts/123")
             put("balance", 30)
         }
         val body = problem.toString()
@@ -88,10 +90,27 @@ val ExtensionsTest by matrixSuite {
             )
         }.apply {
             oauth2Error shouldBe null
-            problemDetails shouldBe problem
+            problemDetails shouldBe ProblemDetails(
+                type = "https://example.com/problems/out-of-credit",
+                title = "No credit",
+                status = 403,
+                detail = "Balance is too low",
+                instance = "/accounts/123",
+                extensions = buildJsonObject { put("balance", 30) },
+            )
             responseBody shouldBe body
             message shouldBe "Balance is too low"
         }
+    }
+
+    test("RFC 9457 problem response uses the default type") {
+        shouldThrow<HttpErrorResponseException> {
+            requestWithValidation(
+                HttpStatusCode.BadRequest,
+                "{}",
+                ContentType.Application.ProblemJson,
+            )
+        }.problemDetails shouldBe ProblemDetails()
     }
 
     test("unstructured error response is preserved") {

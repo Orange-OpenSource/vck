@@ -22,18 +22,28 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
+
+data class ProblemDetails(
+    val type: String = "about:blank",
+    val status: Int? = null,
+    val title: String? = null,
+    val detail: String? = null,
+    val instance: String? = null,
+    val extensions: JsonObject = JsonObject(emptyMap()),
+)
 
 class HttpErrorResponseException(
     response: HttpResponse,
     val responseBody: String,
     val oauth2Error: OAuth2Error?,
-    val problemDetails: JsonObject?,
+    val problemDetails: ProblemDetails?,
 ) : ResponseException(response, responseBody) {
     override val message = oauth2Error?.errorDescription
         ?: oauth2Error?.error
-        ?: (problemDetails?.get("detail") as? JsonPrimitive)?.contentOrNull
-        ?: (problemDetails?.get("title") as? JsonPrimitive)?.contentOrNull
+        ?: problemDetails?.detail
+        ?: problemDetails?.title
         ?: responseBody.takeIf { it.isNotBlank() }
         ?: "HTTP ${response.status}"
 }
@@ -78,10 +88,28 @@ private fun HttpClientConfig<*>.installResponseValidation() {
                         joseCompliantSerializer.decodeFromJsonElement(OAuth2Error.serializer(), it)
                     }.getOrNull()
                 },
-                problemDetails = json.takeIf {
+                problemDetails = json?.takeIf {
                     response.contentType()?.withoutParameters() == ContentType.Application.ProblemJson
-                },
+                }?.toProblemDetails(),
             )
         }
     }
 }
+
+private val problemDetailsMembers = setOf("type", "title", "status", "detail", "instance")
+
+private fun JsonObject.toProblemDetails() = ProblemDetails(
+    type = string("type") ?: "about:blank",
+    status = (get("status") as? JsonPrimitive)
+        ?.takeUnless { it.isString }
+        ?.intOrNull
+        ?.takeIf { it in 100..599 },
+    title = string("title"),
+    detail = string("detail"),
+    instance = string("instance"),
+    extensions = JsonObject(filterKeys { it !in problemDetailsMembers }),
+)
+
+private fun JsonObject.string(name: String) = (get(name) as? JsonPrimitive)
+    ?.takeIf { it.isString }
+    ?.contentOrNull
