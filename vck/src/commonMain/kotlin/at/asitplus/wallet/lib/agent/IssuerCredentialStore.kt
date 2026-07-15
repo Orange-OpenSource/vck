@@ -7,26 +7,29 @@ import at.asitplus.KmmResult
  */
 interface IssuerCredentialStore {
 
+    @Deprecated("Use data class from `ReferencedTokenStore` instead")
     data class StoredCredentialReference(
         val id: String,
         val timePeriod: Int,
         val statusListIndex: ULong,
     )
 
-    /**
-     * Called by an [Issuer] when creating a new credential to get a `statusListIndex` and `identifier first.
-     * [Issuer] will call [updateStoredCredential] with the issued credential afterwards.
-     */
+    @Deprecated("Use method from `ReferencedTokenStore` instead")
     suspend fun createStoredCredentialReference(
         credential: CredentialToBeIssued,
         timePeriod: Int,
     ): KmmResult<StoredCredentialReference>
 
-    /**
-     * Called by an [Issuer] when the credential has been signed and delivered to the holder.
-     */
+    @Deprecated("Issuer will call onCredentialStored instead")
     suspend fun updateStoredCredential(
         reference: StoredCredentialReference,
         credential: Issuer.IssuedCredential,
     ): KmmResult<StoredCredentialReference>
+
+    /**
+     * Called by an [Issuer] when the credential has been signed and delivered to the holder.
+     */
+    suspend fun onCredentialIssued(
+        credential: Issuer.IssuedCredential,
+    )
 }

@@ -1,5 +1,7 @@
 package at.asitplus.wallet.lib.data.rfc.tokenStatusList.agents
 
+import at.asitplus.KmmResult
+import at.asitplus.wallet.lib.agent.CredentialToBeIssued
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListView
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.iso18013.Identifier
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.iso18013.IdentifierInfo
@@ -9,6 +11,21 @@ import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus
  * Stores all tokens that may be referenced to by a [at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListView]
  */
 interface ReferencedTokenStore {
+
+    data class StoredCredentialReference(
+        val id: String,
+        val timePeriod: Int,
+        val statusListIndex: ULong,
+    )
+
+    /**
+     * Called by an `StatusListIssuer` when creating a token (that is a verifiable credential for us)
+     * to get a `statusListIndex` and `identifier`.
+     */
+    suspend fun storeReferencedToken(
+        credential: CredentialToBeIssued,
+        timePeriod: Int,
+    ): KmmResult<StoredCredentialReference>
 
     /**
      * Returns a list of the status of tokens, represented by their `statusListIndex` for that [timePeriod].

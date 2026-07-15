@@ -3,6 +3,7 @@ package at.asitplus.wallet.lib.agent
 import at.asitplus.catching
 import at.asitplus.openid.truncateToSeconds
 import at.asitplus.signum.indispensable.cosef.CoseHeader
+import at.asitplus.signum.indispensable.cosef.CoseSigned
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.DefaultZlibService
@@ -15,9 +16,14 @@ import at.asitplus.wallet.lib.data.StatusListCwt
 import at.asitplus.wallet.lib.data.StatusListJwt
 import at.asitplus.wallet.lib.data.StatusListToken
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.IdentifierList
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.IdentifierListInfo
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.MediaTypes
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList.Kind.IDENTIFIER_LIST
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList.Kind.STATUS_LIST
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationListInfo
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListAggregation
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListInfo
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListTokenPayload
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.agents.ReferencedTokenStore
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.agents.communication.primitives.StatusListTokenMediaType
@@ -74,7 +80,10 @@ class StatusListAgent @JvmOverloads constructor(
      * Wraps the revocation information from [issuerCredentialStore] into a Status List Token,
      * returns a CWS representation of that.
      */
-    override suspend fun issueStatusListCwt(time: Instant?, kind: RevocationList.Kind) =
+    override suspend fun issueStatusListCwt(
+        time: Instant?,
+        kind: RevocationList.Kind
+    ): CoseSigned<ByteArray> =
         issueStatusListCwt(time.toTimePeriod(), kind)
 
     override suspend fun issueStatusListJwt(
@@ -82,7 +91,7 @@ class StatusListAgent @JvmOverloads constructor(
         kind: RevocationList.Kind
     ): JwsCompactTyped<StatusListTokenPayload> =
         catching {
-            require(kind == RevocationList.Kind.STATUS_LIST) { "JWT only supports revocation list kind StatusList" }
+            require(kind == STATUS_LIST) { "JWT only supports revocation list kind StatusList" }
         }.transform {
             signStatusListJwt(
                 type = MediaTypes.STATUSLIST_JWT,
@@ -105,51 +114,49 @@ class StatusListAgent @JvmOverloads constructor(
             }
         }
 
-    private fun RevocationList.Kind.mediaType(): String =
-        if (this == RevocationList.Kind.STATUS_LIST)
-            MediaTypes.Application.STATUSLIST_CWT
-        else
-            MediaTypes.Application.IDENTIFIERLIST_CWT
+    private fun RevocationList.Kind.mediaType(): String = when (this) {
+        STATUS_LIST -> MediaTypes.Application.STATUSLIST_CWT
+        IDENTIFIER_LIST -> MediaTypes.Application.IDENTIFIERLIST_CWT
+    }
 
     /**
      * Wraps the revocation information from [issuerCredentialStore] into a Token Payload
      */
-    private fun buildStatusListTokenPayload(timePeriod: Int?, kind: RevocationList.Kind): StatusListTokenPayload =
-        StatusListTokenPayload(
-            revocationList = buildRevocationList(timePeriod, kind),
-            issuedAt = clock.now().truncateToSeconds(),
-            timeToLive = PositiveDuration(revocationListLifetime),
-            subject = UniformResourceIdentifier(
-                when (kind) {
-                    RevocationList.Kind.STATUS_LIST -> getStatusListUrlFor(
-                        timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock)
-                    )
-
-                    RevocationList.Kind.IDENTIFIER_LIST -> getIdentifierListUrlFor(
-                        timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock)
-                    )
-                }
-            ),
-        ).also {
-            Napier.d("revocation status list: ${it.revocationList}")
-        }
+    private fun buildStatusListTokenPayload(
+        timePeriod: Int?,
+        kind: RevocationList.Kind
+    ): StatusListTokenPayload = StatusListTokenPayload(
+        revocationList = buildRevocationList(timePeriod, kind),
+        issuedAt = clock.now().truncateToSeconds(),
+        timeToLive = PositiveDuration(revocationListLifetime),
+        subject = UniformResourceIdentifier(
+            when (kind) {
+                STATUS_LIST -> getStatusListUrlFor(timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock))
+                IDENTIFIER_LIST -> getIdentifierListUrlFor(timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock))
+            }
+        ),
+    ).also {
+        Napier.d("revocation status list: ${it.revocationList}")
+    }
 
     /**
      * Returns a status list, where the entry at "revocationListIndex" (of the credential) is INVALID if it is revoked
      */
-    override fun buildRevocationList(timePeriod: Int?, kind: RevocationList.Kind): RevocationList =
-        when (kind) {
-            RevocationList.Kind.STATUS_LIST -> issuerCredentialStore
-                .getStatusListView(timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock))
-                .toStatusList(zlibService, statusListAggregationUrl)
+    override fun buildRevocationList(
+        timePeriod: Int?,
+        kind: RevocationList.Kind
+    ): RevocationList = when (kind) {
+        STATUS_LIST -> issuerCredentialStore
+            .getStatusListView(timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock))
+            .toStatusList(zlibService, statusListAggregationUrl)
 
-            RevocationList.Kind.IDENTIFIER_LIST -> IdentifierList(
-                identifiers = issuerCredentialStore.getRawIdentifierList(
-                    timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock)
-                ),
-                aggregationUri = identifierListAggregationUrl
-            )
-        }
+        IDENTIFIER_LIST -> IdentifierList(
+            identifiers = issuerCredentialStore.getRawIdentifierList(
+                timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock)
+            ),
+            aggregationUri = identifierListAggregationUrl
+        )
+    }
 
 
     /**
@@ -171,10 +178,10 @@ class StatusListAgent @JvmOverloads constructor(
         time: Instant?,
         kind: RevocationList.Kind
     ): Pair<StatusListTokenMediaType, StatusListToken> {
-        val preferedType = acceptedContentTypes.firstOrNull()
+        val preferredType = acceptedContentTypes.firstOrNull()
             ?: throw IllegalArgumentException("Argument `acceptedContentTypes` must contain at least one item.")
 
-        return preferedType to when (preferedType) {
+        return preferredType to when (preferredType) {
             StatusListTokenMediaType.Jwt -> StatusListJwt(issueStatusListJwt(time, kind), resolvedAt = clock.now())
             StatusListTokenMediaType.Cwt -> StatusListCwt(issueStatusListCwt(time, kind), resolvedAt = clock.now())
         }
@@ -216,15 +223,49 @@ class StatusListAgent @JvmOverloads constructor(
         return list
     }
 
-    internal fun getStatusListUrlFor(timePeriod: Int) = statusListBaseUrl.let {
+    private fun getStatusListUrlFor(timePeriod: Int) = statusListBaseUrl.let {
         it + (if (!it.endsWith('/')) "/" else "") + timePeriod
     }
 
-    internal fun getIdentifierListUrlFor(timePeriod: Int) = identifierListBaseUrl.let {
+    private fun getIdentifierListUrlFor(timePeriod: Int) = identifierListBaseUrl.let {
         it + (if (!it.endsWith('/')) "/" else "") + timePeriod
     }
 
     fun Instant?.toTimePeriod() = this?.let {
         timePeriodProvider.getTimePeriodFor(it)
     } ?: timePeriodProvider.getCurrentTimePeriod(clock)
+
+    /** Provide a status reference to be included in a [Issuer.IssuedCredential]. */
+    suspend fun provideStatusReference(
+        credential: CredentialToBeIssued.Iso,
+        issuanceDate: Instant
+    ): RevocationListInfo {
+        val timePeriod = timePeriodProvider.getTimePeriodFor(issuanceDate)
+        val reference = issuerCredentialStore.storeReferencedToken(credential, timePeriod).getOrThrow()
+        return when (credential.revocationKind) {
+            STATUS_LIST -> StatusListInfo(
+                index = reference.statusListIndex,
+                uri = UniformResourceIdentifier(getStatusListUrlFor(timePeriod)),
+            )
+
+            IDENTIFIER_LIST -> IdentifierListInfo(
+                identifier = reference.id.encodeToByteArray(),
+                uri = UniformResourceIdentifier(getIdentifierListUrlFor(timePeriod)),
+                certificate = keyMaterial.getCertificate()?.encodeToDer()
+            )
+        }
+    }
+
+    /** Provide a status reference to be included in a [Issuer.IssuedCredential]. */
+    suspend fun provideStatusReference(
+        credential: CredentialToBeIssued,
+        issuanceDate: Instant
+    ): RevocationListInfo {
+        val timePeriod = timePeriodProvider.getTimePeriodFor(issuanceDate)
+        val reference = issuerCredentialStore.storeReferencedToken(credential, timePeriod).getOrThrow()
+        return StatusListInfo(
+            index = reference.statusListIndex,
+            uri = UniformResourceIdentifier(getStatusListUrlFor(timePeriod)),
+        )
+    }
 }

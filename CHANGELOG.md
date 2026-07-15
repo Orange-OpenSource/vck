@@ -28,8 +28,10 @@ Release 7.0.0 (unreleased):
     - Extract `VpTokenValidator` from common code in `OpenId4VpVerifier` and `DcApiVerifier`
 - OpenID for Verifiable Credential Issuance:
     - Wallet does not send any proofs when the issuer doesn't [support any proof types](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-12.2.4-2.11.2.5.1)
-   - Update Wallet Instance Attestation and Key Attestation to [EUDI Wallet TS3 1.5.2](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md) from 2026-05-26
-   - In `IssuerAgent` introduce constructor parameter `statusListAgent` to decouple creation of status elements from issuing credentials
+    - Update Wallet Instance Attestation and Key Attestation to [EUDI Wallet TS3 1.5.2](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md) from 2026-05-26
+    - In `IssuerAgent` introduce constructor parameter `statusListAgent` to decouple creation of status elements from issuing credentials
+    - Rework `IssuerCredentialStore` by moving some functionality to `ReferencedTokenStore`
+    - Status claims for identifier lists from ISO 18013-5 contain the certificate of the status list issuer
 - JVM interoperability:
     - Add `@JvmOverloads` to public API constructors with default parameters across the published modules.
 - Refactorings:

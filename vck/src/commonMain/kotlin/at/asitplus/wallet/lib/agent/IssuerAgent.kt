@@ -35,9 +35,6 @@ import at.asitplus.wallet.lib.data.VerifiableCredential
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.VerifiableCredentialSdJwt
 import at.asitplus.wallet.lib.data.ktx.extractId
-import at.asitplus.wallet.lib.data.rfc.tokenStatusList.IdentifierListInfo
-import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
-import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListInfo
 import at.asitplus.wallet.lib.data.rfc3986.UniformResourceIdentifier
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
@@ -73,6 +70,7 @@ class IssuerAgent @JvmOverloads constructor(
     /** Time to adjust the [Clock.now] for issuance date of credentials. */
     private val issuanceOffset: Duration = (-3).minutes,
     override val cryptoAlgorithms: Set<SignatureAlgorithm> = setOf(keyMaterial.signatureAlgorithm),
+    @Suppress("unused") @Deprecated("Set value for statusListAgent instead")
     private val timePeriodProvider: TimePeriodProvider = FixedTimePeriodProvider,
     /** The identifier used in `issuer` properties of credentials (JWT VC and SD JWT). */
     private val identifier: UniformResourceIdentifier,
@@ -110,26 +108,9 @@ class IssuerAgent @JvmOverloads constructor(
         issuanceDate: Instant,
     ): Issuer.IssuedCredential {
         val expirationDate = credential.expiration
-        val timePeriod = timePeriodProvider.getTimePeriodFor(issuanceDate)
-        val reference = issuerCredentialStore.createStoredCredentialReference(credential, timePeriod).getOrThrow()
         val coseKey = credential.subjectPublicKey.toCoseKey()
             .getOrElse { throw IllegalStateException("Could not create subject COSE key", it) }
         val deviceKeyInfo = DeviceKeyInfo(coseKey)
-
-        val credentialStatus = statusListAgent?.let {
-            when (credential.revocationKind) {
-                RevocationList.Kind.STATUS_LIST -> StatusListInfo(
-                    index = reference.statusListIndex,
-                    uri = UniformResourceIdentifier(statusListAgent.getStatusListUrlFor(timePeriod)),
-                )
-
-                RevocationList.Kind.IDENTIFIER_LIST -> IdentifierListInfo(
-                    identifier = reference.id.encodeToByteArray(),
-                    uri = UniformResourceIdentifier(statusListAgent.getIdentifierListUrlFor(timePeriod)),
-                    certificate = null //TODO statusListAgent.certificate()
-                )
-            }
-        }
         val mso = MobileSecurityObject(
             version = "1.0",
             digestAlgorithm = "SHA-256",
@@ -145,7 +126,7 @@ class IssuerAgent @JvmOverloads constructor(
                 validFrom = issuanceDate,
                 validUntil = expirationDate,
             ),
-            status = credentialStatus
+            status = statusListAgent?.provideStatusReference(credential, issuanceDate)
         )
         val issuerSigned = IssuerSigned.fromIssuerSignedItems(
             namespacedItems = mapOf(credential.scheme.isoNamespace to credential.issuerSignedItems),
@@ -163,7 +144,7 @@ class IssuerAgent @JvmOverloads constructor(
             subjectPublicKey = credential.subjectPublicKey,
             userInfo = credential.userInfo
         ).also {
-            issuerCredentialStore.updateStoredCredential(reference, it).getOrThrow()
+            issuerCredentialStore.onCredentialIssued(it)
         }
     }
 
@@ -173,20 +154,12 @@ class IssuerAgent @JvmOverloads constructor(
     ): Issuer.IssuedCredential {
         val vcId = "urn:uuid:${uuid4()}"
         val expirationDate = credential.expiration
-        val timePeriod = timePeriodProvider.getTimePeriodFor(issuanceDate)
-        val reference = issuerCredentialStore.createStoredCredentialReference(credential, timePeriod).getOrThrow()
-        val credentialStatus = statusListAgent?.let {
-            StatusListInfo(
-                index = reference.statusListIndex,
-                uri = UniformResourceIdentifier(statusListAgent.getStatusListUrlFor(timePeriod)),
-            )
-        }
         val vc = VerifiableCredential(
             id = vcId,
             issuer = identifier.string,
             issuanceDate = issuanceDate,
             expirationDate = expirationDate,
-            credentialStatus = credentialStatus,
+            credentialStatus = statusListAgent?.provideStatusReference(credential, issuanceDate),
             credentialSubject = credential.subject,
             credentialType = credential.scheme.vcType,
         )
@@ -206,7 +179,7 @@ class IssuerAgent @JvmOverloads constructor(
             subjectPublicKey = credential.subjectPublicKey,
             userInfo = credential.userInfo,
         ).also {
-            issuerCredentialStore.updateStoredCredential(reference, it).getOrThrow()
+            issuerCredentialStore.onCredentialIssued(it)
         }
     }
 
@@ -215,15 +188,7 @@ class IssuerAgent @JvmOverloads constructor(
         issuanceDate: Instant,
     ): Issuer.IssuedCredential {
         val expirationDate = credential.expiration
-        val timePeriod = timePeriodProvider.getTimePeriodFor(issuanceDate)
         val subjectId = credential.subjectPublicKey.didEncoded // TODO not necessarily!
-        val reference = issuerCredentialStore.createStoredCredentialReference(credential, timePeriod).getOrThrow()
-        val credentialStatus = statusListAgent?.let {
-            StatusListInfo(
-                index = reference.statusListIndex,
-                uri = UniformResourceIdentifier(statusListAgent.getStatusListUrlFor(timePeriod)),
-            )
-        }
         val (sdJwt, disclosures) = credential.claims.toSdJsonObject(randomSource, credential.sdAlgorithm)
         val cnf = ConfirmationClaim(jsonWebKey = credential.subjectPublicKey.toJsonWebKey())
         val vcSdJwt = VerifiableCredentialSdJwt(
@@ -235,7 +200,7 @@ class IssuerAgent @JvmOverloads constructor(
             verifiableCredentialType = credential.scheme.sdJwtType,
             selectiveDisclosureAlgorithm = credential.sdAlgorithm.toIanaName(),
             confirmationClaim = cnf,
-            statusElement = credentialStatus
+            statusElement = statusListAgent?.provideStatusReference(credential, issuanceDate)
         )
         val vcSdJwtObject = joseCompliantSerializer.encodeToJsonElement(vcSdJwt).jsonObject
         val entireObject = buildJsonObject {
@@ -263,7 +228,7 @@ class IssuerAgent @JvmOverloads constructor(
             subjectPublicKey = credential.subjectPublicKey,
             userInfo = credential.userInfo,
         ).also {
-            issuerCredentialStore.updateStoredCredential(reference, it).getOrThrow()
+            issuerCredentialStore.onCredentialIssued(it)
         }
     }
 

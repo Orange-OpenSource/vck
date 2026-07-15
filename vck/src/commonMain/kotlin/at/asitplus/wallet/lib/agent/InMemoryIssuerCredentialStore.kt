@@ -12,64 +12,83 @@ import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatusBitSize
 import com.benasher44.uuid.uuid4
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.time.Instant
 
 class InMemoryIssuerCredentialStore(
     val tokenStatusBitSize: TokenStatusBitSize = TokenStatusBitSize.ONE,
 ) : IssuerCredentialStore, ReferencedTokenStore {
-    // TODO Check if necessary
     private val indexMutex = Mutex()
 
     data class Credential(
         val vcId: String,
         val statusListIndex: ULong,
         var status: TokenStatus,
-        val expirationDate: Instant,
-        val scheme: CredentialScheme,
     )
 
-    /** Maps timePeriod to credentials */
-    private val credentialMap = mutableMapOf<Int, MutableList<Credential>>()
+    /** Maps timePeriod to credentials for referenced tokens which may be revoked later on */
+    private val referencedTokens = mutableMapOf<Int, MutableList<Credential>>()
+
+    /** Tracks issued credentials */
+    private val issuedCredentials = mutableListOf<Issuer.IssuedCredential>()
 
     /** Tracks revoked identifiers for timePeriod to build [IdentifierList]; Sets to remove duplicates */
     private val identifierRevocationList = mutableMapOf<Int, MutableSet<String>>()
 
-    override suspend fun createStoredCredentialReference(
+    override suspend fun storeReferencedToken(
         credential: CredentialToBeIssued,
         timePeriod: Int,
-    ): KmmResult<IssuerCredentialStore.StoredCredentialReference> = catching {
-        val list = credentialMap.getOrPut(timePeriod) { mutableListOf() }
-        val newIndex: ULong = (list.maxOfOrNull { it.statusListIndex } ?: 0U) + 1U
-        val vcId = uuid4().toString()
-        list += Credential(
-            vcId = vcId,
-            statusListIndex = newIndex,
-            status = TokenStatus.Valid,
-            expirationDate = credential.expiration,
-            scheme = credential.scheme,
-        )
-        IssuerCredentialStore.StoredCredentialReference(vcId, timePeriod, newIndex)
+    ): KmmResult<ReferencedTokenStore.StoredCredentialReference> = catching {
+        indexMutex.withLock {
+            val list = referencedTokens.getOrPut(timePeriod) { mutableListOf() }
+            val newIndex: ULong = (list.maxOfOrNull { it.statusListIndex } ?: 0U) + 1U
+            val vcId = uuid4().toString()
+            list += Credential(
+                vcId = vcId,
+                statusListIndex = newIndex,
+                status = TokenStatus.Valid,
+            )
+            ReferencedTokenStore.StoredCredentialReference(
+                id = vcId,
+                timePeriod = timePeriod,
+                statusListIndex = newIndex
+            )
+        }
     }
 
+    @Deprecated("Use method from `ReferencedTokenStore` instead")
+    @Suppress("DEPRECATION")
+    override suspend fun createStoredCredentialReference(
+        credential: CredentialToBeIssued,
+        timePeriod: Int
+    ): KmmResult<IssuerCredentialStore.StoredCredentialReference> =
+        storeReferencedToken(credential, timePeriod).map {
+            IssuerCredentialStore.StoredCredentialReference(
+                id = it.id,
+                timePeriod = it.timePeriod,
+                statusListIndex = it.statusListIndex
+            )
+        }
+
+    @Suppress("DEPRECATION")
+    @Deprecated("Issuer will call onCredentialStored instead")
     override suspend fun updateStoredCredential(
         reference: IssuerCredentialStore.StoredCredentialReference,
         credential: Issuer.IssuedCredential,
     ): KmmResult<IssuerCredentialStore.StoredCredentialReference> = catching {
-        val list = credentialMap.getOrPut(reference.timePeriod) { mutableListOf() }
-        if (list.find { it.vcId == reference.id } == null) {
-            list += Credential(
-                vcId = reference.id,
-                statusListIndex = reference.statusListIndex,
-                status = TokenStatus.Valid,
-                expirationDate = credential.validUntil,
-                scheme = credential.scheme
-            )
+        val list = referencedTokens.getOrPut(reference.timePeriod) { mutableListOf() }
+        require(list.find { it.vcId == reference.id } != null) {
+            "Updating a credential that we did not create before"
         }
         reference
     }
 
+    override suspend fun onCredentialIssued(credential: Issuer.IssuedCredential) {
+        issuedCredentials += credential
+    }
+
     override fun getStatusListView(timePeriod: Int): StatusListView {
-        val timePeriodStatusCollection = credentialMap[timePeriod]
+        val timePeriodStatusCollection = referencedTokens[timePeriod]
             ?: return StatusListView(ByteArray(0), tokenStatusBitSize)
 
         val timePeriodStatusMap = timePeriodStatusCollection.associate {
@@ -107,7 +126,7 @@ class InMemoryIssuerCredentialStore(
         index: ULong,
         status: TokenStatus,
     ): Boolean {
-        val entry = credentialMap.getOrPut(timePeriod) {
+        val entry = referencedTokens.getOrPut(timePeriod) {
             mutableListOf()
         }.find {
             it.statusListIndex == index
@@ -131,7 +150,7 @@ class InMemoryIssuerCredentialStore(
         timePeriod: Int,
         identifier: ByteArray
     ): Boolean {
-        val entry = credentialMap.getOrPut(timePeriod) {
+        val entry = referencedTokens.getOrPut(timePeriod) {
             mutableListOf()
         }.find {
             it.vcId == identifier.decodeToString()

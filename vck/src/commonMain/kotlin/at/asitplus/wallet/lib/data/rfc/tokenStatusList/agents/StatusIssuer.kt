@@ -15,20 +15,32 @@ interface StatusIssuer {
     /**
      * @return a status list jwt.
      */
-    suspend fun issueStatusListJwt(time: Instant? = null, kind: RevocationList.Kind = STATUS_LIST): JwsCompactTyped<StatusListTokenPayload>
+    suspend fun issueStatusListJwt(
+        time: Instant? = null,
+        kind: RevocationList.Kind = STATUS_LIST
+    ): JwsCompactTyped<StatusListTokenPayload>
 
     /**
      * @return a status list jwt for the given [timePeriod].
      */
-    suspend fun issueStatusListJwt(timePeriod: Int, kind: RevocationList.Kind = STATUS_LIST): JwsCompactTyped<StatusListTokenPayload>
+    suspend fun issueStatusListJwt(
+        timePeriod: Int,
+        kind: RevocationList.Kind = STATUS_LIST
+    ): JwsCompactTyped<StatusListTokenPayload>
 
     /**
      * @return a status list cwt.
      */
-    suspend fun issueStatusListCwt(time: Instant? = null, kind: RevocationList.Kind = STATUS_LIST): CoseSigned<ByteArray>
+    suspend fun issueStatusListCwt(
+        time: Instant? = null,
+        kind: RevocationList.Kind = STATUS_LIST
+    ): CoseSigned<ByteArray>
 
     /**
      * @return a status list cwt for the given [timePeriod].
      */
-    suspend fun issueStatusListCwt(timePeriod: Int, kind: RevocationList.Kind = STATUS_LIST): CoseSigned<ByteArray>
+    suspend fun issueStatusListCwt(
+        timePeriod: Int,
+        kind: RevocationList.Kind = STATUS_LIST
+    ): CoseSigned<ByteArray>
 }
