@@ -322,36 +322,38 @@ class OpenId4VciClient(
         scheme: CredentialScheme,
         dpopNonce: String?,
         retryCount: Int = 0,
-    ): Collection<Holder.StoreCredentialInput> = oauth2Client.client.post(url) {
-        when (request) {
-            is WalletService.CredentialRequest.Encrypted -> {
-                contentType(ContentType.parse(MediaTypes.Application.JWT))
-                setBody(request.request.serialize())
-            }
+    ): Collection<Holder.StoreCredentialInput> = try {
+        oauth2Client.client.post(url) {
+            when (request) {
+                is WalletService.CredentialRequest.Encrypted -> {
+                    contentType(ContentType.parse(MediaTypes.Application.JWT))
+                    setBody(request.request.serialize())
+                }
 
-            is WalletService.CredentialRequest.Plain -> {
-                contentType(ContentType.Application.Json)
-                setBody(request.request)
+                is WalletService.CredentialRequest.Plain -> {
+                    contentType(ContentType.Application.Json)
+                    setBody(request.request)
+                }
             }
+            oauth2Client.applyToken(
+                tokenResponse = tokenResponse.params,
+                resourceUrl = url,
+                httpMethod = HttpMethod.Post,
+                dpopNonce = dpopNonce ?: tokenResponse.dpopNonce
+            )()
+        }.let { response ->
+            oid4vciService.parseCredentialResponse(
+                response = response.bodyAsText(),
+                isEncrypted = response.contentType()?.match(ContentType.parse(MediaTypes.Application.JWT)) == true,
+                representation = format.format.toRepresentation(),
+                scheme = scheme
+            ).getOrThrow()
         }
-        oauth2Client.applyToken(
-            tokenResponse = tokenResponse.params,
-            resourceUrl = url,
-            httpMethod = HttpMethod.Post,
-            dpopNonce = dpopNonce ?: tokenResponse.dpopNonce
-        )()
-    }.onFailure { response ->
-        dpopNonce(response)
+    } catch (error: HttpErrorResponseException) {
+        error.dpopNonce()
             ?.takeIf { retryCount == 0 }
             ?.let { fetchCredential(url, request, tokenResponse, format, scheme, it, retryCount + 1) }
-            ?: throw Exception("Error requesting credential: ${this?.errorDescription ?: this?.error}")
-    }.onSuccessCredential { response ->
-        oid4vciService.parseCredentialResponse(
-            response = this,
-            isEncrypted = response.contentType()?.match(ContentType.parse(MediaTypes.Application.JWT)) == true,
-            representation = format.format.toRepresentation(),
-            scheme = scheme
-        ).getOrThrow()
+            ?: throw error
     }
 
     /**
@@ -515,10 +517,6 @@ data class CredentialIdentifierInfo(
     val credentialIdentifier: String,
     val supportedCredentialFormat: SupportedCredentialFormat,
 )
-
-private suspend inline fun <R> IntermediateResult<R>.onSuccessCredential(
-    block: String.(httpResponse: HttpResponse) -> R,
-) = onSuccess<String, R>(block)
 
 private val JsonWebKey.jwkThumbprintPlain: String
     get() = jwkThumbprint.removePrefix("urn:ietf:params:oauth:jwk-thumbprint:sha256:")

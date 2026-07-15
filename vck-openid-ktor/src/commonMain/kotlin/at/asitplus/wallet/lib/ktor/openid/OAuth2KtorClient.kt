@@ -33,7 +33,6 @@ import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.oauth2.OAuth2Client.AuthorizationForToken
 import at.asitplus.wallet.lib.oidvci.BuildClientAttestationPoPJwt
 import at.asitplus.wallet.lib.oidvci.BuildDPoPHeader
-import at.asitplus.wallet.lib.oidvci.OAuth2Error
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidToken
 import at.asitplus.wallet.lib.oidvci.TokenInfo
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
@@ -41,6 +40,7 @@ import at.asitplus.wallet.lib.oidvci.encodeToParameters
 import com.benasher44.uuid.uuid4
 import io.github.aakira.napier.Napier
 import io.ktor.client.*
+import io.ktor.client.call.*
 import io.ktor.client.engine.*
 import io.ktor.client.plugins.cookies.*
 import io.ktor.client.request.*
@@ -268,28 +268,29 @@ class OAuth2KtorClient(
         retryCount: Int = 0,
     ): TokenResponseWithDpopNonce = oauthMetadata.tokenEndpoint?.let { tokenEndpointUrl ->
         Napier.i("postToken: $tokenEndpointUrl with $tokenRequest")
-        client.request {
-            url(tokenEndpointUrl)
-            method = HttpMethod.Post
-            setBody(FormDataContent(parameters {
-                tokenRequest.encodeToParameters().forEach { append(it.key, it.value) }
-            }))
-            applyAuthnForToken(
-                resourceUrl = tokenEndpointUrl,
-                httpMethod = HttpMethod.Post,
-                useDpop = true,
-                authorizationServer = popAudience,
-                preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
-            )()
-        }.onFailure { response ->
-            updateDpopNonceAndRetry(response, tokenEndpointUrl, retryCount) {
+        val response = try {
+            client.request {
+                url(tokenEndpointUrl)
+                method = HttpMethod.Post
+                setBody(FormDataContent(parameters {
+                    tokenRequest.encodeToParameters().forEach { append(it.key, it.value) }
+                }))
+                applyAuthnForToken(
+                    resourceUrl = tokenEndpointUrl,
+                    httpMethod = HttpMethod.Post,
+                    useDpop = true,
+                    authorizationServer = popAudience,
+                    preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
+                )()
+            }
+        } catch (error: HttpErrorResponseException) {
+            return@let error.updateDpopNonceAndRetry(tokenEndpointUrl, retryCount) {
                 postToken(oauthMetadata, tokenRequest, popAudience, retryCount + 1)
             }
-        }.onSuccessToken { response ->
-            val dpopNonce = response.dpopNonce
-            updateDpopNonce(tokenEndpointUrl, dpopNonce)
-            TokenResponseWithDpopNonce(this, dpopNonce)
         }
+        val dpopNonce = response.dpopNonce
+        updateDpopNonce(tokenEndpointUrl, dpopNonce)
+        TokenResponseWithDpopNonce(response.body(), dpopNonce)
     } ?: throw IllegalArgumentException("No tokenEndpoint in $oauthMetadata")
 
     /**
@@ -377,31 +378,33 @@ class OAuth2KtorClient(
         popAudience: String,
         retryCount: Int = 0,
     ): JarRequestParameters = oauthMetadata.pushedAuthorizationRequestEndpoint?.let { parEndpointUrl ->
-        client.request {
-            url(parEndpointUrl)
-            method = HttpMethod.Post
-            setBody(FormDataContent(parameters {
-                authRequest.encodeToParameters().forEach { append(it.key, it.value) }
-                append(OpenIdConstants.PARAMETER_PROMPT, OpenIdConstants.PARAMETER_PROMPT_LOGIN)
-            }))
-            applyAuthnForToken(
-                resourceUrl = parEndpointUrl,
-                httpMethod = HttpMethod.Post,
-                useDpop = true,
-                authorizationServer = popAudience,
-                preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
-            )()
-        }.onFailure { response ->
-            updateDpopNonceAndRetry(response, parEndpointUrl, retryCount) {
+        val response = try {
+            client.request {
+                url(parEndpointUrl)
+                method = HttpMethod.Post
+                setBody(FormDataContent(parameters {
+                    authRequest.encodeToParameters().forEach { append(it.key, it.value) }
+                    append(OpenIdConstants.PARAMETER_PROMPT, OpenIdConstants.PARAMETER_PROMPT_LOGIN)
+                }))
+                applyAuthnForToken(
+                    resourceUrl = parEndpointUrl,
+                    httpMethod = HttpMethod.Post,
+                    useDpop = true,
+                    authorizationServer = popAudience,
+                    preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
+                )()
+            }
+        } catch (error: HttpErrorResponseException) {
+            return@let error.updateDpopNonceAndRetry(parEndpointUrl, retryCount) {
                 pushAuthorizationRequest(oauthMetadata, authRequest, state, popAudience, retryCount + 1)
             }
-        }.onSuccessPar { httpResponse ->
-            updateDpopNonce(parEndpointUrl, httpResponse.dpopNonce)
-            JarRequestParameters(
-                clientId = oAuth2Client.clientId,
-                requestUri = requestUri ?: throw Exception("No request_uri from PAR response at $parEndpointUrl"),
-            )
         }
+        updateDpopNonce(parEndpointUrl, response.dpopNonce)
+        JarRequestParameters(
+            clientId = oAuth2Client.clientId,
+            requestUri = response.body<PushedAuthenticationResponseParameters>().requestUri
+                ?: throw Exception("No request_uri from PAR response at $parEndpointUrl"),
+        )
     } ?: throw Exception("No pushedAuthorizationRequestEndpoint in $oauthMetadata")
 
     /**
@@ -415,46 +418,48 @@ class OAuth2KtorClient(
         popAudience: String,
         retryCount: Int = 0,
     ): TokenIntrospectionResponse = oauthMetadata.introspectionEndpoint?.let { introspectionUrl ->
-        client.request {
-            url(introspectionUrl)
-            method = HttpMethod.Post
-            setBody(FormDataContent(parameters {
-                request.encodeToParameters().forEach { append(it.key, it.value) }
-            }))
-            applyAuthnForToken(
-                resourceUrl = introspectionUrl,
-                httpMethod = HttpMethod.Post,
-                useDpop = true,
-                authorizationServer = popAudience,
-                preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
-            )()
-        }.onFailure { response ->
-            updateDpopNonceAndRetry(response, introspectionUrl, retryCount) {
+        val response = try {
+            client.request {
+                url(introspectionUrl)
+                method = HttpMethod.Post
+                setBody(FormDataContent(parameters {
+                    request.encodeToParameters().forEach { append(it.key, it.value) }
+                }))
+                applyAuthnForToken(
+                    resourceUrl = introspectionUrl,
+                    httpMethod = HttpMethod.Post,
+                    useDpop = true,
+                    authorizationServer = popAudience,
+                    preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
+                )()
+            }
+        } catch (error: HttpErrorResponseException) {
+            return@let error.updateDpopNonceAndRetry(introspectionUrl, retryCount) {
                 callTokenIntrospection(oauthMetadata, request, token, popAudience, retryCount + 1)
             }
-        }.onSuccessTokenIntrospection(
+        }
+        updateDpopNonce(introspectionUrl, response.dpopNonce)
+        parseTokenIntrospectionResponse(
+            body = response.bodyAsText(),
             verifyTokenIntrospectionJwt = verifyTokenIntrospectionJwt,
             requestedResponseFormat = request.responseFormat,
-        ) { httpResponse ->
-            updateDpopNonce(introspectionUrl, httpResponse.dpopNonce)
-            if (!active) {
+        ).also {
+            if (!it.active) {
                 throw InvalidToken("Introspected token is not active")
             }
-            this
         }
     } ?: throw InvalidToken("No introspection endpoint found in Authorization Server metadata")
 
     /** Store the DPoP nonce if it is set, and retry the previous action */
-    suspend fun <T> OAuth2Error?.updateDpopNonceAndRetry(
-        response: HttpResponse,
+    private suspend fun <T> HttpErrorResponseException.updateDpopNonceAndRetry(
         url: String,
         retryCount: Int,
         action: suspend () -> T
-    ): T = dpopNonce(response)
+    ): T = dpopNonce()
         ?.let { updateDpopNonce(url, it) }
         ?.takeIf { retryCount == 0 }
         ?.let { action() }
-        ?: throw Exception("Error requesting $url: ${this?.errorDescription ?: this?.error}")
+        ?: throw this
 
     /**
      * Sets the appropriate headers when accessing [resourceUrl], by reading data from [tokenResponse],
@@ -571,29 +576,6 @@ data class TokenResponseWithDpopNonce(
     val params: TokenResponseParameters,
     val dpopNonce: String?,
 )
-
-private suspend inline fun <R> IntermediateResult<R>.onSuccessPar(
-    block: PushedAuthenticationResponseParameters.(httpResponse: HttpResponse) -> R,
-) = onSuccess<PushedAuthenticationResponseParameters, R>(block)
-
-private suspend inline fun <R> IntermediateResult<R>.onSuccessToken(
-    block: TokenResponseParameters.(httpResponse: HttpResponse) -> R,
-) = onSuccess<TokenResponseParameters, R>(block)
-
-private suspend inline fun <R> IntermediateResult<R>.onSuccessTokenIntrospection(
-    noinline verifyTokenIntrospectionJwt: suspend (JwsCompactTyped<TokenIntrospectionResponse>) -> Boolean,
-    requestedResponseFormat: TokenIntrospectionRequest.ResponseFormat?,
-    block: TokenIntrospectionResponse.(httpResponse: HttpResponse) -> R,
-) = when (this) {
-    is IntermediateResult.Failure<R> -> result
-    is IntermediateResult.Success<R> -> block(
-        parseTokenIntrospectionResponse(
-            body = httpResponse.bodyAsText(),
-            verifyTokenIntrospectionJwt = verifyTokenIntrospectionJwt,
-            requestedResponseFormat = requestedResponseFormat,
-        ), httpResponse
-    )
-}
 
 private suspend fun parseTokenIntrospectionResponse(
     body: String,

@@ -31,6 +31,7 @@ Release 7.0.0 (unreleased):
 - Refactorings:
     - `OpenId4VpHolder.getMatchingCredentials()` returns `KmmResult` instead of `Result`
     - In `SdJwtInputValidationResult` transport error during integrity validation in `integrityValidationResult` instead of `isIntegrityGood`
+    - `vck-openid-ktor` HTTP clients throw `HttpErrorResponseException` for non-success responses, preserving OAuth errors, RFC 9457 problem details, and the raw response body
 - Trust Evaluation:
     - Add `LoTEFilterService` for extracting trust list certificates from `LoTE` based on `ServiceTypeIdentifier`
     - Add signature and time validity checks of certificate against the trust list

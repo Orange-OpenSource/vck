@@ -124,17 +124,17 @@ class RemoteOAuth2AuthorizationServerAdapter(
         params: TokenResponseParameters,
         dpopNonce: String?,
         retryCount: Int = 0,
-    ): JsonObject = client.request {
-        url(userInfoEndpoint)
-        method = HttpMethod.Get
-        oauth2Client.applyToken(params, userInfoEndpoint, HttpMethod.Get, dpopNonce)()
-    }.onFailure { response ->
-        dpopNonce(response)
+    ): JsonObject = try {
+        client.request {
+            url(userInfoEndpoint)
+            method = HttpMethod.Get
+            oauth2Client.applyToken(params, userInfoEndpoint, HttpMethod.Get, dpopNonce)()
+        }.body()
+    } catch (error: HttpErrorResponseException) {
+        error.dpopNonce()
             ?.takeIf { retryCount == 0 }
-            ?.let { dpopNonce -> fetchUserInfo(userInfoEndpoint, params, dpopNonce, retryCount + 1) }
-            ?: throw Exception("Error requesting UserInfo: ${this?.errorDescription ?: this?.error}")
-    }.onSuccessUserInfo {
-        this
+            ?.let { fetchUserInfo(userInfoEndpoint, params, it, retryCount + 1) }
+            ?: throw error
     }
 
     override suspend fun validateAccessToken(
@@ -156,7 +156,3 @@ private fun TokenIntrospectionResponse.toTokenInfo(token: String) = TokenInfo(
     scope = this.scope,
     authorizationDetails = this.authorizationDetails,
 )
-
-private suspend inline fun <R> IntermediateResult<R>.onSuccessUserInfo(
-    block: JsonObject.(httpResponse: HttpResponse) -> R,
-) = onSuccess<JsonObject, R>(block)

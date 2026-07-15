@@ -11,7 +11,6 @@ import at.asitplus.wallet.lib.agent.HolderAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.data.CredentialPresentation
-import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidRequest
 import at.asitplus.wallet.lib.oidvci.encodeToParameters
 import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.AuthorizationResponsePreparationState
@@ -87,9 +86,6 @@ class OpenId4VpWallet(
                             headers[it.key] = it.value
                         }
                     }
-                }
-                if (response.status.value in 400..599) {
-                    throw InvalidRequest("Failed to dereference request_uri ${data.url}: HTTP ${response.status}")
                 }
                 response.bodyAsText()
             }

@@ -5,14 +5,17 @@ import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.oidvci.OAuth2Error
 import com.benasher44.uuid.uuid4
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 val ExtensionsTest by matrixSuite {
 
@@ -33,30 +36,72 @@ val ExtensionsTest by matrixSuite {
         }
     }
 
-    test("onFailure returns failure with OAuth2Error") {
-        val expectedError = OAuth2Error(error = "invalid_client", errorDescription = "Nope")
-
-        buildResponse(
-            status = HttpStatusCode.BadRequest,
-            body = joseCompliantSerializer.encodeToString(OAuth2Error.serializer(), expectedError),
-            headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-        ).onFailure<OAuth2Error?> { _ -> this }
-            .shouldBeInstanceOf<IntermediateResult.Failure<OAuth2Error?>>().apply {
-                this.result shouldBe expectedError
-            }
+    suspend fun requestWithValidation(
+        status: HttpStatusCode,
+        body: String,
+        contentType: ContentType,
+    ) = buildHttpClient(MockEngine {
+        respond(
+            content = body,
+            status = status,
+            headers = headersOf(HttpHeaders.ContentType, contentType.toString()),
+        )
+    }).let { client ->
+        try {
+            client.get("https://example.com")
+        } finally {
+            client.close()
+        }
     }
 
-    test("onSuccess unwraps response body") {
-        val expectedBody = uuid4().toString()
+    test("successful response is returned") {
+        requestWithValidation(HttpStatusCode.OK, "ok", ContentType.Text.Plain).bodyAsText() shouldBe "ok"
+    }
 
-        buildResponse(
-            status = HttpStatusCode.OK,
-            body = expectedBody,
-            headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Plain.toString())
-        ).onFailure<String> { "failure" }
-            .onSuccess<String, String> { this }.apply {
-                this shouldBe expectedBody
-            }
+    test("OAuth error response is preserved") {
+        val expectedError = OAuth2Error(error = "invalid_client", errorDescription = "Nope")
+        val body = joseCompliantSerializer.encodeToString(OAuth2Error.serializer(), expectedError)
+
+        shouldThrow<HttpErrorResponseException> {
+            requestWithValidation(HttpStatusCode.BadRequest, body, ContentType.Application.Json)
+        }.apply {
+            oauth2Error shouldBe expectedError
+            problemDetails shouldBe null
+            responseBody shouldBe body
+        }
+    }
+
+    test("RFC 9457 problem response is preserved with extensions") {
+        val problem = buildJsonObject {
+            put("type", "https://example.com/problems/out-of-credit")
+            put("title", "No credit")
+            put("detail", "Balance is too low")
+            put("balance", 30)
+        }
+        val body = problem.toString()
+
+        shouldThrow<HttpErrorResponseException> {
+            requestWithValidation(
+                HttpStatusCode.Forbidden,
+                body,
+                ContentType.parse("application/problem+json"),
+            )
+        }.apply {
+            oauth2Error shouldBe null
+            problemDetails shouldBe problem
+            responseBody shouldBe body
+            message shouldBe "Balance is too low"
+        }
+    }
+
+    test("unstructured error response is preserved") {
+        shouldThrow<HttpErrorResponseException> {
+            requestWithValidation(HttpStatusCode.InternalServerError, "upstream failed", ContentType.Text.Plain)
+        }.apply {
+            oauth2Error shouldBe null
+            problemDetails shouldBe null
+            responseBody shouldBe "upstream failed"
+        }
     }
 
     test("dpopNonce extracts nonce from error or WWW-Authenticate") {

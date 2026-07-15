@@ -22,7 +22,6 @@ import at.asitplus.wallet.lib.oidvci.TokenInfo
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import io.ktor.client.engine.mock.*
 import io.ktor.http.*
 import kotlinx.serialization.json.JsonObject
@@ -101,6 +100,7 @@ val RemoteOAuth2AuthorizationServerAdapterTest by matrixSuite {
     }
 
     test("getTokenInfo handles invalid response") {
+        val expectedError = InvalidToken().toOAuth2Error()
         val mockEngine = MockEngine { request ->
             when {
                 request.url.rawSegments.drop(1) == WellKnownPaths.OauthAuthorizationServer -> respond(
@@ -112,7 +112,7 @@ val RemoteOAuth2AuthorizationServerAdapterTest by matrixSuite {
                 )
 
                 request.url.toString() == introspectionEndpoint -> respond(
-                    joseCompliantSerializer.encodeToString(InvalidToken().toOAuth2Error()),
+                    joseCompliantSerializer.encodeToString(expectedError),
                     status = HttpStatusCode.BadRequest,
                     headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
                 )
@@ -129,7 +129,8 @@ val RemoteOAuth2AuthorizationServerAdapterTest by matrixSuite {
 
         adapter.getTokenInfo("Bearer token", null)
             .exceptionOrNull().shouldNotBeNull()
-            .message.shouldContain("Error requesting https://issuer.example.com/introspect")
+            .let { it as HttpErrorResponseException }
+            .oauth2Error shouldBe expectedError
     }
 
     test("getTokenInfo handles inactive token") {
