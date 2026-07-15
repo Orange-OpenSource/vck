@@ -20,14 +20,11 @@ import io.github.aakira.napier.Napier
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.*
-import io.ktor.client.plugins.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.http.content.*
-import io.ktor.serialization.kotlinx.json.*
 import io.ktor.utils.io.core.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -63,16 +60,7 @@ class OpenId4VpWallet(
     ) : AuthenticationResult
 
 
-    private val client: HttpClient = HttpClient(engine) {
-        followRedirects = false
-        install(ContentNegotiation) {
-            json(joseCompliantSerializer)
-        }
-        install(DefaultRequest) {
-            header(HttpHeaders.ContentType, ContentType.Application.Json)
-        }
-        httpClientConfig?.let { apply(it) }
-    }
+    private val client = buildHttpClient(engine, httpClientConfig = httpClientConfig)
 
     val openId4VpHolder = OpenId4VpHolder(
         holder = holderAgent,

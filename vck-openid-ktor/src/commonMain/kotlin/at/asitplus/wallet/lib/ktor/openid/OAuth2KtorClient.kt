@@ -42,14 +42,11 @@ import com.benasher44.uuid.uuid4
 import io.github.aakira.napier.Napier
 import io.ktor.client.*
 import io.ktor.client.engine.*
-import io.ktor.client.plugins.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.cookies.*
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
 import io.ktor.util.*
 import io.ktor.utils.io.*
 import kotlin.time.Duration
@@ -123,21 +120,7 @@ class OAuth2KtorClient(
     private fun updateDpopNonce(url: String, nonce: String?): String? =
         nonce?.takeIf { it.isNotBlank() }?.let { dpopNonceByContext[url.dpopContext()] = nonce; nonce }
 
-    val client: HttpClient = HttpClient(engine) {
-        followRedirects = false
-        install(ContentNegotiation) {
-            json(joseCompliantSerializer)
-        }
-        install(DefaultRequest.Plugin) {
-            header(HttpHeaders.ContentType, ContentType.Application.Json)
-        }
-        httpClientConfig?.let { apply(it) }
-        install(HttpCookies.Companion) {
-            cookiesStorage?.let {
-                storage = it
-            }
-        }
-    }
+    val client = buildHttpClient(engine, cookiesStorage, httpClientConfig)
 
     /**
      * Open the [url] in a browser (so the user can authenticate at the AS), and store [state] to use in next call.

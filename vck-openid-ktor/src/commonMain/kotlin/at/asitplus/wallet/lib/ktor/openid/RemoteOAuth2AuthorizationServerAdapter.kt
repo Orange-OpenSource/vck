@@ -20,13 +20,10 @@ import at.asitplus.wallet.lib.oidvci.TokenInfo
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.*
-import io.ktor.client.plugins.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.cookies.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -66,16 +63,7 @@ class RemoteOAuth2AuthorizationServerAdapter(
     val dpopNonceService: NonceService = DefaultNonceService(),
 ) : OAuth2AuthorizationServerAdapter {
 
-    private val client: HttpClient = HttpClient(engine) {
-        followRedirects = false
-        install(ContentNegotiation) {
-            json(joseCompliantSerializer)
-        }
-        install(DefaultRequest.Plugin) {
-            header(HttpHeaders.ContentType, ContentType.Application.Json)
-        }
-        httpClientConfig?.let { apply(it) }
-    }
+    private val client = buildHttpClient(engine, httpClientConfig = httpClientConfig)
 
     private val _metadata: Deferred<OAuth2AuthorizationServerMetadata> by scope.lazyDeferred {
         catching { loadOauthASMetadata() }
@@ -172,4 +160,3 @@ private fun TokenIntrospectionResponse.toTokenInfo(token: String) = TokenInfo(
 private suspend inline fun <R> IntermediateResult<R>.onSuccessUserInfo(
     block: JsonObject.(httpResponse: HttpResponse) -> R,
 ) = onSuccess<JsonObject, R>(block)
-
