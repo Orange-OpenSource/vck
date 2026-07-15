@@ -120,7 +120,7 @@ class OAuth2KtorClient(
     private fun updateDpopNonce(url: String, nonce: String?): String? =
         nonce?.takeIf { it.isNotBlank() }?.let { dpopNonceByContext[url.dpopContext()] = nonce; nonce }
 
-    val client = buildHttpClient(engine, cookiesStorage, httpClientConfig)
+    internal val client = buildHttpClient(engine, cookiesStorage, httpClientConfig)
 
     /**
      * Open the [url] in a browser (so the user can authenticate at the AS), and store [state] to use in next call.
@@ -146,7 +146,7 @@ class OAuth2KtorClient(
         val hasScope = scope != null
         postToken(
             oauthMetadata = oauthMetadata,
-            tokenRequest = oAuth2Client.createTokenRequestParameters(
+            request = oAuth2Client.createTokenRequestParameters(
                 state = state,
                 authorization = AuthorizationForToken.PreAuthCode(preAuthorizedCode, transactionCode),
                 scope = scope,
@@ -187,7 +187,7 @@ class OAuth2KtorClient(
         val hasScope = scope != null
         postToken(
             oauthMetadata = oauthMetadata,
-            tokenRequest = oAuth2Client.createTokenRequestParameters(
+            request = oAuth2Client.createTokenRequestParameters(
                 authorization = AuthorizationForToken.Code(code),
                 state = state,
                 scope = scope,
@@ -219,7 +219,7 @@ class OAuth2KtorClient(
         val hasScope = scope != null
         val tokenResponse = postToken(
             oauthMetadata = oauthMetadata,
-            tokenRequest = oAuth2Client.createTokenRequestParameters(
+            request = oAuth2Client.createTokenRequestParameters(
                 authorization = AuthorizationForToken.RefreshToken(refreshToken),
                 state = null,
                 scope = scope,
@@ -246,7 +246,7 @@ class OAuth2KtorClient(
         Napier.d("requestTokenWithTokenExchange: $subjectToken")
         val tokenResponse = postToken(
             oauthMetadata = oauthMetadata,
-            tokenRequest = oAuth2Client.createTokenRequestParameters(
+            request = oAuth2Client.createTokenRequestParameters(
                 authorization = AuthorizationForToken.TokenExchange(subjectToken),
                 state = null,
                 scope = "${OpenIdConstants.SCOPE_OPENID} ${OpenIdConstants.SCOPE_PROFILE}",
@@ -263,20 +263,20 @@ class OAuth2KtorClient(
     @Throws(IllegalArgumentException::class, CancellationException::class)
     private suspend fun postToken(
         oauthMetadata: OAuth2AuthorizationServerMetadata,
-        tokenRequest: TokenRequestParameters,
+        request: TokenRequestParameters,
         popAudience: String,
         retryCount: Int = 0,
-    ): TokenResponseWithDpopNonce = oauthMetadata.tokenEndpoint?.let { tokenEndpointUrl ->
-        Napier.i("postToken: $tokenEndpointUrl with $tokenRequest")
+    ): TokenResponseWithDpopNonce = oauthMetadata.tokenEndpoint?.let { url ->
+        Napier.i("postToken: $url with $request")
         val response = try {
             client.request {
-                url(tokenEndpointUrl)
+                url(url)
                 method = HttpMethod.Post
                 setBody(FormDataContent(parameters {
-                    tokenRequest.encodeToParameters().forEach { append(it.key, it.value) }
+                    request.encodeToParameters().forEach { append(it.key, it.value) }
                 }))
                 applyAuthnForToken(
-                    resourceUrl = tokenEndpointUrl,
+                    resourceUrl = url,
                     httpMethod = HttpMethod.Post,
                     useDpop = true,
                     authorizationServer = popAudience,
@@ -284,12 +284,12 @@ class OAuth2KtorClient(
                 )()
             }
         } catch (error: HttpErrorResponseException) {
-            return@let error.updateDpopNonceAndRetry(tokenEndpointUrl, retryCount) {
-                postToken(oauthMetadata, tokenRequest, popAudience, retryCount + 1)
+            return@let error.updateDpopNonceAndRetry(url, retryCount) {
+                postToken(oauthMetadata, request, popAudience, retryCount + 1)
             }
         }
         val dpopNonce = response.dpopNonce
-        updateDpopNonce(tokenEndpointUrl, dpopNonce)
+        updateDpopNonce(url, dpopNonce)
         TokenResponseWithDpopNonce(response.body(), dpopNonce)
     } ?: throw IllegalArgumentException("No tokenEndpoint in $oauthMetadata")
 
@@ -417,16 +417,17 @@ class OAuth2KtorClient(
         token: String,
         popAudience: String,
         retryCount: Int = 0,
-    ): TokenIntrospectionResponse = oauthMetadata.introspectionEndpoint?.let { introspectionUrl ->
+    ): TokenIntrospectionResponse = oauthMetadata.introspectionEndpoint?.let { url ->
+        Napier.i("callTokenIntrospection: $url with $request")
         val response = try {
             client.request {
-                url(introspectionUrl)
+                url(url)
                 method = HttpMethod.Post
                 setBody(FormDataContent(parameters {
                     request.encodeToParameters().forEach { append(it.key, it.value) }
                 }))
                 applyAuthnForToken(
-                    resourceUrl = introspectionUrl,
+                    resourceUrl = url,
                     httpMethod = HttpMethod.Post,
                     useDpop = true,
                     authorizationServer = popAudience,
@@ -434,11 +435,11 @@ class OAuth2KtorClient(
                 )()
             }
         } catch (error: HttpErrorResponseException) {
-            return@let error.updateDpopNonceAndRetry(introspectionUrl, retryCount) {
+            return@let error.updateDpopNonceAndRetry(url, retryCount) {
                 callTokenIntrospection(oauthMetadata, request, token, popAudience, retryCount + 1)
             }
         }
-        updateDpopNonce(introspectionUrl, response.dpopNonce)
+        updateDpopNonce(url, response.dpopNonce)
         parseTokenIntrospectionResponse(
             body = response.bodyAsText(),
             verifyTokenIntrospectionJwt = verifyTokenIntrospectionJwt,

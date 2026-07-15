@@ -7,7 +7,6 @@ import at.asitplus.openid.OpenIdConstants.WellKnownPaths
 import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenIntrospectionResponse
 import at.asitplus.openid.TokenResponseParameters
-import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.wallet.lib.DefaultNonceService
 import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.oauth2.OAuth2Client
@@ -22,7 +21,6 @@ import io.ktor.client.call.*
 import io.ktor.client.engine.*
 import io.ktor.client.plugins.cookies.*
 import io.ktor.client.request.*
-import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -63,19 +61,17 @@ class RemoteOAuth2AuthorizationServerAdapter(
     val dpopNonceService: NonceService = DefaultNonceService(),
 ) : OAuth2AuthorizationServerAdapter {
 
-    private val client = buildHttpClient(engine, httpClientConfig = httpClientConfig)
-
     private val _metadata: Deferred<OAuth2AuthorizationServerMetadata> by scope.lazyDeferred {
         catching { loadOauthASMetadata() }
             .getOrElse { loadOpenidConfiguration() }
     }
 
     private suspend fun loadOauthASMetadata() =
-        client.get(insertWellKnownPath(publicContext, WellKnownPaths.OauthAuthorizationServer))
+        oauth2Client.client.get(insertWellKnownPath(publicContext, WellKnownPaths.OauthAuthorizationServer))
             .body<OAuth2AuthorizationServerMetadata>()
 
     private suspend fun loadOpenidConfiguration() =
-        client.get(insertWellKnownPath(publicContext, WellKnownPaths.OpenidConfiguration))
+        oauth2Client.client.get(insertWellKnownPath(publicContext, WellKnownPaths.OpenidConfiguration))
             .body<OAuth2AuthorizationServerMetadata>()
 
     override suspend fun metadata(): OAuth2AuthorizationServerMetadata = _metadata.await()
@@ -125,7 +121,7 @@ class RemoteOAuth2AuthorizationServerAdapter(
         dpopNonce: String?,
         retryCount: Int = 0,
     ): JsonObject = try {
-        client.request {
+        oauth2Client.client.request {
             url(userInfoEndpoint)
             method = HttpMethod.Get
             oauth2Client.applyToken(params, userInfoEndpoint, HttpMethod.Get, dpopNonce)()

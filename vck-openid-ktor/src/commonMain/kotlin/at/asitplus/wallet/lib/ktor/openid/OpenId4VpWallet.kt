@@ -33,16 +33,18 @@ import kotlinx.serialization.Serializable
 
 /**
  * Implements the wallet side of
- * [Self-Issued OpenID Provider v2 - draft 13](https://openid.net/specs/openid-connect-self-issued-v2-1_0.html)
+ * [Self-Issued OpenID Provider v2](https://openid.net/specs/openid-connect-self-issued-v2-1_0.html)
  * and
- * [OpenID for Verifiable Presentations - draft 21](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html)
+ * [OpenID for Verifiable Presentations](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html)
  */
 class OpenId4VpWallet(
-    /** ktor engine to make requests to the verifier. */
+    /** ktor engine to make requests to the Relying Party. */
     engine: HttpClientEngine,
     /** Additional configuration for building the HTTP client, e.g. callers may enable logging. */
     httpClientConfig: (HttpClientConfig<*>.() -> Unit)? = null,
+    /** Key Material to be passed on to [OpenId4VpHolder] */
     keyMaterial: KeyMaterial,
+    /** Holder Agent to be passed on to [OpenId4VpHolder] */
     holderAgent: HolderAgent,
     /** Source for random bytes, i.e., nonces for encrypted responses. */
     randomSource: RandomSource = RandomSource.Secure,
