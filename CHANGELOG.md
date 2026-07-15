@@ -26,6 +26,8 @@ Release 7.0.0 (unreleased):
     - Deprecate abstract base class `AbstractMdocVerifier`
     - Extract `MdocDeviceSignatureVerifier` from `AbstractMdocVerifier`
     - Extract `VpTokenValidator` from common code in `OpenId4VpVerifier` and `DcApiVerifier`
+- OpenID for Verifiable Credential Issuance:
+    - Wallet does not send any proofs when the issuer doesn't [support any proof types](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-12.2.4-2.11.2.5.1)
 - JVM interoperability:
     - Add `@JvmOverloads` to public API constructors with default parameters across the published modules.
 - Refactorings:

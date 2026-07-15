@@ -101,7 +101,11 @@ val OidvciAttestationTest by matrixSuite {
                     resource = issuer.metadata.credentialIssuer
                 )
                 val input = authnRequest as RequestParameters
-                val authnResponse = authorizationService.authorize(input) { catching { dummyUser() } }.getOrThrow()
+                val authnResponse = authorizationService.authorize(input) {
+                    catching {
+                        OidcUserInfoExtended.deserialize("{\"sub\": \"foo\"}").getOrThrow()
+                    }
+                }.getOrThrow()
                     .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
                 val code = authnResponse.params?.code.shouldNotBeNull()
                 val tokenRequest = oauth2Client.createTokenRequestParameters(
@@ -553,8 +557,6 @@ private suspend fun WalletService.loadTestKeyAttestation(
         serializer = KeyAttestationJwt.serializer(),
     ).getOrThrow()
 }
-
-private fun dummyUser(): OidcUserInfoExtended = OidcUserInfoExtended.deserialize("{\"sub\": \"foo\"}").getOrThrow()
 
 private suspend fun buildValidKeyAttestation(
     signerKeyMaterial: KeyMaterial,

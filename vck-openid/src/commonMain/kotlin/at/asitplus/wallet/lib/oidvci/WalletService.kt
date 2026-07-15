@@ -329,7 +329,7 @@ class WalletService @JvmOverloads constructor(
                 clock = clock
             ).let { proof ->
                 it.copy(
-                    proofs = proof,
+                    proofs = proof.takeIf { it.jwt != null || it.attestation != null },
                     credentialResponseEncryption = encryptionService.credentialResponseEncryption(metadata)
                 )
             }
