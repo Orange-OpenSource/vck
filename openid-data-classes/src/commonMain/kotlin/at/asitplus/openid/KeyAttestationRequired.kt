@@ -20,9 +20,10 @@ data class KeyAttestationRequired(
     val userAuthentication: Collection<String>? = null,
 
     /**
-     * OPTIONAL. A duration specifying a PID or Attestation Provider's preference for the remaining validity period of the WUA it receives during issuance, in seconds.
-     * A Wallet Provider SHALL ensure that a Wallet Unit can always present a WUA with a remaining validity period of at least 31 days for their WSCD.
-     * See: https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md
+     * OPTIONAL. A duration specifying a PID or Attestation Provider's preference for the remaining status maintenance
+     * period (`key_storage_status.exp` minus current time) of the KA it receives during issuancej
+     * See
+     * [EUDI TS3](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md#24-life-cycle)
      */
     @SerialName("preferred_key_storage_status_period")
     @Serializable(with = DurationSecondsIntSerializer::class)

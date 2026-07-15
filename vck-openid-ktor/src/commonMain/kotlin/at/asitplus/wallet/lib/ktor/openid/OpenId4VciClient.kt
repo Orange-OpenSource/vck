@@ -144,6 +144,7 @@ class OpenId4VciClient(
                 issuerMetadata.authorizationServers
             ),
             scope = credentialIdentifierInfo.supportedCredentialFormat.scope,
+            issuerMetadata = issuerMetadata,
         ).getOrThrow().let {
             CredentialIssuanceResult.OpenUrlForAuthnRequest(
                 url = it.url,
@@ -185,7 +186,8 @@ class OpenId4VciClient(
             authorizationDetails = oid4vciService.buildAuthorizationDetails(
                 context.credential.credentialIdentifier,
                 context.issuerMetadata.authorizationServers
-            )
+            ),
+            issuerMetadata = context.issuerMetadata,
         ).getOrThrow()
 
         val credentialScheme = context.credential.supportedCredentialFormat.resolveCredentialScheme()
@@ -227,7 +229,8 @@ class OpenId4VciClient(
                 authorizationDetails = oid4vciService.buildAuthorizationDetails(
                     credentialIdentifier,
                     issuerMetadata.authorizationServers
-                )
+                ),
+                issuerMetadata = issuerMetadata,
             ).getOrThrow()
             Napier.i("Received token response")
             Napier.d("Received token response $tokenResponse")
@@ -379,7 +382,8 @@ class OpenId4VciClient(
                 preAuthorizedCode = preAuthorizedCode.preAuthorizedCode,
                 transactionCode = transactionCode,
                 scope = credentialIdentifierInfo.supportedCredentialFormat.scope,
-                authorizationDetails = authorizationDetails
+                authorizationDetails = authorizationDetails,
+                issuerMetadata = issuerMetadata,
             ).getOrThrow()
             Napier.i("Received token response")
             Napier.d("Received token response: $tokenResponse")
@@ -405,6 +409,7 @@ class OpenId4VciClient(
                     issuerMetadata.authorizationServers
                 ),
                 scope = credentialIdentifierInfo.supportedCredentialFormat.scope,
+                issuerMetadata = issuerMetadata,
             ).getOrThrow().let {
                 CredentialIssuanceResult.OpenUrlForAuthnRequest(
                     url = it.url,

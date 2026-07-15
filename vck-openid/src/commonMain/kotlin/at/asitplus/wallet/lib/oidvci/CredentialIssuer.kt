@@ -9,6 +9,7 @@ import at.asitplus.openid.CredentialRequestParameters
 import at.asitplus.openid.CredentialResponseParameters
 import at.asitplus.openid.IssuerMetadata
 import at.asitplus.openid.JwtVcIssuerMetadata
+import at.asitplus.openid.OAuth2AuthorizationServerMetadata
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.signum.indispensable.SignatureAlgorithm
@@ -35,6 +36,8 @@ import io.github.aakira.napier.Napier
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlin.jvm.JvmOverloads
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
 
 /**
  * Server implementation to issue credentials using OID4VCI.
@@ -99,6 +102,8 @@ class CredentialIssuer @JvmOverloads constructor(
     private val encryptionService: IssuerEncryptionService = IssuerEncryptionService(),
     /** Maps from/to strings in metadata from/to credential schemes. */
     private val credentialSchemeMapper: CredentialSchemeMapper = DefaultCredentialSchemeMapper(),
+    /** Used for [IssuerMetadata.preferredClientStatusPeriod]. */
+    private val preferredClientStatusPeriod: Duration? = 31.days,
 ) {
 
     sealed interface CredentialResponse {
@@ -151,6 +156,7 @@ class CredentialIssuer @JvmOverloads constructor(
             batchCredentialIssuance = BatchCredentialIssuanceMetadata(1),
             credentialResponseEncryption = encryptionService.metadataCredentialResponseEncryption,
             credentialRequestEncryption = encryptionService.metadataCredentialRequestEncryption,
+            preferredClientStatusPeriod = preferredClientStatusPeriod,
         )
     }
 

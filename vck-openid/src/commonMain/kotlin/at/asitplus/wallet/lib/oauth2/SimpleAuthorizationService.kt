@@ -153,7 +153,7 @@ class SimpleAuthorizationService @JvmOverloads constructor(
     private val requestObjectSigningAlgorithms: Set<JwsAlgorithm.Signature>? = setOf(JwsAlgorithm.Signature.ES256),
     /** Used for [OAuth2AuthorizationServerMetadata.clientAttestationSigningAlgValuesSupportedStrings] */
     private val supportedSigningAlgorithms: Set<JwsAlgorithm.Signature> = DEFAULT_WALLET_ATTESTATION_ALGORITHMS,
-    /** Used for [OAuth2AuthorizationServerMetadata.preferredClientStatusPeriod]. */
+    @Deprecated("Has been moved to [CredentialIssuer]")
     private val preferredClientStatusPeriod: Duration? = 31.days,
     /** Used to sign JWT introspection responses (RFC 9701). */
     private val signIntrospectionJwt: SignJwtFun<TokenIntrospectionResponse> =
@@ -183,7 +183,6 @@ class SimpleAuthorizationService @JvmOverloads constructor(
                 .map { it.identifier }.toSet(),
             clientAttestationPopSigningAlgValuesSupportedStrings = supportedSigningAlgorithms
                 .map { it.identifier }.toSet(),
-            preferredClientStatusPeriod = preferredClientStatusPeriod,
             dpopSigningAlgValuesSupportedStrings = tokenService.dpopSigningAlgValuesSupportedStrings,
             requestObjectSigningAlgorithmsSupportedStrings = requestObjectSigningAlgorithms
                 ?.map { it.identifier }?.toSet(),

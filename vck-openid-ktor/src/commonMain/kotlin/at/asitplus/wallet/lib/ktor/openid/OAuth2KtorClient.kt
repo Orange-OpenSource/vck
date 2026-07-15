@@ -5,10 +5,12 @@ import at.asitplus.catching
 import at.asitplus.catchingUnwrapped
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.AuthenticationResponseParameters
+import at.asitplus.openid.IssuerMetadata
 import at.asitplus.openid.JarRequestParameters
 import at.asitplus.openid.OAuth2AuthorizationServerMetadata
 import at.asitplus.openid.OpenIdAuthorizationDetails
 import at.asitplus.openid.OpenIdConstants
+import at.asitplus.openid.OpenIdConstants.AUTH_METHOD_ATTEST_JWT_CLIENT_AUTH
 import at.asitplus.openid.OpenIdConstants.TOKEN_TYPE_DPOP
 import at.asitplus.openid.PushedAuthenticationResponseParameters
 import at.asitplus.openid.RequestParameters
@@ -97,7 +99,14 @@ class OAuth2KtorClient(
     data class LoadInstanceAttestationInput(
         /** Value from [OAuth2AuthorizationServerMetadata.issuer] */
         val authorizationServer: String,
-        /** Value from [OAuth2AuthorizationServerMetadata.preferredClientStatusPeriod] */
+        /** Value from [at.asitplus.openid.IssuerMetadata.credentialIssuer] */
+        val credentialIssuer: String,
+        /**
+         * Value from [at.asitplus.openid.IssuerMetadata.preferredClientStatusPeriod].
+         * If the field is present then the Wallet Unit SHALL send the WIA available to them with
+         * `(client_status.exp - current time) - preferred_client_status_period` as small as possible but non-negative.
+         * If no such WIA is available to the Wallet Unit, it SHALL request a new WIA from the Wallet Provider that
+         * satisfies `client_status.exp - current time >= preferred_client_status_period.` */
         val preferredClientStatusPeriod: Duration?,
     )
 
@@ -136,6 +145,7 @@ class OAuth2KtorClient(
         transactionCode: String?,
         scope: String?,
         authorizationDetails: Set<OpenIdAuthorizationDetails>,
+        issuerMetadata: IssuerMetadata? = null,
     ): KmmResult<TokenResponseWithDpopNonce> = catching {
         Napier.i("requestTokenWithPreAuthorizedCode")
         val state = uuid4().toString()
@@ -148,7 +158,8 @@ class OAuth2KtorClient(
                 scope = scope,
                 authorizationDetails = if (!hasScope) authorizationDetails else null
             ),
-            popAudience = authorizationServer
+            popAudience = authorizationServer,
+            issuerMetadata = issuerMetadata,
         ).also {
             Napier.i("Received token response")
             Napier.d("Received token response: $it")
@@ -171,6 +182,7 @@ class OAuth2KtorClient(
         state: String,
         scope: String? = null,
         authorizationDetails: Set<OpenIdAuthorizationDetails>? = null,
+        issuerMetadata: IssuerMetadata? = null,
     ): KmmResult<TokenResponseWithDpopNonce> = catching {
         Napier.i("requestTokenWithAuthCode")
         Napier.d("requestTokenWithAuthCode: $url")
@@ -190,6 +202,7 @@ class OAuth2KtorClient(
                 authorizationDetails = if (!hasScope) authorizationDetails else null
             ),
             popAudience = authorizationServer,
+            issuerMetadata = issuerMetadata,
         ).also {
             Napier.i("Received token response")
             Napier.d("Received token response $it")
@@ -209,6 +222,7 @@ class OAuth2KtorClient(
         refreshToken: String,
         scope: String?,
         authorizationDetails: Set<OpenIdAuthorizationDetails>,
+        issuerMetadata: IssuerMetadata? = null,
     ): KmmResult<TokenResponseWithDpopNonce> = catching {
         Napier.i("refreshCredential")
         Napier.d("refreshCredential: $refreshToken")
@@ -222,6 +236,7 @@ class OAuth2KtorClient(
                 authorizationDetails = if (!hasScope) authorizationDetails else null
             ),
             popAudience = oauthMetadata.issuer,
+            issuerMetadata = issuerMetadata,
         )
         Napier.i("Received token response")
         Napier.d("Received token response $tokenResponse")
@@ -237,6 +252,7 @@ class OAuth2KtorClient(
         authorizationServer: String,
         subjectToken: String,
         resource: String?,
+        issuerMetadata: IssuerMetadata? = null,
     ): KmmResult<TokenResponseWithDpopNonce> = catching {
         Napier.i("requestTokenWithTokenExchange")
         Napier.d("requestTokenWithTokenExchange: $subjectToken")
@@ -249,7 +265,8 @@ class OAuth2KtorClient(
                 authorizationDetails = null,
                 resource = resource,
             ),
-            popAudience = authorizationServer
+            popAudience = authorizationServer,
+            issuerMetadata = issuerMetadata,
         )
         Napier.i("Received token response")
         Napier.d("Received token response $tokenResponse")
@@ -262,6 +279,7 @@ class OAuth2KtorClient(
         request: TokenRequestParameters,
         popAudience: String,
         retryCount: Int = 0,
+        issuerMetadata: IssuerMetadata? = null
     ): TokenResponseWithDpopNonce = oauthMetadata.tokenEndpoint?.let { url ->
         Napier.i("postToken: $url with $request")
         val response = try {
@@ -276,12 +294,13 @@ class OAuth2KtorClient(
                     httpMethod = HttpMethod.Post,
                     useDpop = true,
                     authorizationServer = popAudience,
-                    preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
+                    oauthMetadata = oauthMetadata,
+                    issuerMetadata = issuerMetadata,
                 )()
             }
         } catch (error: HttpErrorResponseException) {
             return@let error.updateDpopNonceAndRetry(url, retryCount) {
-                postToken(oauthMetadata, request, popAudience, retryCount + 1)
+                postToken(oauthMetadata, request, popAudience, retryCount + 1, issuerMetadata)
             }
         }
         val dpopNonce = response.dpopNonce
@@ -310,6 +329,7 @@ class OAuth2KtorClient(
         issuerState: String? = null,
         authorizationDetails: Set<OpenIdAuthorizationDetails>? = null,
         scope: String? = null,
+        issuerMetadata: IssuerMetadata? = null
     ) = catching {
         val authorizationEndpointUrl = oauthMetadata.authorizationEndpoint
             ?: throw Exception("no authorizationEndpoint in $oauthMetadata")
@@ -349,6 +369,7 @@ class OAuth2KtorClient(
                     authRequest = authRequest,
                     state = state,
                     popAudience = authorizationServer,
+                    issuerMetadata = issuerMetadata,
                 ).encodeToParameters().forEach {
                     builder.parameters.append(it.key, it.value)
                 }
@@ -373,33 +394,35 @@ class OAuth2KtorClient(
         state: String,
         popAudience: String,
         retryCount: Int = 0,
-    ): JarRequestParameters = oauthMetadata.pushedAuthorizationRequestEndpoint?.let { parEndpointUrl ->
+        issuerMetadata: IssuerMetadata? = null
+    ): JarRequestParameters = oauthMetadata.pushedAuthorizationRequestEndpoint?.let { url ->
         val response = try {
             client.request {
-                url(parEndpointUrl)
+                url(url)
                 method = HttpMethod.Post
                 setBody(FormDataContent(parameters {
                     authRequest.encodeToParameters().forEach { append(it.key, it.value) }
                     append(OpenIdConstants.PARAMETER_PROMPT, OpenIdConstants.PARAMETER_PROMPT_LOGIN)
                 }))
                 applyAuthnForToken(
-                    resourceUrl = parEndpointUrl,
+                    resourceUrl = url,
                     httpMethod = HttpMethod.Post,
                     useDpop = true,
                     authorizationServer = popAudience,
-                    preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
+                    oauthMetadata = oauthMetadata,
+                    issuerMetadata = issuerMetadata,
                 )()
             }
         } catch (error: HttpErrorResponseException) {
-            return@let error.updateDpopNonceAndRetry(parEndpointUrl, retryCount) {
-                pushAuthorizationRequest(oauthMetadata, authRequest, state, popAudience, retryCount + 1)
+            return@let error.updateDpopNonceAndRetry(url, retryCount) {
+                pushAuthorizationRequest(oauthMetadata, authRequest, state, popAudience, retryCount + 1, issuerMetadata)
             }
         }
-        updateDpopNonce(parEndpointUrl, response.dpopNonce)
+        updateDpopNonce(url, response.dpopNonce)
         JarRequestParameters(
             clientId = oAuth2Client.clientId,
             requestUri = response.body<PushedAuthenticationResponseParameters>().requestUri
-                ?: throw Exception("No request_uri from PAR response at $parEndpointUrl"),
+                ?: throw Exception("No request_uri from PAR response at $url"),
         )
     } ?: throw Exception("No pushedAuthorizationRequestEndpoint in $oauthMetadata")
 
@@ -413,6 +436,7 @@ class OAuth2KtorClient(
         token: String,
         popAudience: String,
         retryCount: Int = 0,
+        issuerMetadata: IssuerMetadata? = null,
     ): TokenIntrospectionResponse = oauthMetadata.introspectionEndpoint?.let { url ->
         Napier.i("callTokenIntrospection: $url with $request")
         val response = try {
@@ -427,7 +451,8 @@ class OAuth2KtorClient(
                     httpMethod = HttpMethod.Post,
                     useDpop = true,
                     authorizationServer = popAudience,
-                    preferredClientStatusPeriod = oauthMetadata.preferredClientStatusPeriod,
+                    oauthMetadata = oauthMetadata,
+                    issuerMetadata = issuerMetadata,
                 )()
             }
         } catch (error: HttpErrorResponseException) {
@@ -491,44 +516,42 @@ class OAuth2KtorClient(
      * - loads client attestation when [loadInstanceAttestation] is set
      * - sends a DPoP proof when [useDpop] is set
      */
-    suspend fun applyAuthnForToken(
+    internal suspend fun applyAuthnForToken(
         resourceUrl: String,
         httpMethod: HttpMethod,
         useDpop: Boolean,
         authorizationServer: String,
-        preferredClientStatusPeriod: Duration?,
+        oauthMetadata: OAuth2AuthorizationServerMetadata,
+        issuerMetadata: IssuerMetadata? = null,
     ): HttpRequestBuilder.() -> Unit {
-        val (clientAttJwt, clientAttPop) = when (loadInstanceAttestation != null) {
-            true -> {
-                val wia = loadInstanceAttestation.invoke(
-                    LoadInstanceAttestationInput(
-                        authorizationServer = authorizationServer,
-                        preferredClientStatusPeriod = preferredClientStatusPeriod,
-                    )
-                ).getOrThrow()
+        val (clientAttJwt, clientAttPop) = if (loadInstanceAttestation != null && oauthMetadata.supportsClientAuth()) {
+            val wia = loadInstanceAttestation.invoke(
+                LoadInstanceAttestationInput(
+                    authorizationServer = authorizationServer,
+                    credentialIssuer = issuerMetadata?.credentialIssuer ?: authorizationServer,
+                    preferredClientStatusPeriod = issuerMetadata?.preferredClientStatusPeriod,
+                )
+            ).getOrThrow()
 
-                val cnfKey = wia.payload.confirmationClaim?.jsonWebKey
-                require(cnfKey != null) { "Instance attestation has no cnf.jwk — PoP key cannot be verified" }
-                require(cnfKey.jwkThumbprint == keyMaterial.jsonWebKey.jwkThumbprint) {
-                    "keyMaterial does not match the cnf key in the instance attestation. " +
-                            "The PoP JWT will not verify on the server. " +
-                            "Expected cnf thumbprint: ${cnfKey.jwkThumbprint}, " +
-                            "got keyMaterial thumbprint: ${keyMaterial.jsonWebKey.jwkThumbprint}"
-                }
-
-                val pop = catching {
-                    BuildClientAttestationPoPJwt.invoke(
-                        signJwt = SignJwt(keyMaterial, JwsHeaderNone()),
-                        clientId = oAuth2Client.clientId,
-                        audience = authorizationServer,
-                        nonce = null // TODO: Add nonce after backend implementation is ready
-                    )
-                }.getOrThrow()
-                wia.jws to pop.jws
+            val cnfKey = wia.payload.confirmationClaim?.jsonWebKey
+            require(cnfKey != null) { "Instance attestation has no cnf.jwk — PoP key cannot be verified" }
+            require(cnfKey.jwkThumbprint == keyMaterial.jsonWebKey.jwkThumbprint) {
+                "keyMaterial does not match the cnf key in the instance attestation. " +
+                        "The PoP JWT will not verify on the server. " +
+                        "Expected cnf thumbprint: ${cnfKey.jwkThumbprint}, " +
+                        "got keyMaterial thumbprint: ${keyMaterial.jsonWebKey.jwkThumbprint}"
             }
 
-            else -> null to null
-        }
+            val pop = catching {
+                BuildClientAttestationPoPJwt.invoke(
+                    signJwt = SignJwt(keyMaterial, JwsHeaderNone()),
+                    clientId = oAuth2Client.clientId,
+                    audience = authorizationServer,
+                    nonce = null // TODO: Add nonce after backend implementation is ready
+                )
+            }.getOrThrow()
+            wia.jws to pop.jws
+        } else null to null
 
         val dpopHeader = useDpop.takeIf { it }?.let {
             BuildDPoPHeader(
@@ -548,6 +571,9 @@ class OAuth2KtorClient(
             }
         }
     }
+
+    private fun OAuth2AuthorizationServerMetadata.supportsClientAuth(): Boolean =
+        tokenEndPointAuthMethodsSupported?.contains(AUTH_METHOD_ATTEST_JWT_CLIENT_AUTH) == true
 }
 
 val HttpHeaders.OAuthClientAttestation: String
