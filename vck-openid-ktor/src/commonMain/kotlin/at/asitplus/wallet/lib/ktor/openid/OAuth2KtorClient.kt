@@ -59,6 +59,8 @@ import kotlin.time.Duration
  *  * [OAuth 2.0 Demonstrating Proof of Possession (DPoP)](https://datatracker.ietf.org/doc/html/rfc9449)
  *  * [OAuth 2.0 Attestation-Based Client Authentication](https://www.ietf.org/archive/id/draft-ietf-oauth-attestation-based-client-auth-04.html)
  *  * [OAuth 2.0 Pushed Authorization Requests](https://datatracker.ietf.org/doc/html/rfc9126)
+ *  * [JSON Web Token (JWT) Response for OAuth Token Introspection](https://datatracker.ietf.org/doc/html/rfc9701)
+ *  * [EUDI TS3 Wallet Unit Attestation 1.5.2](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md)
  */
 class OAuth2KtorClient(
     /** ktor engine to use to make requests to issuing service. */
@@ -70,19 +72,10 @@ class OAuth2KtorClient(
     cookiesStorage: CookiesStorage? = null,
     /** Additional configuration for building the HTTP client, e.g. callers may enable logging. */
     httpClientConfig: (HttpClientConfig<*>.() -> Unit)? = null,
-    /**
-     * Used to prove possession of the key material for the instance attestation.
-     * Also used for the DPoP signing function. (ts3-wallet-unit-attestation 1.5.1)
-     */
-    val keyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
-
-    /**
-     * DPoP sign function
-     * Uses instance attestation key material (ts3-wallet-unit-attestation 1.5.1)
-     **/
-    @Deprecated("Gets removed from the constructor in near future. Customization unnecessary because of ts3-wallet-unit-attestation 1.5.1")
-    private val signDpop: SignJwtFun<JsonWebToken> = SignJwt(keyMaterial = keyMaterial, JwsHeaderCertOrJwk()),
-
+    /** Used to prove possession of the key material for the instance attestation. */
+    private val keyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
+    /** Used to calculate DPoP, i.e. the key the access token and refresh token gets bound to.**/
+    private val signDpop: SignJwtFun<JsonWebToken> = SignJwt(EphemeralKeyWithoutCert(), JwsHeaderCertOrJwk()),
     /**
      * Implements OAuth2 protocol, `redirectUrl` needs to be registered by the OS for this application, so redirection
      * back from browser works
@@ -90,20 +83,23 @@ class OAuth2KtorClient(
     val oAuth2Client: OAuth2Client,
     /** Source for random bytes, i.e., nonces for proof-of-possession of key material for sender-constrained tokens. */
     private val randomSource: RandomSource = RandomSource.Secure,
-    /**
-     * Verifies signed token introspection responses (RFC 9701). By default, every syntactically valid JWS is accepted.
-     */
+    /** Verifies signed token introspection responses. By default, every syntactically valid JWS is accepted. */
     private val verifyTokenIntrospectionJwt: suspend (JwsCompactTyped<TokenIntrospectionResponse>) -> Boolean = { true },
-
-    /** Returns a new instance attestation to validate the app against an authorization server. */
+    /**
+     * Return a new Wallet Instance Attestation (WIA) to authenticate the Wallet App to the
+     * Authorization Service with OAuth Attestation Based Client Auth.
+     * Returned JWT MUST reference [keyMaterial] in [JsonWebToken.confirmationClaim].
+     */
     val loadInstanceAttestation: (suspend (LoadInstanceAttestationInput) -> KmmResult<JwsCompactTyped<JsonWebToken>>)? = null,
+) {
 
-    ) {
+    /** Used in [OAuth2KtorClient.loadInstanceAttestation] to provide information about the authorization server. */
     data class LoadInstanceAttestationInput(
+        /** Value from [OAuth2AuthorizationServerMetadata.issuer] */
         val authorizationServer: String,
+        /** Value from [OAuth2AuthorizationServerMetadata.preferredClientStatusPeriod] */
         val preferredClientStatusPeriod: Duration?,
     )
-
 
     /**
      * Stores the latest DPoP nonce per origin. RFC 9449 requires using only the most recent nonce
@@ -509,33 +505,29 @@ class OAuth2KtorClient(
                         authorizationServer = authorizationServer,
                         preferredClientStatusPeriod = preferredClientStatusPeriod,
                     )
-                ).getOrElse { throw Exception("Unable to load instance attestation $it") }
+                ).getOrThrow()
 
                 val cnfKey = wia.payload.confirmationClaim?.jsonWebKey
-                    ?: throw Exception("Instance attestation has no cnf.jwk — PoP key cannot be verified")
-                if (cnfKey.jwkThumbprint != keyMaterial.jsonWebKey.jwkThumbprint) {
-                    throw Exception(
-                        "keyMaterial does not match the cnf key in the instance attestation. " +
-                        "The PoP JWT will not verify on the server. " +
-                        "Expected cnf thumbprint: ${cnfKey.jwkThumbprint}, " +
-                        "got keyMaterial thumbprint: ${keyMaterial.jsonWebKey.jwkThumbprint}"
-                    )
+                require(cnfKey != null) { "Instance attestation has no cnf.jwk — PoP key cannot be verified" }
+                require(cnfKey.jwkThumbprint == keyMaterial.jsonWebKey.jwkThumbprint) {
+                    "keyMaterial does not match the cnf key in the instance attestation. " +
+                            "The PoP JWT will not verify on the server. " +
+                            "Expected cnf thumbprint: ${cnfKey.jwkThumbprint}, " +
+                            "got keyMaterial thumbprint: ${keyMaterial.jsonWebKey.jwkThumbprint}"
                 }
 
-                wia.jws to catching {
+                val pop = catching {
                     BuildClientAttestationPoPJwt.invoke(
                         signJwt = SignJwt(keyMaterial, JwsHeaderNone()),
                         clientId = oAuth2Client.clientId,
                         audience = authorizationServer,
                         nonce = null // TODO: Add nonce after backend implementation is ready
                     )
-                }.getOrElse { throw Exception("Unable to build instance attestation pop jwt $it") }
-                    .jws
+                }.getOrThrow()
+                wia.jws to pop.jws
             }
 
-            else -> {
-                null to null
-            }
+            else -> null to null
         }
 
         val dpopHeader = useDpop.takeIf { it }?.let {

@@ -36,8 +36,8 @@ object BuildDPoPHeader {
         nonce: String? = null,
         randomSource: RandomSource = RandomSource.Secure
     ): JwsCompactTyped<JsonWebToken> = signDpop(
-        JwsContentTypeConstants.DPOP_JWT,
-        JsonWebToken(
+        type = JwsContentTypeConstants.DPOP_JWT,
+        payload = JsonWebToken(
             jwtId = randomSource.nextBytes(12).encodeToString(Base64UrlStrict),
             httpMethod = httpMethod,
             httpTargetUrl = url,
@@ -47,7 +47,7 @@ object BuildDPoPHeader {
         ).also {
             Napier.d("Building DPoP JWT: $it")
         },
-        JsonWebToken.serializer(),
+        serializer = JsonWebToken.serializer(),
     ).getOrThrow()
 }
 
@@ -85,8 +85,8 @@ object BuildClientAttestationJwt {
         lifetime: Duration = 60.minutes,
         clockSkew: Duration = 3.minutes,
     ): JwsCompactTyped<JsonWebToken> = signJwt(
-        JwsContentTypeConstants.CLIENT_ATTESTATION_JWT,
-        JsonWebToken(
+        type = JwsContentTypeConstants.CLIENT_ATTESTATION_JWT,
+        payload = JsonWebToken(
             subject = clientId,
             issuedAt = Clock.System.now().truncateToSeconds() - clockSkew.absoluteValue,
             expiration = Clock.System.now().truncateToSeconds() - clockSkew.absoluteValue +
@@ -102,7 +102,7 @@ object BuildClientAttestationJwt {
         ).also {
             Napier.d("Building client attestation JWT: $it")
         },
-        JsonWebToken.serializer(),
+        serializer = JsonWebToken.serializer(),
     ).getOrThrow()
 
     private fun defaultClientStatus(): JsonObject = buildJsonObject {
@@ -134,8 +134,8 @@ object BuildClientAttestationPoPJwt {
         clockSkew: Duration = 3.minutes,
         randomSource: RandomSource = RandomSource.Secure
     ): JwsCompactTyped<JsonWebToken> = signJwt(
-        JwsContentTypeConstants.CLIENT_ATTESTATION_POP_JWT,
-        JsonWebToken(
+        type = JwsContentTypeConstants.CLIENT_ATTESTATION_POP_JWT,
+        payload = JsonWebToken(
             issuer = clientId,
             audience = audience,
             jwtId = randomSource.nextBytes(12).encodeToString(Base64UrlStrict),
@@ -145,6 +145,6 @@ object BuildClientAttestationPoPJwt {
         ).also {
             Napier.d("Building client attestation PoP JWT: $it")
         },
-        JsonWebToken.serializer(),
+        serializer = JsonWebToken.serializer(),
     ).getOrThrow()
 }
