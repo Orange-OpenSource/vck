@@ -22,9 +22,14 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 
+/**
+ * Standard members of an [RFC 9457 problem details object](https://www.rfc-editor.org/rfc/rfc9457.html#section-3.1).
+ * [type] defaults to `about:blank`; problem-specific members are retained in [extensions].
+ */
 data class ProblemDetails(
     val type: String = "about:blank",
     val status: Int? = null,
@@ -34,6 +39,7 @@ data class ProblemDetails(
     val extensions: JsonObject = JsonObject(emptyMap()),
 )
 
+/** A non-success HTTP response with its OAuth or RFC 9457 error details, when available. */
 class HttpErrorResponseException(
     response: HttpResponse,
     val responseBody: String,
@@ -85,7 +91,7 @@ private fun HttpClientConfig<*>.installResponseValidation() {
                 responseBody = body,
                 oauth2Error = json?.let {
                     catchingUnwrapped {
-                        joseCompliantSerializer.decodeFromJsonElement(OAuth2Error.serializer(), it)
+                        joseCompliantSerializer.decodeFromJsonElement<OAuth2Error>(it)
                     }.getOrNull()
                 },
                 problemDetails = json?.takeIf {
@@ -96,18 +102,25 @@ private fun HttpClientConfig<*>.installResponseValidation() {
     }
 }
 
-private val problemDetailsMembers = setOf("type", "title", "status", "detail", "instance")
+private object SerialNames {
+    const val TYPE = "type"
+    const val TITLE = "title"
+    const val STATUS = "status"
+    const val DETAIL = "detail"
+    const val INSTANCE = "instance"
+    val AllMembers = setOf(TYPE, TITLE, STATUS, DETAIL, INSTANCE)
+}
 
 private fun JsonObject.toProblemDetails() = ProblemDetails(
-    type = string("type") ?: "about:blank",
-    status = (get("status") as? JsonPrimitive)
+    type = string(SerialNames.TYPE) ?: "about:blank",
+    status = (get(SerialNames.STATUS) as? JsonPrimitive)
         ?.takeUnless { it.isString }
         ?.intOrNull
         ?.takeIf { it in 100..599 },
-    title = string("title"),
-    detail = string("detail"),
-    instance = string("instance"),
-    extensions = JsonObject(filterKeys { it !in problemDetailsMembers }),
+    title = string(SerialNames.TITLE),
+    detail = string(SerialNames.DETAIL),
+    instance = string(SerialNames.INSTANCE),
+    extensions = JsonObject(filterKeys { it !in SerialNames.AllMembers }),
 )
 
 private fun JsonObject.string(name: String) = (get(name) as? JsonPrimitive)
