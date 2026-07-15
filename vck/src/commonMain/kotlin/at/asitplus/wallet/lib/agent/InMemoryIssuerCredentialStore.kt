@@ -17,6 +17,7 @@ import kotlin.time.Instant
 class InMemoryIssuerCredentialStore(
     val tokenStatusBitSize: TokenStatusBitSize = TokenStatusBitSize.ONE,
 ) : IssuerCredentialStore, ReferencedTokenStore {
+    // TODO Check if necessary
     private val indexMutex = Mutex()
 
     data class Credential(
@@ -96,7 +97,8 @@ class InMemoryIssuerCredentialStore(
      * Set the [status] of the referenced token with this [index] for the [timePeriod], if it exists.
      *
      * If [status] is [TokenStatus.Invalid] the associated identifier will be added to [identifierRevocationList]
-     * Note that ISO 18-013 does not support any action besides full revocation. If a credential has been suspended it remains suspended.
+     * Note that ISO 18-013 does not support any action besides full revocation.
+     * If a credential has been suspended, it remains suspended.
      *
      * Care must be taken to handle drift between the two systems and it is recommended to use only one at a time.
      */
@@ -122,7 +124,8 @@ class InMemoryIssuerCredentialStore(
      * Set the status of the referenced token with this [identifier] for the [timePeriod] to revoked, if it exists.
      * Additionally the `TokenStatus` at the associated `StatusListIndex` is also automatically set to invalid
      *
-     * ISO 18-013 does not support any action besides full revocation. If a credential has been suspended it remains suspended
+     * ISO 18-013 does not support any action besides full revocation.
+     * If a credential has been suspended, it remains suspended.
      */
     override fun revokeIdentifier(
         timePeriod: Int,

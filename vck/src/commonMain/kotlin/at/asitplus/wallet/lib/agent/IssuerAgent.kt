@@ -62,9 +62,12 @@ import kotlin.time.Instant
  * An agent that implements [Issuer], i.e., it issues credentials for other agents.
  */
 class IssuerAgent @JvmOverloads constructor(
+    /** Key material used to sign credentials in [signIssuedVc], [signIssuedSdJwt], [signMobileSecurityObject]. */
     override val keyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
     private val issuerCredentialStore: IssuerCredentialStore = InMemoryIssuerCredentialStore(),
+    @Suppress("unused") @Deprecated("Set value for statusListAgent instead")
     private val statusListBaseUrl: String = "https://wallet.a-sit.at/backend/credentials/status",
+    @Suppress("unused") @Deprecated("Set value for statusListAgent instead")
     private val identifierListBaseUrl: String = "https://wallet.a-sit.at/backend/credentials/identifier",
     private val clock: Clock = Clock.System,
     /** Time to adjust the [Clock.now] for issuance date of credentials. */
@@ -73,12 +76,18 @@ class IssuerAgent @JvmOverloads constructor(
     private val timePeriodProvider: TimePeriodProvider = FixedTimePeriodProvider,
     /** The identifier used in `issuer` properties of credentials (JWT VC and SD JWT). */
     private val identifier: UniformResourceIdentifier,
-    private val signIssuedSdJwt: SignJwtExtFun<JsonObject> = SignJwtExt(keyMaterial, JwsHeaderCertOrJwk()),
-    private val signIssuedVc: SignJwtFun<VerifiableCredentialJws> = SignJwt(keyMaterial, JwsHeaderCertOrJwk()),
+    private val signIssuedSdJwt: SignJwtExtFun<JsonObject> =
+        SignJwtExt(keyMaterial, JwsHeaderCertOrJwk()),
+    private val signIssuedVc: SignJwtFun<VerifiableCredentialJws> =
+        SignJwt(keyMaterial, JwsHeaderCertOrJwk()),
     private val signMobileSecurityObject: SignCoseFun<MobileSecurityObject> =
         SignCose(keyMaterial, CoseHeaderNone(), CoseHeaderCertificate()),
     /** Source for random bytes, i.e., salts for selective-disclosure items. */
     private val randomSource: RandomSource = RandomSource.Secure,
+    /** Set if we want to set the `status` claim of issued credentials to point to a Status List */
+    private val statusListAgent: StatusListAgent? = StatusListAgent(
+        issuerCredentialStore = issuerCredentialStore as? InMemoryIssuerCredentialStore ?: InMemoryIssuerCredentialStore(),
+    )
 ) : Issuer {
 
     /**
@@ -96,7 +105,6 @@ class IssuerAgent @JvmOverloads constructor(
         }
     }
 
-
     private suspend fun issueMdoc(
         credential: CredentialToBeIssued.Iso,
         issuanceDate: Instant,
@@ -108,17 +116,19 @@ class IssuerAgent @JvmOverloads constructor(
             .getOrElse { throw IllegalStateException("Could not create subject COSE key", it) }
         val deviceKeyInfo = DeviceKeyInfo(coseKey)
 
-        val credentialStatus = when (credential.revocationKind) {
-            RevocationList.Kind.STATUS_LIST -> StatusListInfo(
-                index = reference.statusListIndex,
-                uri = UniformResourceIdentifier(getStatusListUrlFor(timePeriod)),
-            )
+        val credentialStatus = statusListAgent?.let {
+            when (credential.revocationKind) {
+                RevocationList.Kind.STATUS_LIST -> StatusListInfo(
+                    index = reference.statusListIndex,
+                    uri = UniformResourceIdentifier(statusListAgent.getStatusListUrlFor(timePeriod)),
+                )
 
-            RevocationList.Kind.IDENTIFIER_LIST -> IdentifierListInfo(
-                identifier = reference.id.encodeToByteArray(),
-                uri = UniformResourceIdentifier(getIdentifierListUrlFor(timePeriod)),
-                certificate = null //TODO
-            )
+                RevocationList.Kind.IDENTIFIER_LIST -> IdentifierListInfo(
+                    identifier = reference.id.encodeToByteArray(),
+                    uri = UniformResourceIdentifier(statusListAgent.getIdentifierListUrlFor(timePeriod)),
+                    certificate = null //TODO statusListAgent.certificate()
+                )
+            }
         }
         val mso = MobileSecurityObject(
             version = "1.0",
@@ -165,10 +175,12 @@ class IssuerAgent @JvmOverloads constructor(
         val expirationDate = credential.expiration
         val timePeriod = timePeriodProvider.getTimePeriodFor(issuanceDate)
         val reference = issuerCredentialStore.createStoredCredentialReference(credential, timePeriod).getOrThrow()
-        val credentialStatus = StatusListInfo(
-            index = reference.statusListIndex,
-            uri = UniformResourceIdentifier(getStatusListUrlFor(timePeriod)),
-        )
+        val credentialStatus = statusListAgent?.let {
+            StatusListInfo(
+                index = reference.statusListIndex,
+                uri = UniformResourceIdentifier(statusListAgent.getStatusListUrlFor(timePeriod)),
+            )
+        }
         val vc = VerifiableCredential(
             id = vcId,
             issuer = identifier.string,
@@ -206,10 +218,12 @@ class IssuerAgent @JvmOverloads constructor(
         val timePeriod = timePeriodProvider.getTimePeriodFor(issuanceDate)
         val subjectId = credential.subjectPublicKey.didEncoded // TODO not necessarily!
         val reference = issuerCredentialStore.createStoredCredentialReference(credential, timePeriod).getOrThrow()
-        val credentialStatus = StatusListInfo(
-            index = reference.statusListIndex,
-            uri = UniformResourceIdentifier(getStatusListUrlFor(timePeriod)),
-        )
+        val credentialStatus = statusListAgent?.let {
+            StatusListInfo(
+                index = reference.statusListIndex,
+                uri = UniformResourceIdentifier(statusListAgent.getStatusListUrlFor(timePeriod)),
+            )
+        }
         val (sdJwt, disclosures) = credential.claims.toSdJsonObject(randomSource, credential.sdAlgorithm)
         val cnf = ConfirmationClaim(jsonWebKey = credential.subjectPublicKey.toJsonWebKey())
         val vcSdJwt = VerifiableCredentialSdJwt(
@@ -251,14 +265,6 @@ class IssuerAgent @JvmOverloads constructor(
         ).also {
             issuerCredentialStore.updateStoredCredential(reference, it).getOrThrow()
         }
-    }
-
-    private fun getStatusListUrlFor(timePeriod: Int) = statusListBaseUrl.let {
-        it + (if (!it.endsWith('/')) "/" else "") + timePeriod
-    }
-
-    private fun getIdentifierListUrlFor(timePeriod: Int) = identifierListBaseUrl.let {
-        it + (if (!it.endsWith('/')) "/" else "") + timePeriod
     }
 
     private fun VerifiableCredential.toJws() = VerifiableCredentialJws(

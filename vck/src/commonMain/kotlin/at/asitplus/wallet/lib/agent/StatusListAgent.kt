@@ -38,7 +38,8 @@ import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
 
 /**
- * An agent that implements [StatusListIssuer], i.e. it manages status of credentials and status lists.
+ * An agent that implements [StatusListIssuer] for a Status Issuer in the sense of
+ * [Token Status List (TSL)](https://www.ietf.org/archive/id/draft-ietf-oauth-status-list-21.html).
  */
 class StatusListAgent @JvmOverloads constructor(
     /** Should either be [PublishedKeyMaterial] or contain a certificate, so clients can look up the key. */
@@ -76,7 +77,10 @@ class StatusListAgent @JvmOverloads constructor(
     override suspend fun issueStatusListCwt(time: Instant?, kind: RevocationList.Kind) =
         issueStatusListCwt(time.toTimePeriod(), kind)
 
-    override suspend fun issueStatusListJwt(timePeriod: Int, kind: RevocationList.Kind): JwsCompactTyped<StatusListTokenPayload> =
+    override suspend fun issueStatusListJwt(
+        timePeriod: Int,
+        kind: RevocationList.Kind
+    ): JwsCompactTyped<StatusListTokenPayload> =
         catching {
             require(kind == RevocationList.Kind.STATUS_LIST) { "JWT only supports revocation list kind StatusList" }
         }.transform {
@@ -100,6 +104,7 @@ class StatusListAgent @JvmOverloads constructor(
                 throw IllegalStateException("Status token could not be created", it)
             }
         }
+
     private fun RevocationList.Kind.mediaType(): String =
         if (this == RevocationList.Kind.STATUS_LIST)
             MediaTypes.Application.STATUSLIST_CWT
@@ -211,11 +216,11 @@ class StatusListAgent @JvmOverloads constructor(
         return list
     }
 
-    private fun getStatusListUrlFor(timePeriod: Int) = statusListBaseUrl.let {
+    internal fun getStatusListUrlFor(timePeriod: Int) = statusListBaseUrl.let {
         it + (if (!it.endsWith('/')) "/" else "") + timePeriod
     }
 
-    private fun getIdentifierListUrlFor(timePeriod: Int) = identifierListBaseUrl.let {
+    internal fun getIdentifierListUrlFor(timePeriod: Int) = identifierListBaseUrl.let {
         it + (if (!it.endsWith('/')) "/" else "") + timePeriod
     }
 

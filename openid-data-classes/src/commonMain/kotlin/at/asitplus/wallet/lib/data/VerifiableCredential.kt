@@ -70,7 +70,7 @@ data class VerifiableCredential(
         issuer: String,
         issuanceDate: Instant,
         expirationDate: Instant?,
-        credentialStatus: RevocationListInfo,
+        credentialStatus: RevocationListInfo?,
         credentialSubject: JsonElement,
         credentialType: String,
     ) : this(
