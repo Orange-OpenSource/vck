@@ -38,7 +38,8 @@ internal class UrlSessionTranscriptCalculator(
         clientIdRequired: Boolean,
         origin: String?
     ): SessionTranscript {
-        require((!clientIdRequired || clientId != null)) { "Missing required parameter: clientId" }
+        require(clientIdRequired) { "clientId for OpenID4VP is always required" }
+        require(clientId != null) { "Missing required parameter: clientId" }
         require(responseUrl != null) { "Missing required parameter: responseUrl" }
         require(input.originalResponseParameters !is ResponseParametersFrom.DcApi) {
             "DCAPI verification is not supported, use DcApiVerifier"

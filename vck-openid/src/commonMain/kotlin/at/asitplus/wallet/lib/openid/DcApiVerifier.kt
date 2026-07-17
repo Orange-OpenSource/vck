@@ -337,7 +337,7 @@ class DcApiVerifier @JvmOverloads constructor(
 
     private fun AuthnResponseResult.isFullyValid(): Boolean =
         vpTokenValidationResult?.isFailure != true &&
-                (vpTokenValidationResult?.getOrNull()?.isFullyValid() ?: true)
+                (vpTokenValidationResult?.getOrNull()?.isFullyValid() ?: false)
 
     private fun VpTokenValidationResult.isFullyValid(): Boolean =
         presentationResults.all { it.isSuccess } &&

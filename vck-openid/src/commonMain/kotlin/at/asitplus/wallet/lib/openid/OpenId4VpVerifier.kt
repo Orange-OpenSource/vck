@@ -306,7 +306,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     private fun AuthnResponseResult.isFullyValid(): Boolean =
         idTokenValidationResult?.isFailure != true &&
                 vpTokenValidationResult?.isFailure != true &&
-                (vpTokenValidationResult?.getOrNull()?.isFullyValid() ?: true)
+                (vpTokenValidationResult?.getOrNull()?.isFullyValid() ?: false)
 
     private fun VpTokenValidationResult.isFullyValid(): Boolean =
         presentationResults.all { it.isSuccess } &&
