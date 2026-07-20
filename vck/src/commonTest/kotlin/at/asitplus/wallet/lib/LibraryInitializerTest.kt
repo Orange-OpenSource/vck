@@ -16,8 +16,13 @@ import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.JsonCredentialSerializer
 import com.benasher44.uuid.uuid4
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlin.random.Random
 
@@ -39,6 +44,27 @@ private data class TestCredentialScheme(
 ) : CredentialScheme
 
 val LibraryInitializerTest by matrixSuite {
+    "serializer registration is safe when extension libraries initialize concurrently" {
+        data class ConcurrentValue(val id: String)
+
+        val prefix = uuid4().toString()
+        coroutineScope {
+            (0 until 1000).map { index ->
+                launch(Dispatchers.Default) {
+                    val id = "$prefix-$index"
+                    JsonCredentialSerializer.register { value ->
+                        (value as? ConcurrentValue)?.takeIf { it.id == id }?.let { JsonPrimitive(it.id) }
+                    }
+                }
+            }.joinAll()
+        }
+
+        (0 until 1000).forEach { index ->
+            val id = "$prefix-$index"
+            JsonCredentialSerializer.encode(ConcurrentValue(id)) shouldBe JsonPrimitive(id)
+        }
+    }
+
     "registerExtensionLibrary registers schemes without serializer modules" {
         val deprecatedScheme = DeprecatedTestCredentialScheme(
             vcType = "TestCredential-${uuid4()}",
