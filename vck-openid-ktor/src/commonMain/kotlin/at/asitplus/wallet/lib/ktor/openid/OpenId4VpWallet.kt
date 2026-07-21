@@ -14,6 +14,9 @@ import at.asitplus.wallet.lib.data.CredentialPresentation
 import at.asitplus.wallet.lib.oidvci.encodeToParameters
 import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.AuthorizationResponsePreparationState
+import at.asitplus.wallet.lib.openid.DcApiHolder
+import at.asitplus.wallet.lib.openid.DcApiPreparationState
+import at.asitplus.wallet.lib.openid.Iso180137AnnexCHolder
 import at.asitplus.wallet.lib.openid.OpenId4VpHolder
 import io.github.aakira.napier.Napier
 import io.ktor.client.*
@@ -96,6 +99,18 @@ class OpenId4VpWallet(
         requestObjectJwsVerifier = { _ -> true }, // unsure about this one?
     )
 
+    val iso180137AnnexCHolder = Iso180137AnnexCHolder(
+        holder = holderAgent,
+        keyMaterial = keyMaterial,
+    )
+
+    val dcApiHolder = DcApiHolder(
+        keyMaterial = keyMaterial,
+        holder = holderAgent,
+        openId4VpHolder = openId4VpHolder,
+        iso180137AnnexCHolder = iso180137AnnexCHolder,
+    )
+
     /**
      * Sends an error response with the appropriate method.
      * Returns nothing as we don't expect a useful response from the remote verifier.
@@ -126,6 +141,12 @@ class OpenId4VpWallet(
         input: String,
     ): KmmResult<AuthorizationResponsePreparationState> =
         openId4VpHolder.startAuthorizationResponsePreparation(input)
+
+    /** Prepares either an OpenID4VP or Annex C request received through the Digital Credentials API. */
+    suspend fun prepareDcApiRequest(
+        request: RequestParametersFrom.DcApiRequest,
+    ): KmmResult<DcApiPreparationState> =
+        dcApiHolder.startAuthorizationResponsePreparation(request)
 
     /**
      * Calls [openId4VpHolder] to finalize the authentication response.
@@ -202,6 +223,24 @@ class OpenId4VpWallet(
         preparationState: AuthorizationResponsePreparationState,
     ) = catching {
         openId4VpHolder.getMatchingCredentials(preparationState).getOrThrow()
+    }
+
+    /** Matches credentials through the protocol handler captured by [state]. */
+    suspend fun getMatchingCredentials(
+        state: DcApiPreparationState,
+    ) = catching {
+        dcApiHolder.getMatchingCredentials(state).getOrThrow()
+    }
+
+    /** Finalizes [state] into a platform-independent Digital Credentials API response model. */
+    suspend fun finalizeDcApiResponse(
+        state: DcApiPreparationState,
+        credentialPresentation: CredentialPresentation? = null,
+    ) = catching {
+        dcApiHolder.finalizeAuthorizationResponse(
+            state = state,
+            credentialPresentation = credentialPresentation,
+        ).getOrThrow()
     }
 
     /**

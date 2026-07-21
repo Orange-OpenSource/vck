@@ -20,6 +20,11 @@ Release 7.0.0 (unreleased):
     - Consolidate interface of `OpenId4VpVerifier`: All clients should use `createAuthnRequest()`, so we deprecate methods `submitAuthnRequest()` or `createAuthnRequestAsSignedRequestObject()`
     - Extract `DcApiVerifier` as a pendant to `OpenId4VpVerifier` which handles DCAPI requests only, deprecating `Iso180137AnnexCVerifier`
     - Move `CreationOptions` and `CreatedRequest` to upper level (`at.asitplus.wallet.lib.openid`) instead of nesting in `OpenId4VpVerifier`
+- Digital Credentials API:
+    - Add `DcApiHolder` as the unified wallet-side entry point for OpenID4VP and ISO/IEC 18013-7 Annex C requests received through the Digital Credentials API.
+    - Add platform response codecs for Android JSON and iOS ISO/IEC 18013-7 Annex C bytes without introducing platform dependencies.
+    - Add request-option conversion helpers that combine a selected DC API protocol with trusted platform metadata into `RequestParametersFrom.DcApiRequest`.
+    - Add the iOS-specific `IosDcApiMdocPreRequestSummary` model for pre-request credential matching and consistency checks against the full Annex C request.
 - Verifier:
     - Add `NonceChallengeVerifier`, a thin `Verifier` wrapper that creates presentation challenges from a `NonceService` and verifies SD-JWT/VC-JWT presentations against the embedded challenge.
     - Move OpenID4VP request nonce handling out of `VerifierAgent` and consume nonces after successful response validation to prevent replay.
