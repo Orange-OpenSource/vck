@@ -18,14 +18,25 @@ class LoTEFilterService {
      * Extracts certificates matching the requested service type identifier where
      * the certificate's subject organization aligns with the trusted provider's registered names
      */
-    fun extractTrustedCertificates(lote: ListOfTrustedEntities, criteria: LoTEFilterCriteria): List<TrustedCertificate> {
+    fun extractTrustedCertificates(sourceUrl: String, lote: ListOfTrustedEntities, criteria: LoTEFilterCriteria): List<TrustedCertificate> {
         val entities = lote.trustedEntitiesList ?: return emptyList()
-
+        val loteType = lote.listAndSchemeInformation?.loteType?.toString()
         return entities.flatMap { entity ->
             val providerName = entity.trustedEntityInformation.teName
 
             entity.trustedEntityServices
-                .filter { it.serviceInformation.serviceTypeIdentifier?.string == criteria.expectedServiceType }
+                .filter { service ->
+                    val serviceTypeId = service.serviceInformation.serviceTypeIdentifier?.string
+
+                    if (serviceTypeId != null) {
+                        // Field is present. Check if it matches type
+                        serviceTypeId.contains(criteria.expectedServiceType.type, ignoreCase = true)
+                    } else {
+                        // Field is absent. The services inherit the list's default type
+                        loteType?.contains(criteria.expectedServiceType.type, ignoreCase = true) == true ||
+                        sourceUrl.contains(criteria.expectedServiceType.type, ignoreCase = true)
+                    }
+                }
                 .flatMap { service -> service.serviceInformation.serviceDigitalIdentity.x509Certificates }
                 .filter { cert -> cert?.hasMatchingOrganization(providerName) == true }
                 .map { cert -> TrustedCertificate(cert, providerName, criteria.expectedServiceType) }
@@ -58,9 +69,36 @@ class LoTEFilterService {
 data class TrustedCertificate(
     val certificate: @Serializable(with = EtsiX509CertificateSerializer::class) X509Certificate?,
     val providerName: TEName,
-    val serviceType: String
+    val serviceType: LoTEServiceType
 )
 
 data class LoTEFilterCriteria(
-    val expectedServiceType: String,
+    val expectedServiceType: LoTEServiceType,
 )
+
+enum class LoTEServiceType(
+    val type: String,
+    val fileName: String,
+    private val identifiers: List<String> = emptyList()
+) {
+    PID("pid", "pid-providers.json", listOf("urn:eudi:pid:", "eu.europa.ec.eudi.pid.")),
+    MDL("mdl", "mdl-providers.json", listOf("org.iso.18013.5.1.mDL")),
+    WRPAC("wrpac", "wrpac-providers.json"),
+    WALLET("wallet", "wallet-providers.json"),
+    EAA("eaa", "pub-eaa-providers.json");
+
+    fun defaultUrl(baseUrl: String = DEFAULT_BASE_URL) = "$baseUrl/$fileName"
+
+    companion object {
+        const val DEFAULT_BASE_URL = "https://acceptance.trust.tech.ec.europa.eu/lists/eudiw"
+        val defaultUrls = entries.map { it.defaultUrl() }
+
+        fun fromSchemeIdentifier(schemeIdentifier: String?): LoTEServiceType {
+            if (schemeIdentifier.isNullOrBlank()) return EAA
+
+            return entries.firstOrNull { entry ->
+                entry.identifiers.any { schemeIdentifier.contains(it, ignoreCase = true) }
+            } ?: EAA
+        }
+    }
+}
