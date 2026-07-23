@@ -1,6 +1,8 @@
 # Changelog
 
 Release 8.0.0 (unreleased):
+- Credentials:
+    - In `SubjectCredentialStore.StoreEntry` make the `schemeIdentifier` non-nullable. Deserialization of old previously stored entries need to be handled by calling applications.
 - Deprecations:
     - Remove code deprecated in 7.0.0, e.g. various `Iso180137AnnexC*` and related classes
 
