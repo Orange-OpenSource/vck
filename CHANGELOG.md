@@ -1,6 +1,6 @@
 # Changelog
 
-Release 7.0.0 (unreleased):
+Release 7.0.0:
 - Credential definitions:
     - Move `CredentialScheme` out of `ConstantIndex`
     - Provide type alias for `CredentialRepresentation`
