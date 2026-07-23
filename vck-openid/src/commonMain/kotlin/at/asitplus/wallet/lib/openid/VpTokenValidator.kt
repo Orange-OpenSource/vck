@@ -166,7 +166,8 @@ internal class VpTokenValidator(
                     challenge = expectedNonce,
                     transactionData = transactionData,
                     requireCryptographicHolderBinding = requireCryptographicHolderBinding != false,
-                    audience = origin?.let { "origin:$it" },
+                    // OpenID4VP over DC API binds the KB-JWT to the calling Origin; other transports use client_id.
+                    audience = origin?.let { "origin:$it" } ?: clientId,
                 )
             }
 

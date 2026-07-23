@@ -18,8 +18,9 @@ import kotlin.jvm.JvmOverloads
  */
 class VerifierAgent @JvmOverloads constructor(
     /**
-     * The identifier of this verifier, that is expected to be the audience of verifiable presentations.
-     * It may be a cryptographic identifier of the key, but can be anything, e.g. a URL.
+     * The identifier of this verifier. It is used as the default expected presentation audience when callers do not
+     * provide an explicit transport-specific audience to [verifyPresentationSdJwt]. It may be a cryptographic
+     * identifier of the key, but can be anything, e.g. a URL.
      */
     private val identifier: String,
     private val validatorVcJws: ValidatorVcJws = ValidatorVcJws(),
@@ -36,7 +37,7 @@ class VerifierAgent @JvmOverloads constructor(
     ): KmmResult<VerifyPresentationResult.SuccessSdJwt> = validatorSdJwt.verifyVpSdJwt(
         input = input,
         challenge = challenge,
-        clientId = audience ?: identifier,
+        audience = audience ?: identifier,
         transactionData = transactionData,
         requireCryptographicHolderBinding = requireCryptographicHolderBinding,
     )

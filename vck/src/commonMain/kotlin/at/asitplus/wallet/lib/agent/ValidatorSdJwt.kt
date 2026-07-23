@@ -44,16 +44,17 @@ class ValidatorSdJwt @JvmOverloads constructor(
      * as well as some disclosures and a key binding JWT at the end.
      *
      * @param challenge Expected challenge in the [KeyBindingJws] inside the [input]
-     * @param clientId Identifier of the verifier, to verify audience of key binding JWS
+     * @param audience Exact audience expected in the key binding JWT. Callers are responsible for supplying the
+     * transport-specific value, such as an OpenID4VP Client Identifier or `origin:<origin>` for DC API transport.
      */
     suspend fun verifyVpSdJwt(
         input: SdJwtSigned,
         challenge: String,
-        clientId: String,
+        audience: String,
         transactionData: List<TransactionDataBase64Url>?,
         requireCryptographicHolderBinding: Boolean = true,
     ): KmmResult<VerifyPresentationResult.SuccessSdJwt> = catching {
-        Napier.d("verifyVpSdJwt: '$input', '$challenge', '$clientId', '$transactionData'")
+        Napier.d("verifyVpSdJwt: '$input', '$challenge', '$audience', '$transactionData'")
         val sdJwtResult = verifySdJwt(input, null).getOrThrow()
         val vcSdJwt = sdJwtResult.verifiableCredentialSdJwt
 
@@ -76,7 +77,7 @@ class ValidatorSdJwt @JvmOverloads constructor(
             require(keyBinding.challenge == challenge) {
                 "Challenge not correct: ${keyBinding.challenge}"
             }
-            require(keyBinding.audience == clientId) {
+            require(keyBinding.audience == audience) {
                 "Audience not correct: ${keyBinding.audience}"
             }
 

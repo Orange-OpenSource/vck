@@ -156,15 +156,14 @@ internal class PresentationFactory(
         jsonWebKeys: Collection<JsonWebKey>?,
         responseWillBeEncrypted: Boolean
     ) = if (dcApiRequestCallingOrigin != null) {
-        val serializedOrigin = dcApiRequestCallingOrigin.serializeOrigin()
-            ?: throw IllegalArgumentException("Invalid DC API request origin: $dcApiRequestCallingOrigin")
+        val serializedOrigin = requireNotNull(dcApiRequestCallingOrigin.serializeOrigin()) {
+            "ISO mdoc presentations require an authority-based origin"
+        }
         SessionTranscript.forDcApi(
             DCAPIHandover(
                 type = DCAPIHandover.TYPE_OPENID4VP,
                 hash = coseCompliantSerializer.encodeToByteArray<OpenID4VPDCAPIHandoverInfo>(
                     OpenID4VPDCAPIHandoverInfo(
-                        // OpenID4VP DC API handover hashes the HTML-serialized origin, not the raw URL.
-                        // This intentionally strips path details such as a trailing slash before signing.
                         origin = serializedOrigin,
                         nonce = nonce,
                         jwkThumbprint = if (responseWillBeEncrypted && !jsonWebKeys.isNullOrEmpty()) {

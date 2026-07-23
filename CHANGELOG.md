@@ -14,6 +14,8 @@ Release 7.0.0 (unreleased):
     - Document usage of remote metadata retrieval
     - Make JSON and ISO CBOR serializer registration safe for concurrent extension-library initialization 
 - OpenID for Verifiable Presentations:
+    - Compare signed DC API `expected_origins` values to the provided origin as exact strings and add a configurable holder-side origin-scheme allowlist.
+    - Support non-web Android Digital Credentials API origins starting with `android:apk-key-hash:<hash>` for OpenID4VP; ISO18013-7 mdoc presentations require authority-based origins and reject opaque Android application origins.
     - Fix SD-JWT presentation validation for Digital Credentials API responses by checking the key binding JWT audience against the request origin (`origin:<origin>`) instead of the verifier client identifier.
     - Fix DCQL matching for credential queries without `claims`: selectively disclosable credentials now return an explicit mandatory-claims-only result, while non-selectively disclosable credentials still return all claims.
     - Fix disclosure of SD-JWT claims from foreign issuers: match disclosure digests against the originally serialized disclosures instead of re-serializing them, since digests are computed over the exact bytes (RFC 9901, section 4.2.3), e.g. failing for disclosures serialized with whitespace.
@@ -49,6 +51,8 @@ Release 7.0.0 (unreleased):
     - Add signature and time validity checks of certificate against the trust list
     - Add JAdES B-B validation (Used when fetching LoTE)
     - Add `issuer` property in `StoreEntry`, for evaluation of trust against trust list
+- Digital Credentials API:
+    - BREAKING: Remove the `origin` property from Digital Credentials API response models.
  - Deprecations:
    - Remove code deprecated in 6.0.0, e.g. various `DCAPIWallet*` and related classes, `vckJsonSerializer`
  - Dependencies:

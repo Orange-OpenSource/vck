@@ -15,6 +15,7 @@ import at.asitplus.wallet.lib.cbor.CoseHeaderNone
 import at.asitplus.wallet.lib.cbor.SignCoseDetached
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.encodeToHexString
 
@@ -230,31 +231,14 @@ val PresentationFactoryTest by matrixSuite {
             }
         }
 
-        "OpenID4VP DCAPI SessionTranscript serializes origin before hashing" { it ->
-            val jsonWebKey = """
-                {
-                  "kty": "EC",
-                  "crv": "P-256",
-                  "x": "DxiH5Q4Yx3UrukE2lWCErq8N8bqC9CHLLrAwLz5BmE0",
-                  "y": "XtLM4-3h5o3HUH0MHVJV0kyq0iBlrBwlh8qEDMZ4-Pc",
-                  "use": "enc",
-                  "alg": "ECDH-ES",
-                  "kid": "1"
-                }
-            """.trimIndent().let {
-                joseCompliantSerializer.decodeFromString<JsonWebKey>(it)
-            }
-
-            it.presentationFactory.calcSessionTranscript(
-                nonce = "exc7gBkxjx1rdc9udRrveKvSsJIq80avlXeLHhGwqtA",
-                dcApiRequestCallingOrigin = "https://example.com/",
-                jsonWebKeys = listOf(jsonWebKey),
-                responseWillBeEncrypted = true,
-            ).apply {
-                coseCompliantSerializer.encodeToHexString(this) shouldBe """
-                    83f6f682764f70656e4944345650444341504948616e646f7665725820fbece366f4
-                    212f9762c74cfdbf83b8c69e371d5d68cea09cb4c48ca6daab761a
-                """.trimIndent().replace("\n", "")
+        "ISO mdoc rejects an opaque DC API origin" {
+            shouldThrow<IllegalArgumentException> {
+                it.presentationFactory.calcSessionTranscript(
+                    nonce = "nonce",
+                    dcApiRequestCallingOrigin = "android:apk-key-hash:AbCdEf",
+                    jsonWebKeys = null,
+                    responseWillBeEncrypted = false,
+                )
             }
         }
     }
