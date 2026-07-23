@@ -1,7 +1,8 @@
 # Changelog
 
 Release 8.0.0 (unreleased):
-- tbd
+- Deprecations:
+    - Remove code deprecated in 7.0.0, e.g. various `Iso180137AnnexC*` and related classes
 
 Release 7.0.0:
 - Credential definitions:
