@@ -100,7 +100,8 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     private val vpTokenValidator = VpTokenValidator(
         nonceAwareVerifier = nonceAwareVerifier,
         mdocDeviceSignatureVerifier = MdocDeviceSignatureVerifier(verifyCoseSignature = verifyCoseSignature),
-        createSessionTranscript = UrlSessionTranscriptCalculator(decryptionKeyMaterial),
+        createSessionTranscript = UrlSessionTranscriptCalculator(),
+        decryptionKeyMaterial = decryptionKeyMaterial
     )
     private val responseParser = ResponseParser(decryptJwe, verifyJwsObject)
     private val timeLeeway = timeLeewaySeconds.toDuration(DurationUnit.SECONDS)

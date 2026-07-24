@@ -179,7 +179,7 @@ internal class AuthenticationResponseFactory(
         response: AuthenticationResponse,
     ): String {
         val recipientKey = state.jsonWebKeys?.getEncryptionTargetKey()
-            ?: throw InvalidRequest("no suitable ECDH ES key found")
+            ?: throw InvalidRequest("No suitable ECDH ES key found for response encryption")
         val algorithm = JweAlgorithm.ECDH_ES
         val encryption = state.clientMetadata?.encryptedResponseEncValues?.firstNotNullOfOrNull { it }
             ?: JweEncryption.A128GCM

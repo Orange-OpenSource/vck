@@ -17,7 +17,6 @@ import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.IdToken
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.OpenIdConstants.VP_TOKEN
-import at.asitplus.openid.RelyingPartyMetadata
 import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.openid.VpFormatsSupported
 import at.asitplus.openid.truncateToSeconds
@@ -42,7 +41,8 @@ import at.asitplus.wallet.lib.agent.PresentationResponseParameters.DCQLParameter
 import at.asitplus.wallet.lib.agent.PresentationResponseParameters.PresentationExchangeParameters
 import at.asitplus.wallet.lib.cbor.SignCoseDetachedFun
 import at.asitplus.wallet.lib.data.CredentialPresentation
-import at.asitplus.wallet.lib.extensions.firstSessionTranscriptThumbprint
+import at.asitplus.wallet.lib.extensions.getEncryptionTargetKey
+import at.asitplus.wallet.lib.extensions.sessionTranscriptThumbprint
 import at.asitplus.wallet.lib.jws.SignJwtFun
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.*
@@ -86,8 +86,11 @@ internal class PresentationFactory(
                     nonce = nonce,
                     docType = it.docType,
                     dcApiRequestCallingOrigin = dcApiRequestCallingOrigin,
-                    jsonWebKeys = state.jsonWebKeys,
-                    responseWillBeEncrypted = state.responseRequiresEncryption
+                    recipientKey = if (state.responseRequiresEncryption)
+                        requireNotNull(state.jsonWebKeys?.getEncryptionTargetKey()) {
+                            "Could not load recipient key but response requires encryption"
+                        }
+                    else null
                 )
             }
         )
@@ -121,8 +124,7 @@ internal class PresentationFactory(
         nonce: String,
         docType: String,
         dcApiRequestCallingOrigin: String?,
-        jsonWebKeys: Collection<JsonWebKey>?,
-        responseWillBeEncrypted: Boolean,
+        recipientKey: JsonWebKey?,
     ): CoseSigned<ByteArray> = signDeviceAuthDetached(
         protectedHeader = null,
         unprotectedHeader = null,
@@ -133,8 +135,7 @@ internal class PresentationFactory(
                 responseUrl = responseUrl,
                 nonce = nonce,
                 dcApiRequestCallingOrigin = dcApiRequestCallingOrigin,
-                jsonWebKeys = jsonWebKeys,
-                responseWillBeEncrypted = responseWillBeEncrypted
+                recipientKey = recipientKey
             ),
             docType = docType,
             namespaces = ByteStringWrapper(DeviceNameSpaces(mapOf()))
@@ -149,8 +150,7 @@ internal class PresentationFactory(
         responseUrl: String? = null,
         nonce: String,
         dcApiRequestCallingOrigin: String? = null,
-        jsonWebKeys: Collection<JsonWebKey>?,
-        responseWillBeEncrypted: Boolean
+        recipientKey: JsonWebKey? = null
     ) = if (dcApiRequestCallingOrigin != null) {
         val serializedOrigin = requireNotNull(dcApiRequestCallingOrigin.serializeOrigin()) {
             "ISO mdoc presentations require an authority-based origin"
@@ -162,9 +162,7 @@ internal class PresentationFactory(
                     OpenID4VPDCAPIHandoverInfo(
                         origin = serializedOrigin,
                         nonce = nonce,
-                        jwkThumbprint = if (responseWillBeEncrypted && !jsonWebKeys.isNullOrEmpty()) {
-                            jsonWebKeys.firstSessionTranscriptThumbprint()
-                        } else null
+                        jwkThumbprint = recipientKey?.sessionTranscriptThumbprint()
                     )
                 ).sha256()
             )
@@ -177,9 +175,7 @@ internal class PresentationFactory(
                     OpenId4VpHandoverInfo(
                         clientId = clientId,
                         nonce = nonce,
-                        jwkThumbprint = if (responseWillBeEncrypted && !jsonWebKeys.isNullOrEmpty()) {
-                            jsonWebKeys.firstSessionTranscriptThumbprint()
-                        } else null,
+                        jwkThumbprint = recipientKey?.sessionTranscriptThumbprint(),
                         responseUrl = responseUrl,
                     )
                 ).sha256(),

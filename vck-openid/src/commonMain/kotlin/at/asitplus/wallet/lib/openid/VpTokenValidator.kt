@@ -17,6 +17,7 @@ import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.MdocDeviceSignatureVerifier
+import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.Verifier.VerifyPresentationResult
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
@@ -47,6 +48,8 @@ internal class VpTokenValidator(
     private val mdocDeviceSignatureVerifier: MdocDeviceSignatureVerifier,
     /** Calculates the ISO session transcript for the transport the response was received over. */
     private val createSessionTranscript: SessionTranscriptCalculator,
+    /** To be used for ISO session transcript calculation when the response has been encrypted. */
+    private val decryptionKeyMaterial: KeyMaterial,
 ) {
 
     /**
@@ -194,10 +197,10 @@ internal class VpTokenValidator(
                         input = input,
                         clientId = clientId,
                         expectedNonce = expectedNonce,
-                        hasBeenEncrypted = input.hasBeenEncrypted,
                         responseUrl = responseUrl,
                         clientIdRequired = clientIdRequired,
-                        origin = origin
+                        origin = origin,
+                        decryptionKey = if (input.hasBeenEncrypted) decryptionKeyMaterial.jsonWebKey else null,
                     )
                 )
             )

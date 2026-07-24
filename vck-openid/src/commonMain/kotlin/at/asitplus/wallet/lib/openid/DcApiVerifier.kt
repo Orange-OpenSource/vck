@@ -122,7 +122,8 @@ class DcApiVerifier @JvmOverloads constructor(
     private val vpTokenValidator = VpTokenValidator(
         nonceAwareVerifier = nonceAwareVerifier,
         mdocDeviceSignatureVerifier = mdocDeviceSignatureVerifier,
-        createSessionTranscript = DcApiSessionTranscriptCalculator(decryptionKeyMaterial),
+        createSessionTranscript = DcApiSessionTranscriptCalculator(),
+        decryptionKeyMaterial = decryptionKeyMaterial,
     )
     private val responseParser = ResponseParser(decryptJwe, verifyJwsObject)
 
