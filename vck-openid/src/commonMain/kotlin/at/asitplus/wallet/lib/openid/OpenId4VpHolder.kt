@@ -210,18 +210,28 @@ class OpenId4VpHolder @JvmOverloads constructor(
     ) = requestParser.parseRequestParameters(input)
         .getOrThrow() as RequestParametersFrom<AuthenticationRequestParameters>
 
-    /** Creates an error response for the [error], which can be sent to the verifier / relying party. */
+    @Deprecated("Use createAuthnErrorResponse with AuthorizationResponsePreparationState parameter",)
     suspend fun createAuthnErrorResponse(
         error: Throwable,
         request: RequestParametersFrom<AuthenticationRequestParameters>,
     ): KmmResult<AuthenticationResponseResult> = catching {
         authenticationResponseFactory.createAuthenticationResponse(
-            request = request,
+            state = startAuthorizationResponsePreparation(request).getOrThrow(),
             response = AuthenticationResponse.Error(
                 error = error.toOAuth2Error(request),
-                clientMetadata = request.parameters.clientMetadata,
-                jsonWebKeys = request.parameters.clientMetadata?.loadJsonWebKeySet()?.keys
-                    ?: lookupJsonWebKeysForClient(JsonWebKeyLookupInput(request.parameters.clientId))?.keys,
+            )
+        )
+    }
+
+    /** Creates an error response for the [error], which can be sent to the verifier / relying party. */
+    suspend fun createAuthnErrorResponse(
+        error: Throwable,
+        state: AuthorizationResponsePreparationState,
+    ): KmmResult<AuthenticationResponseResult> = catching {
+        authenticationResponseFactory.createAuthenticationResponse(
+            state = state,
+            response = AuthenticationResponse.Error(
+                error = error.toOAuth2Error(state.request)
             )
         )
     }
@@ -245,9 +255,9 @@ class OpenId4VpHolder @JvmOverloads constructor(
             it.getUserSignatureCancellationException()?.let {
                 throw it // DON'T create error response for user initiated signature cancellation, just expose it
             }
-            return createAuthnErrorResponse(it, preparationState.request)
+            return createAuthnErrorResponse(it, preparationState)
         }.let {
-            authenticationResponseFactory.createAuthenticationResponse(preparationState.request, it)
+            authenticationResponseFactory.createAuthenticationResponse(preparationState, it)
         }
     }
 
@@ -284,12 +294,13 @@ class OpenId4VpHolder @JvmOverloads constructor(
         params: RequestParametersFrom<AuthenticationRequestParameters>,
     ): KmmResult<AuthorizationResponsePreparationState> = catching {
         authorizationRequestValidator.validateAuthorizationRequest(params)
+        val jsonWebKeys = (params.parameters.clientMetadata?.loadJsonWebKeySet()?.keys
+            ?: lookupJsonWebKeysForClient(JsonWebKeyLookupInput(params.parameters.clientId))?.keys)
         AuthorizationResponsePreparationState(
             request = params,
             credentialPresentationRequest = params.parameters.loadCredentialRequest(),
             clientMetadata = params.parameters.clientMetadata,
-            jsonWebKeys = params.parameters.clientMetadata?.loadJsonWebKeySet()?.keys
-                ?: lookupJsonWebKeysForClient(JsonWebKeyLookupInput(params.parameters.clientId))?.keys,
+            jsonWebKeys = jsonWebKeys?.combine(params.extractLeafCertKey()),
             requestObjectVerified = (params as? RequestParametersFrom.Jws)?.verified,
             verifierInfo = params.parameters.verifierInfo
         )
@@ -310,9 +321,9 @@ class OpenId4VpHolder @JvmOverloads constructor(
             it.getUserSignatureCancellationException()?.let { userCancellationException ->
                 throw userCancellationException // DON'T create error response for user initiated signature cancellation
             }
-            return createAuthnErrorResponse(it, preparationState.request)
+            return createAuthnErrorResponse(it, preparationState)
         }.let {
-            authenticationResponseFactory.createAuthenticationResponse(preparationState.request, it)
+            authenticationResponseFactory.createAuthenticationResponse(preparationState, it)
         }
     }
 
@@ -328,21 +339,19 @@ class OpenId4VpHolder @JvmOverloads constructor(
     ): KmmResult<AuthenticationResponse> = catching {
         with(state) {
             val audience = request.extractAudience(jsonWebKeys)
-            val jsonWebKeys = jsonWebKeys?.combine(request.extractLeafCertKey())
-                ?: lookupJsonWebKeysForClient(JsonWebKeyLookupInput(request.parameters.clientId))?.keys
             val idToken = presentationFactory.createSignedIdToken(clock, keyMaterial.publicKey, request)
                 .getOrNull()
             val presentation = credentialPresentation ?: credentialPresentationRequest?.toCredentialPresentation()
             val resultContainer = presentation?.let {
                 presentationFactory.createPresentation(
+                    state = state,
                     holder = holder,
                     request = request.parameters,
                     audience = audience,
                     nonce = request.parameters.nonce!!,
                     credentialPresentation = presentation,
-                    clientMetadata = clientMetadata,
-                    jsonWebKeys = jsonWebKeys,
                     dcApiRequestCallingOrigin = request.callingOrigin()
+                    // TODO encryption key!
                 ).getOrThrow()
             }
 
@@ -353,9 +362,7 @@ class OpenId4VpHolder @JvmOverloads constructor(
                 presentationSubmission = resultContainer?.presentationSubmission,
             )
             AuthenticationResponse.Success(
-                params = parameters,
-                clientMetadata = clientMetadata,
-                jsonWebKeys = jsonWebKeys
+                params = parameters
             )
         }
     }

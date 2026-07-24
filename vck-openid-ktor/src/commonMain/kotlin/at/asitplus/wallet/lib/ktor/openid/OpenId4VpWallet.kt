@@ -5,7 +5,6 @@ import at.asitplus.catching
 import at.asitplus.catchingUnwrapped
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.RequestParametersFrom
-import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.supreme.UserInitiatedCancellationReason
 import at.asitplus.wallet.lib.agent.HolderAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
@@ -116,10 +115,8 @@ class OpenId4VpWallet(
         iso180137AnnexCHolder = iso180137AnnexCHolder,
     )
 
-    /**
-     * Sends an error response with the appropriate method.
-     * Returns nothing as we don't expect a useful response from the remote verifier.
-     */
+    @Suppress("DEPRECATION")
+    @Deprecated("Use sendAuthnErrorResponse with AuthorizationResponsePreparationState parameter")
     suspend fun sendAuthnErrorResponse(
         error: Throwable,
         request: RequestParametersFrom<AuthenticationRequestParameters>,
@@ -130,8 +127,27 @@ class OpenId4VpWallet(
                 when (it) {
                     is AuthenticationResponseResult.Post -> postResponse(it)
                     is AuthenticationResponseResult.Redirect -> redirectResponse(it)
-                    is AuthenticationResponseResult.DcApi ->
-                        Napier.d("Unsupported error response mode")
+                    else -> Napier.w("Unsupported error response mode: $it")
+                }
+            }
+        }
+    }
+
+    /**
+     * Sends an error response with the appropriate method.
+     * Returns nothing as we don't expect a useful response from the remote verifier.
+     */
+    suspend fun sendAuthnErrorResponse(
+        error: Throwable,
+        state: AuthorizationResponsePreparationState,
+    ) {
+        catchingUnwrapped {
+            Napier.i("sendAuthnErrorResponse $error, ${state.request}")
+            openId4VpHolder.createAuthnErrorResponse(error, state).getOrThrow().let {
+                when (it) {
+                    is AuthenticationResponseResult.Post -> postResponse(it)
+                    is AuthenticationResponseResult.Redirect -> redirectResponse(it)
+                    else -> Napier.w("Unsupported error response mode: $it")
                 }
             }
         }
@@ -191,8 +207,8 @@ class OpenId4VpWallet(
             preparationState = preparationState,
             credentialPresentation = credentialPresentation
         ).getOrElse {
-            if(it !is UserInitiatedCancellationReason) {
-                sendAuthnErrorResponse(it, preparationState.request)
+            if (it !is UserInitiatedCancellationReason) {
+                sendAuthnErrorResponse(it, preparationState)
             }
             throw it
         }.let {

@@ -66,18 +66,15 @@ internal class PresentationFactory(
         .mapNotNull { it.toCoseAlgorithm().getOrNull() }
 
     suspend fun createPresentation(
+        state: AuthorizationResponsePreparationState,
         holder: Holder,
         request: AuthenticationRequestParameters,
         nonce: String,
         audience: String,
-        clientMetadata: RelyingPartyMetadata?,
-        jsonWebKeys: Collection<JsonWebKey>?,
         credentialPresentation: CredentialPresentation,
         dcApiRequestCallingOrigin: String?,
     ): KmmResult<PresentationResponseParameters> = catching {
         request.verifyResponseType()
-        val responseWillBeEncrypted = jsonWebKeys != null
-                && (clientMetadata?.requestsEncryption() == true || request.responseMode?.requiresEncryption == true)
         val vpRequestParams = PresentationRequestParameters(
             nonce = nonce,
             audience = audience,
@@ -89,8 +86,8 @@ internal class PresentationFactory(
                     nonce = nonce,
                     docType = it.docType,
                     dcApiRequestCallingOrigin = dcApiRequestCallingOrigin,
-                    jsonWebKeys = jsonWebKeys,
-                    responseWillBeEncrypted = responseWillBeEncrypted
+                    jsonWebKeys = state.jsonWebKeys,
+                    responseWillBeEncrypted = state.responseRequiresEncryption
                 )
             }
         )
@@ -101,7 +98,7 @@ internal class PresentationFactory(
         ).getOrElse {
             throw AccessDenied("Could not create presentation", it)
         }.also { presentation ->
-            clientMetadata?.vpFormatsSupported?.verifyFormatSupport(presentation)
+            state.clientMetadata?.vpFormatsSupported?.verifyFormatSupport(presentation)
         }
     }
 
@@ -113,7 +110,6 @@ internal class PresentationFactory(
             is PresentationExchangeParameters -> presentation.verifyFormatSupport(this)
         }
     }
-
 
     /**
      * Performs calculation of the [SessionTranscript] and [DeviceAuthentication], according to OpenID4VP 1.0

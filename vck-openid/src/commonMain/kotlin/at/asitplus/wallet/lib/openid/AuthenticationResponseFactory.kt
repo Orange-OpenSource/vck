@@ -4,10 +4,8 @@ import at.asitplus.catchingUnwrapped
 import at.asitplus.dcapi.OpenId4VpResponseMultiSigned
 import at.asitplus.dcapi.OpenId4VpResponseSigned
 import at.asitplus.dcapi.OpenId4VpResponseUnsigned
-import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.AuthenticationResponseParameters
 import at.asitplus.openid.OpenIdConstants.ResponseMode.*
-import at.asitplus.openid.RelyingPartyMetadata
 import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.signum.indispensable.josef.JweAlgorithm
 import at.asitplus.signum.indispensable.josef.JweEncryption
@@ -28,36 +26,37 @@ internal class AuthenticationResponseFactory(
     val encryptResponse: EncryptJweFun,
     val randomSource: RandomSource = RandomSource.Secure,
 ) {
+
     @Throws(OAuth2Exception::class, CancellationException::class)
     internal suspend fun createAuthenticationResponse(
-        request: RequestParametersFrom<AuthenticationRequestParameters>,
+        state: AuthorizationResponsePreparationState,
         response: AuthenticationResponse,
-    ): AuthenticationResponseResult = when (request.parameters.responseMode) {
-        DirectPost -> authnResponseDirectPost(request, response)
-        DirectPostJwt -> authnResponseDirectPostJwt(request, response)
-        Query -> authnResponseQuery(request, response)
-        Fragment, null -> authnResponseFragment(request, response)
-        DcApi -> responseDcApi(request, response)
-        DcApiJwt -> responseDcApi(request, response)
-        is Other -> throw IllegalArgumentException("Unsupported response mode: ${request.parameters.responseMode}")
+    ): AuthenticationResponseResult = when (state.request.parameters.responseMode) {
+        DirectPost -> authnResponseDirectPost(state, response)
+        DirectPostJwt -> authnResponseDirectPostJwt(state, response)
+        Query -> authnResponseQuery(state, response)
+        Fragment, null -> authnResponseFragment(state, response)
+        DcApi -> responseDcApi(state, response)
+        DcApiJwt -> responseDcApi(state, response)
+        is Other -> throw IllegalArgumentException("Unsupported response mode: ${state.request.parameters.responseMode}")
     }
 
     @Throws(OAuth2Exception::class, CancellationException::class)
     internal suspend fun responseDcApi(
-        request: RequestParametersFrom<AuthenticationRequestParameters>,
+        state: AuthorizationResponsePreparationState,
         response: AuthenticationResponse,
     ) = AuthenticationResponseResult.DcApi(
-        when (request) {
+        when (state.request) {
             is RequestParametersFrom.OpenId4VpDcApiUnsigned -> OpenId4VpResponseUnsigned(
-                buildResponseParametersDcApi(request, response),
+                buildResponseParametersDcApi(state, response),
             )
 
             is RequestParametersFrom.OpenId4VpDcApiSigned -> OpenId4VpResponseSigned(
-                buildResponseParametersDcApi(request, response)
+                buildResponseParametersDcApi(state, response)
             )
 
             is RequestParametersFrom.OpenId4VpDcApiMultiSigned -> OpenId4VpResponseMultiSigned(
-                buildResponseParametersDcApi(request, response)
+                buildResponseParametersDcApi(state, response)
             )
 
             else -> throw IllegalStateException("Should only be called with DC API requests")
@@ -66,24 +65,24 @@ internal class AuthenticationResponseFactory(
 
     @Throws(OAuth2Exception::class, CancellationException::class)
     internal suspend fun authnResponseDirectPostJwt(
-        request: RequestParametersFrom<AuthenticationRequestParameters>,
+        state: AuthorizationResponsePreparationState,
         response: AuthenticationResponse,
     ) = AuthenticationResponseResult.Post(
-        url = request.parameters.responseUrl
-            ?: request.parameters.redirectUrlExtracted
+        url = state.request.parameters.responseUrl
+            ?: state.request.parameters.redirectUrlExtracted
             ?: throw InvalidRequest("no response_uri or redirect_uri"),
         params = AuthenticationResponseParameters(
-            response = buildResponse(request, response),
+            response = buildResponse(state, response),
         ).encodeToParameters()
     )
 
     @Throws(OAuth2Exception::class)
     internal fun authnResponseDirectPost(
-        request: RequestParametersFrom<AuthenticationRequestParameters>,
+        state: AuthorizationResponsePreparationState,
         response: AuthenticationResponse,
     ) = AuthenticationResponseResult.Post(
-        url = request.parameters.responseUrl
-            ?: request.parameters.redirectUrlExtracted
+        url = state.request.parameters.responseUrl
+            ?: state.request.parameters.redirectUrlExtracted
             ?: throw InvalidRequest("no response_uri or redirect_uri"),
         params = when (response) {
             is AuthenticationResponse.Error -> response.error.encodeToParameters<OAuth2Error>()
@@ -93,11 +92,11 @@ internal class AuthenticationResponseFactory(
 
     @Throws(OAuth2Exception::class)
     internal fun authnResponseQuery(
-        request: RequestParametersFrom<AuthenticationRequestParameters>,
+        state: AuthorizationResponsePreparationState,
         response: AuthenticationResponse,
     ) = AuthenticationResponseResult.Redirect(
         url = catchingUnwrapped {
-            request.parameters.redirectUrlExtracted?.let { redirectUrl ->
+            state.request.parameters.redirectUrlExtracted?.let { redirectUrl ->
                 URLBuilder(redirectUrl).apply {
                     appendParameters(response)
                 }.buildString()
@@ -123,11 +122,11 @@ internal class AuthenticationResponseFactory(
      */
     @Throws(OAuth2Exception::class)
     internal fun authnResponseFragment(
-        request: RequestParametersFrom<AuthenticationRequestParameters>,
+        state: AuthorizationResponsePreparationState,
         response: AuthenticationResponse,
     ) = AuthenticationResponseResult.Redirect(
         url = catchingUnwrapped {
-            request.parameters.redirectUrlExtracted?.let { redirectUrl ->
+            state.request.parameters.redirectUrlExtracted?.let { redirectUrl ->
                 URLBuilder(redirectUrl).apply {
                     setFragment(response)
                 }.buildString()
@@ -148,42 +147,43 @@ internal class AuthenticationResponseFactory(
 
     @Throws(OAuth2Exception::class, CancellationException::class)
     private suspend fun buildResponse(
-        request: RequestParametersFrom<AuthenticationRequestParameters>,
+        state: AuthorizationResponsePreparationState,
         response: AuthenticationResponse,
-    ) =  if (request.parameters.responseMode?.requiresEncryption == true || response.requestsEncryption()) {
-            encrypt(request, response)
-        } else {
-            when (response) {
-                is AuthenticationResponse.Error -> joseCompliantSerializer.encodeToString(response.error)
-                is AuthenticationResponse.Success -> joseCompliantSerializer.encodeToString(response.params)
-            }
+    ) = if (state.responseRequiresEncryption) {
+        encrypt(state, response)
+    } else {
+        when (response) {
+            is AuthenticationResponse.Error -> joseCompliantSerializer.encodeToString(response.error)
+            is AuthenticationResponse.Success -> joseCompliantSerializer.encodeToString(response.params)
         }
+    }
 
     @Throws(OAuth2Exception::class, CancellationException::class)
     private suspend fun buildResponseParametersDcApi(
-        request: RequestParametersFrom<AuthenticationRequestParameters>,
+        state: AuthorizationResponsePreparationState,
         response: AuthenticationResponse,
-    ) = if (request.parameters.responseMode?.requiresEncryption == true || response.requestsEncryption()) {
-        AuthenticationResponseParameters(response = encrypt(request, response))
+    ) = if (state.responseRequiresEncryption) {
+        AuthenticationResponseParameters(response = encrypt(state, response))
     } else {
         when (response) {
             is AuthenticationResponse.Error ->
                 AuthenticationResponseParameters(response = joseCompliantSerializer.encodeToString(response.error))
+
             is AuthenticationResponse.Success -> response.params
         }
     }
 
     @Suppress("DEPRECATION")
     private suspend fun encrypt(
-        request: RequestParametersFrom<AuthenticationRequestParameters>,
+        state: AuthorizationResponsePreparationState,
         response: AuthenticationResponse,
     ): String {
-        val recipientKey = response.jsonWebKeys?.getEncryptionTargetKey()
+        val recipientKey = state.jsonWebKeys?.getEncryptionTargetKey()
             ?: throw InvalidRequest("no suitable ECDH ES key found")
         val algorithm = JweAlgorithm.ECDH_ES
-        val encryption = response.clientMetadata?.encryptedResponseEncValues?.firstNotNullOfOrNull { it }
+        val encryption = state.clientMetadata?.encryptedResponseEncValues?.firstNotNullOfOrNull { it }
             ?: JweEncryption.A128GCM
-        val apv = request.parameters.nonce?.encodeToByteArray() ?: randomSource.nextBytes(16)
+        val apv = state.request.parameters.nonce?.encodeToByteArray() ?: randomSource.nextBytes(16)
         val apu = randomSource.nextBytes(16)
         val header = JweHeader(
             algorithm = algorithm,
@@ -204,8 +204,3 @@ internal class AuthenticationResponseFactory(
 
 }
 
-internal fun AuthenticationResponse.requestsEncryption(): Boolean =
-    (clientMetadata != null && jsonWebKeys != null && clientMetadata.requestsEncryption())
-
-@Suppress("DEPRECATION")
-internal fun RelyingPartyMetadata.requestsEncryption() = encryptedResponseEncValues != null
