@@ -294,15 +294,17 @@ class OpenId4VpHolder @JvmOverloads constructor(
         params: RequestParametersFrom<AuthenticationRequestParameters>,
     ): KmmResult<AuthorizationResponsePreparationState> = catching {
         authorizationRequestValidator.validateAuthorizationRequest(params)
-        val jsonWebKeys = (params.parameters.clientMetadata?.loadJsonWebKeySet()?.keys
+        val loadedKeys = (params.parameters.clientMetadata?.loadJsonWebKeySet()?.keys
             ?: lookupJsonWebKeysForClient(JsonWebKeyLookupInput(params.parameters.clientId))?.keys)
+        val jsonWebKeys = loadedKeys?.combine(params.extractLeafCertKey())
         AuthorizationResponsePreparationState(
             request = params,
             credentialPresentationRequest = params.parameters.loadCredentialRequest(),
             clientMetadata = params.parameters.clientMetadata,
-            jsonWebKeys = jsonWebKeys?.combine(params.extractLeafCertKey()),
+            jsonWebKeys = jsonWebKeys,
             requestObjectVerified = (params as? RequestParametersFrom.Jws)?.verified,
-            verifierInfo = params.parameters.verifierInfo
+            verifierInfo = params.parameters.verifierInfo,
+            audience = params.extractAudience(jsonWebKeys)
         )
     }
 
@@ -338,7 +340,6 @@ class OpenId4VpHolder @JvmOverloads constructor(
         credentialPresentation: CredentialPresentation? = null,
     ): KmmResult<AuthenticationResponse> = catching {
         with(state) {
-            val audience = request.extractAudience(jsonWebKeys)
             val idToken = presentationFactory.createSignedIdToken(clock, keyMaterial.publicKey, request)
                 .getOrNull()
             val presentation = credentialPresentation ?: credentialPresentationRequest?.toCredentialPresentation()
@@ -346,12 +347,7 @@ class OpenId4VpHolder @JvmOverloads constructor(
                 presentationFactory.createPresentation(
                     state = state,
                     holder = holder,
-                    request = request.parameters,
-                    audience = audience,
-                    nonce = request.parameters.nonce!!,
-                    credentialPresentation = presentation,
-                    dcApiRequestCallingOrigin = request.callingOrigin()
-                    // TODO encryption key!
+                    credentialPresentation = presentation
                 ).getOrThrow()
             }
 
@@ -421,9 +417,6 @@ class OpenId4VpHolder @JvmOverloads constructor(
                 ?.let { it.keyId ?: it.didEncoded ?: it.jwkThumbprint }
             ?: throw InvalidRequest("could not parse audience")
     }
-
-    private fun RequestParametersFrom<AuthenticationRequestParameters>.callingOrigin() =
-        (this as? RequestParametersFrom.DcApiRequest)?.callingOrigin
 
     private fun RequestParametersFrom<AuthenticationRequestParameters>.credentialIds() =
         (this as? RequestParametersFrom.DcApiRequest)?.credentialIds

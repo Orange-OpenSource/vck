@@ -194,13 +194,12 @@ internal class VpTokenValidator(
                     .let { coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(it) },
                 verifyDocument = mdocDeviceSignatureVerifier.verifyDocument(
                     sessionTranscript = createSessionTranscript(
-                        input = input,
                         clientId = clientId,
-                        expectedNonce = expectedNonce,
+                        nonce = expectedNonce,
                         responseUrl = responseUrl,
                         clientIdRequired = clientIdRequired,
                         origin = origin,
-                        decryptionKey = if (input.hasBeenEncrypted) decryptionKeyMaterial.jsonWebKey else null,
+                        recipientKey = if (input.hasBeenEncrypted) decryptionKeyMaterial.jsonWebKey else null,
                     )
                 )
             )

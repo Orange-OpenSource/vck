@@ -6,7 +6,6 @@ import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.openid.VerifierInfo
 import at.asitplus.signum.indispensable.josef.JsonWebKey
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
-import at.asitplus.wallet.lib.extensions.getEncryptionTargetKey
 import kotlinx.serialization.Serializable
 
 /**
@@ -25,7 +24,11 @@ data class AuthorizationResponsePreparationState(
     /** Whether the request object has been verified (if it was signed at all) */
     val requestObjectVerified: Boolean?,
     val verifierInfo: List<VerifierInfo>?,
+    /** Audience of the presentation to create */
+    val audience: String,
 ) {
+    val dcApiCallingOrigin: String?
+        get() = (request as? RequestParametersFrom.DcApiRequest)?.callingOrigin
 
     val responseRequiresEncryption: Boolean
         get() = request.parameters.responseMode?.requiresEncryption == true
