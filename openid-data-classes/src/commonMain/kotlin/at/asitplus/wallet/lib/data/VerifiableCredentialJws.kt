@@ -33,7 +33,7 @@ data class VerifiableCredentialJws(
     @SerialName("iss")
     val issuer: String,
     @SerialName("exp")
-    @Serializable(with = NullableInstantLongSerializer::class)
+    @Serializable(with = InstantLongSerializer::class)
     val expiration: Instant?,
     @SerialName("jti")
     val jwtId: String,
