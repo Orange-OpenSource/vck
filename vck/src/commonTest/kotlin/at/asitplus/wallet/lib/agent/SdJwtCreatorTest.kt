@@ -1,5 +1,7 @@
 package at.asitplus.wallet.lib.agent
 
+import at.asitplus.openid.OpenId4VciClaimsPathPointer
+import at.asitplus.openid.OpenId4VciClaimsPathPointerSegmentIndex
 import at.asitplus.signum.indispensable.Digest
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.SdJwtCreator.toSdJsonObject
@@ -177,6 +179,48 @@ val SdJwtCreatorTest by matrixSuite {
                 this["foo"] shouldBe null
                 this["foo.bar"].shouldBeInstanceOf<JsonPrimitive>().content shouldBe "value"
             }
+        }
+    }
+
+    "OpenID4VCI claim path creates nested claims" {
+        listOf(ClaimToBeIssued(OpenId4VciClaimsPathPointer("address", "region"), "Vienna"))
+            .toSdJsonObject(RandomSource.Default).signDecodeReconstruct().apply {
+                this["address"].shouldBeInstanceOf<JsonObject>()["region"]
+                    .shouldBeInstanceOf<JsonPrimitive>().content shouldBe "Vienna"
+            }
+    }
+
+    "OpenID4VCI claim path preserves literal dots and disclosure setting" {
+        ClaimToBeIssued(
+            OpenId4VciClaimsPathPointer("person", "address", "region"),
+            "Vienna",
+            selectivelyDisclosable = false,
+        ) shouldBe ClaimToBeIssued(
+            "person",
+            listOf(
+                ClaimToBeIssued(
+                    "address",
+                    listOf(ClaimToBeIssued("region", "Vienna", selectivelyDisclosable = false)),
+                    selectivelyDisclosable = false,
+                )
+            ),
+            selectivelyDisclosable = false,
+        )
+        ClaimToBeIssued(OpenId4VciClaimsPathPointer("address.region"), "Vienna") shouldBe
+                ClaimToBeIssued("address.region", "Vienna")
+    }
+
+    "OpenID4VCI claim path rejects array selectors" {
+        listOf(
+            OpenId4VciClaimsPathPointer(OpenId4VciClaimsPathPointerSegmentIndex(0u)),
+            OpenId4VciClaimsPathPointer(segment = null),
+        ).forEach {
+            shouldThrow<IllegalArgumentException> {
+                ClaimToBeIssued(it, "value")
+            }
+        }
+        shouldThrow<IllegalArgumentException> {
+            ClaimToBeIssued.fromPath(emptyList(), "value")
         }
     }
 

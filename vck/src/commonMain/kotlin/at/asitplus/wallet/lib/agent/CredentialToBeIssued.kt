@@ -13,6 +13,8 @@ package at.asitplus.wallet.lib.agent
  */
 
 import at.asitplus.iso.IssuerSignedItem
+import at.asitplus.openid.OpenId4VciClaimsPathPointer
+import at.asitplus.openid.OpenId4VciClaimsPathPointerSegmentString
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.Digest
@@ -24,6 +26,7 @@ import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
 import at.asitplus.wallet.lib.jws.JwsHeaderModifierFun
 import kotlinx.serialization.json.JsonElement
 import kotlin.jvm.JvmOverloads
+import kotlin.jvm.JvmStatic
 import kotlin.time.Instant
 
 sealed class CredentialToBeIssued {
@@ -64,7 +67,8 @@ sealed class CredentialToBeIssued {
 /**
  * Represents a claim that shall be issued to the holder, i.e., serialized into the appropriate credential format.
  *
- * To issue nested structures in SD-JWT, pass a collection of [ClaimToBeIssued] in [value].
+ * To issue nested structures in SD-JWT, pass a collection of [ClaimToBeIssued] in [value], or create one from an
+ * [OpenId4VciClaimsPathPointer], e.g. `ClaimToBeIssued(OpenId4VciClaimsPathPointer("address", "region"), "Vienna")`.
  *
  * To issue an array of elements, use a collection of [ClaimToBeIssuedArrayElement] in [value].
  *
@@ -74,7 +78,43 @@ data class ClaimToBeIssued @JvmOverloads constructor(
     val name: String,
     val value: Any,
     val selectivelyDisclosable: Boolean = true,
-)
+) {
+    companion object {
+        /**
+         * Creates nested claims from [path]. Only string segments are supported; [selectivelyDisclosable] applies to
+         * every generated level.
+         */
+        operator fun invoke(
+            path: OpenId4VciClaimsPathPointer,
+            value: Any,
+            selectivelyDisclosable: Boolean = true,
+        ): ClaimToBeIssued = fromPath(
+            path = path.map {
+                require(it is OpenId4VciClaimsPathPointerSegmentString) {
+                    "ClaimToBeIssued paths must contain only string segments"
+                }
+                it.string
+            },
+            value = value,
+            selectivelyDisclosable = selectivelyDisclosable,
+        )
+
+        /** Java-safe variant of [invoke] using string path segments. */
+        @JvmStatic
+        @JvmOverloads
+        fun fromPath(
+            path: List<String>,
+            value: Any,
+            selectivelyDisclosable: Boolean = true,
+        ): ClaimToBeIssued {
+            require(path.isNotEmpty()) { "ClaimToBeIssued path must not be empty" }
+            return path.dropLast(1)
+                .foldRight(ClaimToBeIssued(path.last(), value, selectivelyDisclosable)) { name, nested ->
+                    ClaimToBeIssued(name, listOf(nested), selectivelyDisclosable)
+                }
+        }
+    }
+}
 
 /**
  * Represents an element of an array inside an SD-JWT that shall be issued to the holder.
