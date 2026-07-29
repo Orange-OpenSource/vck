@@ -1,8 +1,12 @@
 package at.asitplus.wallet.lib.data.rfc.tokenStatusList
 
 import at.asitplus.wallet.lib.data.rfc3986.UniformResourceIdentifier
+import io.ktor.http.Url
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.jvm.JvmOverloads
+import kotlin.jvm.JvmStatic
+import kotlin.require
 
 /**
  * Specifies an url to retrieve a status list token, and an index specifying the position in the
@@ -42,6 +46,38 @@ data class StatusListInfo(
 
     override val certificate: ByteArray? = null,
 ) : RevocationListInfo() {
+
+    /** For JVM callers which can't access value class or ULong constructors directly */
+    @JvmOverloads
+    constructor(
+        uri: String,
+        index: Long,
+        certificate: ByteArray? = null,
+    ) : this(
+        index = index.toULong().also {
+            require(index >= 0) { "index must be non-negative" }
+        },
+        uri = UniformResourceIdentifier(uri),
+        certificate = certificate,
+    )
+
+    companion object {
+        /** For JVM callers which use the value class carrier type */
+        @JvmStatic
+        @JvmOverloads
+        fun fromUri(
+            uri: Url,
+            index: Long,
+            certificate: ByteArray? = null,
+        ) = StatusListInfo(
+            index = index.toULong().also {
+                require(index >= 0) { "index must be non-negative" }
+            },
+            uri = UniformResourceIdentifier(uri),
+            certificate = certificate,
+        )
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other == null || this::class != other::class) return false
@@ -67,7 +103,5 @@ data class StatusListInfo(
         const val URI = "uri"
         const val STATUS_LIST_INFO = "status_list"
     }
+
 }
-
-
-
