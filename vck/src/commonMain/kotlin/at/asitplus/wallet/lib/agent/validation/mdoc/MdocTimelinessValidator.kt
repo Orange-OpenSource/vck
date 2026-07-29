@@ -17,10 +17,6 @@ class MdocTimelinessValidator @JvmOverloads constructor(
             msoTimelinessValidationSummary = issuerSigned.issuerAuth.payload?.let {
                 mobileSecurityObjectTimelinessValidator(it, timeScope)
             }
-        ).also {
-            if(it.isTimely) {
-                Napier.d("ISO Cred $it is timely")
-            }
-        }
+        )
     }
 }

@@ -29,10 +29,6 @@ class SdJwtTimelinessValidator {
                     )
                 } else null
             }
-        ).also {
-            if (it.isTimely) {
-                Napier.d("SD-JWT is timely")
-            }
-        }
+        )
     }
 }

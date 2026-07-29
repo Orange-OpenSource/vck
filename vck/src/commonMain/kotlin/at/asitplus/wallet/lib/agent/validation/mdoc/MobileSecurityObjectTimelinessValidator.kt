@@ -4,7 +4,6 @@ import at.asitplus.iso.MobileSecurityObject
 import at.asitplus.wallet.lib.agent.validation.TimeScope
 import at.asitplus.wallet.lib.agent.validation.common.EntityExpiredError
 import at.asitplus.wallet.lib.agent.validation.common.EntityNotYetValidError
-import io.github.aakira.napier.Napier
 
 class MobileSecurityObjectTimelinessValidator {
     operator fun invoke(
@@ -25,11 +24,7 @@ class MobileSecurityObjectTimelinessValidator {
                     latestAcceptedNotBeforeTime = latestTime,
                 )
             } else null,
-        ).also {
-            if (it.isTimely) {
-                Napier.d("MSO is timely")
-            }
-        }
+        )
     }
 }
 

@@ -41,10 +41,6 @@ class VcJwsTimelinessValidator {
                     latestAcceptedNotBeforeTime = latestTime,
                 )
             } else null,
-        ).also {
-            if (it.isTimely) {
-                Napier.d("VC is timely")
-            }
-        }
+        )
     }
 }
