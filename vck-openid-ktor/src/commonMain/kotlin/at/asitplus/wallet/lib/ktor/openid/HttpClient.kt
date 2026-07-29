@@ -27,7 +27,8 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 
 /**
- * Standard members of an [RFC 9457 problem details object](https://www.rfc-editor.org/rfc/rfc9457.html#section-3.1).
+ * Standard members of an
+ * [RFC 9457 problem details object](https://datatracker.ietf.org/doc/html/rfc9457#name-the-problem-details-json-ob).
  * [type] defaults to `about:blank`; problem-specific members are retained in [extensions].
  */
 data class ProblemDetails(

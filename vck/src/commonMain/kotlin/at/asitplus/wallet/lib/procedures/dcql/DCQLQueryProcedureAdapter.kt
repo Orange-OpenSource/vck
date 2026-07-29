@@ -209,7 +209,7 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
 /**
  * To be moved into Signum.
  *
- * [RFC 5280 4.2.1.1. Authority Key Identifier](https://www.rfc-editor.org/rfc/rfc5280.html#section-4.2.1.1)
+ * [RFC 5280 4.2.1.1. Authority Key Identifier](https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1)
  * ```
  *    id-ce-authorityKeyIdentifier OBJECT IDENTIFIER ::=  { id-ce 35 }
  *

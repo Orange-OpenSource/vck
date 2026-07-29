@@ -7,7 +7,7 @@ import kotlin.jvm.JvmName
 import kotlin.jvm.JvmStatic
 
 /**
- * specification: https://www.rfc-editor.org/rfc/rfc3986
+ * See [RFC3986](https://datatracker.ietf.org/doc/html/rfc3986)
  *
  * TODO: possibly replace with rfc3986 conforming implementation if found.
  *  Using ktor url for now, but there is no information on what specification is used there..

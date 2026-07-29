@@ -12,7 +12,7 @@ import kotlin.time.Instant
  * According to
  * [SD-JWT-based Verifiable Credentials (SD-JWT VC), Draft 10](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/)
  * and
- * [Selective Disclosure for JSON Web Tokens](https://www.rfc-editor.org/rfc/rfc9901.html)
+ * [Selective Disclosure for JSON Web Tokens](https://datatracker.ietf.org/doc/html/rfc9901)
  */
 @Serializable
 data class VerifiableCredentialSdJwt(

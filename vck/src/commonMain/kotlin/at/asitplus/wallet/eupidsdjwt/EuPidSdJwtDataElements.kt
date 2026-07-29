@@ -101,7 +101,7 @@ object EuPidSdJwtDataElements {
         const val HOUSE_NUMBER = "house_number"
     }
 
-    /** See [IsoIec5218Gender]. */
+    /** See [at.asitplus.wallet.eupid.IsoIec5218Gender]. */
     const val SEX = "sex"
 
     /** One or more alpha-2 country codes as specified in ISO 3166-1, representing the nationality of the user to

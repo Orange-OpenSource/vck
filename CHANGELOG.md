@@ -14,23 +14,24 @@ Release 7.0.0:
     - Document usage of remote metadata retrieval
     - Make JSON and ISO CBOR serializer registration safe for concurrent extension-library initialization
 - OpenID for Verifiable Presentations:
-    - Compare signed DC API `expected_origins` values to the provided origin as exact strings and add a configurable holder-side origin-scheme allowlist.
-    - Support non-web Android Digital Credentials API origins starting with `android:apk-key-hash:<hash>` for OpenID4VP; ISO18013-7 mdoc presentations require authority-based origins and reject opaque Android application origins.
-    - Fix SD-JWT presentation validation for Digital Credentials API responses by checking the key binding JWT audience against the request origin (`origin:<origin>`) instead of the verifier client identifier.
-    - Fix DCQL matching for credential queries without `claims`: selectively disclosable credentials now return an explicit mandatory-claims-only result, while non-selectively disclosable credentials still return all claims.
-    - Fix disclosure of SD-JWT claims from foreign issuers: match disclosure digests against the originally serialized disclosures instead of re-serializing them, since digests are computed over the exact bytes (RFC 9901, section 4.2.3), e.g. failing for disclosures serialized with whitespace.
+    - Compare signed DC API `expected_origins` values to the provided origin as exact strings and add a configurable holder-side origin-scheme allowlist
+    - Support non-web Android Digital Credentials API origins starting with `android:apk-key-hash:<hash>` for OpenID4VP; ISO18013-7 mdoc presentations require authority-based origins and reject opaque Android application origins
+    - Fix SD-JWT presentation validation for Digital Credentials API responses by checking the key binding JWT audience against the request origin (`origin:<origin>`) instead of the verifier client identifier
+    - Fix DCQL matching for credential queries without `claims`: selectively disclosable credentials now return an explicit mandatory-claims-only result, while non-selectively disclosable credentials still return all claims
+    - Fix disclosure of SD-JWT claims from foreign issuers: match disclosure digests against the originally serialized disclosures instead of re-serializing them, since digests are computed over the exact bytes (RFC 9901, section 4.2.3), e.g. failing for disclosures serialized with whitespace
     - Extend `DCQLCredentialQueryMatchingResult` by case `AllMandatoryClaimsMatchingResult`
     - Consolidate interface of `OpenId4VpVerifier`: All clients should use `createAuthnRequest()`, so we deprecate methods `submitAuthnRequest()` or `createAuthnRequestAsSignedRequestObject()`
     - Extract `DcApiVerifier` as a pendant to `OpenId4VpVerifier` which handles DCAPI requests only, deprecating `Iso180137AnnexCVerifier`
     - Move `CreationOptions` and `CreatedRequest` to upper level (`at.asitplus.wallet.lib.openid`) instead of nesting in `OpenId4VpVerifier`
 - Digital Credentials API:
-    - Add `DcApiHolder` as the unified wallet-side entry point for OpenID4VP and ISO/IEC 18013-7 Annex C requests received through the Digital Credentials API.
-    - Add platform response codecs for Android JSON and iOS ISO/IEC 18013-7 Annex C bytes without introducing platform dependencies.
-    - Add request-option conversion helpers that combine a selected DC API protocol with trusted platform metadata into `RequestParametersFrom.DcApiRequest`.
-    - Add the iOS-specific `IosDcApiMdocPreRequestSummary` model for pre-request credential matching and consistency checks against the full Annex C request.
+    - Add `DcApiHolder` as the unified wallet-side entry point for OpenID4VP and ISO/IEC 18013-7 Annex C requests received through the Digital Credentials API
+    - Add platform response codecs for Android JSON and iOS ISO/IEC 18013-7 Annex C bytes without introducing platform dependencies
+    - Add request-option conversion helpers that combine a selected DC API protocol with trusted platform metadata into `RequestParametersFrom.DcApiRequest`
+    - Add the iOS-specific `IosDcApiMdocPreRequestSummary` model for pre-request credential matching and consistency checks against the full Annex C request
+    - BREAKING: Remove the `origin` property from Digital Credentials API response models
 - Verifier:
-    - Add `NonceChallengeVerifier`, a thin `Verifier` wrapper that creates presentation challenges from a `NonceService` and verifies SD-JWT/VC-JWT presentations against the embedded challenge.
-    - Move OpenID4VP request nonce handling out of `VerifierAgent` and consume nonces after successful response validation to prevent replay.
+    - Add `NonceChallengeVerifier`, a thin `Verifier` wrapper that creates presentation challenges from a `NonceService` and verifies SD-JWT/VC-JWT presentations against the embedded challenge
+    - Move OpenID4VP request nonce handling out of `VerifierAgent` and consume nonces after successful response validation to prevent replay
     - Deprecate abstract base class `AbstractMdocVerifier`
     - Extract `MdocDeviceSignatureVerifier` from `AbstractMdocVerifier`
     - Extract `VpTokenValidator` from common code in `OpenId4VpVerifier` and `DcApiVerifier`
@@ -41,9 +42,9 @@ Release 7.0.0:
     - Rework `IssuerCredentialStore` by moving some functionality to `ReferencedTokenStore`
     - Status claims for identifier lists from ISO 18013-5 contain the certificate of the status list issuer
 - JVM interoperability:
-    - Add `@JvmOverloads` to public API constructors with default parameters across the published modules.
+    - Add `@JvmOverloads` to public API constructors with default parameters across the published modules
     - Provide methods to use non-negative `Long` values for status list indices and accompanying API
-    - Preserve RFC 3986 port and IPvFuture syntax without artificial `ULong` limits.
+    - Preserve RFC 3986 port and IPvFuture syntax without artificial `ULong` limits
 - Refactorings:
     - `OpenId4VpHolder.getMatchingCredentials()` returns `KmmResult` instead of `Result`
     - In `SdJwtInputValidationResult` transport error during integrity validation in `integrityValidationResult` instead of `isIntegrityGood`
@@ -54,8 +55,6 @@ Release 7.0.0:
     - Add signature and time validity checks of certificate against the trust list
     - Add JAdES B-B validation (Used when fetching LoTE)
     - Add `issuer` property in `StoreEntry`, for evaluation of trust against trust list
-- Digital Credentials API:
-    - BREAKING: Remove the `origin` property from Digital Credentials API response models.
  - Deprecations:
     - Remove code deprecated in 6.0.0, e.g. various `DCAPIWallet*` and related classes, `vckJsonSerializer`
     - In `OpenId4VpWallet` deprecate `sendAuthnErrorResponse()` with parameter of type `RequestParametersFrom`, use parameter of type `AuthorizationResponsePreparationState` instead
@@ -344,7 +343,7 @@ Release 5.9.0
    - Remove generics from methods in `OpenId4VpHolder` and work directly with `AuthorizationRequestParameters`
    - In `PresentationFactory` replace `RequestParameters` in function signatures to work directly with `AuthorizationRequestParameters`
    - Remove all parameters from `RequestParameters`, moved into their respective implementing class
-   - Add data class `JarRequestParameters` implementing `RequestParameters` to handle [JWT-secured authorization requests](https://www.rfc-editor.org/rfc/rfc9101.html) explicitly
+   - Add data class `JarRequestParameters` implementing `RequestParameters` to handle [JWT-secured authorization requests](https://datatracker.ietf.org/doc/html/rfc9101) explicitly
    - In `AuthorizationService` and `SimpleAuthorizationService` deprecate method `authorize` with `AuthenticationRequestParameters`, use `RequestParameters` instead
    - In `AuthorizationService` and `SimpleAuthorizationService` deprecate method `par` with `AuthenticationRequestParameters`, use `RequestParameters` instead
    - In `OAuth2Client` add method `createAuthRequestJar` to make intent more explicit
@@ -677,14 +676,14 @@ Release 5.5.0:
    - `CredentialIssuer` supports encrypting issued credentials
    - In `CredentialIssuer` deprecate methods for credential offers, moving them to `SimpleAuthorizationService`
  - Update implementation of authorization service for [OpenID4VC High Assurance Interoperability Profile](https://openid.net/specs/openid4vc-high-assurance-interoperability-profile-1_0.html) draft 03:
-   - `SimpleAuthorizationService` implements [pushed authorization requests](https://www.rfc-editor.org/rfc/rfc9126.html)
+   - `SimpleAuthorizationService` implements [pushed authorization requests](https://datatracker.ietf.org/doc/html/rfc9126)
    - `SimpleAuthorizationService` implements attestation-based client authentication as defined in [OAuth 2.0 Attestation-Based Client Authentication](https://www.ietf.org/archive/id/draft-ietf-oauth-attestation-based-client-auth-05.html)
    - `SimpleAuthorizationService` requires constructor parameter to select access token strategy
    - `TokenService.jwt()` implements sender-constrained access tokens as defined in [OAuth 2.0 Demonstrating Proof of Possession (DPoP)](https://datatracker.ietf.org/doc/html/rfc9449)
    - `TokenService.bearer()` implements traditional bearer access tokens
    - In `SimpleAuthorizationService` add constructor parameter to validate the client attestation JWT
    - In `CredentialIssuer.credential()` callers need to pass the whole `Authorization` header instead of just the access token value
-   - In `OAuth2Client` add constructor parameter `jwsService` te enable sending [JWT-secured authorization requests](https://www.rfc-editor.org/rfc/rfc9101.html)
+   - In `OAuth2Client` add constructor parameter `jwsService` te enable sending [JWT-secured authorization requests](https://datatracker.ietf.org/doc/html/rfc9101)
    - Enable issuing and usage of (JWT-based, sender-constrained) refresh tokens, e.g. extend `AuthorizationForToken`, add grant type `refresh_token`
    - Add method to `OpenId4VciClient` to refresh a credential with a refresh token that has been received when loading the credential
    - Remove methods from internal interface `OAuth2AuthorizationServerAdapter`

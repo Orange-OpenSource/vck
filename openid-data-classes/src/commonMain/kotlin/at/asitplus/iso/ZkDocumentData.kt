@@ -36,7 +36,7 @@ data class ZkDocumentData (
      * This header parameter allows for a single X.509 certificate or a chain of X.509 certificates to be carried in
      * the message.
      *
-     * See [RFC9360](https://www.rfc-editor.org/rfc/rfc9360.html)
+     * See [RFC9360](https://datatracker.ietf.org/doc/html/rfc9360)
      */
     @CborLabel(33)
     @SerialName("msoX5chain")

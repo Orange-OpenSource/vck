@@ -6,7 +6,7 @@ import at.asitplus.wallet.lib.RequestOptions
 @Deprecated("Use OpenId4VpRequestOptions and DcApiVerifier instead")
 data class Iso180137AnnexCRequestOptions(
     /**
-     * Device request can be built using [CredentialPresentationRequestBuilder]
+     * Device request can be built using `at.asitplus.wallet.lib.openid.CredentialPresentationRequestBuilder`.
      */
     val deviceRequest: DeviceRequest,
     /** Transaction ID. */

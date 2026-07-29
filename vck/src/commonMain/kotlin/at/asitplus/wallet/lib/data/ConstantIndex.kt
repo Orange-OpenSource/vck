@@ -106,7 +106,7 @@ interface CredentialScheme {
      * From IETF Draft SD-JWT VC:
      * Its value MUST be a case-sensitive string serving as an identifier for the type of the SD-JWT VC.
      * The `vct` value MUST be a Collision-Resistant Name as defined in Section 2 of
-     * [RFC7515](https://www.rfc-editor.org/info/rfc7515).
+     * [RFC7515](https://datatracker.ietf.org/doc/html/rfc7515).
      */
     val sdJwtType: String?
         get() = null
@@ -164,7 +164,7 @@ interface SdJwtCredentialScheme : CredentialScheme {
      * From IETF Draft SD-JWT VC:
      * Its value MUST be a case-sensitive string serving as an identifier for the type of the SD-JWT VC.
      * The `vct` value MUST be a Collision-Resistant Name as defined in Section 2 of
-     * [RFC7515](https://www.rfc-editor.org/info/rfc7515).
+     * [RFC7515](https://datatracker.ietf.org/doc/html/rfc7515).
      */
     override val sdJwtType: String
 

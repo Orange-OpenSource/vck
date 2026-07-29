@@ -6,7 +6,7 @@ import kotlin.time.Duration
 
 /**
  * Contents of a response to a pushed authorization request,
- * see [OAuth 2.0 Pushed Authorization Requests](https://www.rfc-editor.org/rfc/rfc9126.html)
+ * see [OAuth 2.0 Pushed Authorization Requests](https://datatracker.ietf.org/doc/html/rfc9126)
  */
 @Serializable
 data class PushedAuthenticationResponseParameters(

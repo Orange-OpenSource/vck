@@ -19,7 +19,7 @@ import kotlinx.serialization.json.putJsonArray
 
 
 /**
- * See [Selective Disclosure for JSON Web Tokens](https://www.rfc-editor.org/rfc/rfc9901.html)
+ * See [Selective Disclosure for JSON Web Tokens](https://datatracker.ietf.org/doc/html/rfc9901)
  */
 object SdJwtCreator {
 
@@ -128,7 +128,7 @@ object SdJwtCreator {
         "iss", "nbf", "exp", "cnf", "vct", "status"
     )
 
-    /** See [RFC 9901](https://www.rfc-editor.org/rfc/rfc9901.html#name-issuer-signed-jwt). */
+    /** See [RFC 9901](https://datatracker.ietf.org/doc/html/rfc9901). */
     private val disallowedNames = listOf(
         SD_ALG, "..."
     )

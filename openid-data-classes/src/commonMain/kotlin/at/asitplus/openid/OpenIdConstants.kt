@@ -195,10 +195,10 @@ object OpenIdConstants {
 
         /**
          * When the Client Identifier Scheme is x509_san_dns, the Client Identifier MUST be a DNS name and match a
-         * `dNSName` Subject Alternative Name (SAN) [RFC5280](https://www.rfc-editor.org/info/rfc5280) entry in the leaf
-         * certificate passed with the request. The request MUST be signed with the private key corresponding to the
-         * public key in the leaf X.509 certificate of the certificate chain added to the request in the `x5c` JOSE
-         * header [RFC7515](https://www.rfc-editor.org/info/rfc7515) of the signed request object.
+         * `dNSName` Subject Alternative Name (SAN) [RFC5280](https://datatracker.ietf.org/doc/html/rfc5280) entry in
+         * the leaf certificate passed with the request. The request MUST be signed with the private key corresponding
+         * to the public key in the leaf X.509 certificate of the certificate chain added to the request in the `x5c`
+         * JOSE header [RFC7515](https://datatracker.ietf.org/doc/html/rfc7515) of the signed request object.
          *
          * The Wallet MUST validate the signature and the trust chain of the X.509 certificate.
          * All Verifier metadata other than the public key MUST be obtained from the `client_metadata` parameter.

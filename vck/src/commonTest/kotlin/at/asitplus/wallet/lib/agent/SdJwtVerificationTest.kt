@@ -8,7 +8,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 
 /**
- * Verifies examples from [RFC 9901](https://www.rfc-editor.org/rfc/rfc9901.html)
+ * Verifies examples from [RFC 9901](https://datatracker.ietf.org/doc/html/rfc9901)
  */
 val SdJwtVerificationTest by matrixSuite {
 
