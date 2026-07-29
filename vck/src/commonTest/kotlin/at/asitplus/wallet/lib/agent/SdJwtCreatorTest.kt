@@ -54,20 +54,21 @@ val SdJwtCreatorTest by matrixSuite {
         }
     }
 
-    "nbf, exp, cnf, vct, status MUST be included in SD-JWT, i.e. can not be selectively disclosed" {
-        listOfClaims("nbf", "exp", "cnf", "vct", "status").toSdJsonObject(RandomSource.Default).apply {
+    "SD-JWT VC claims that must not be selectively disclosed are included in clear" {
+        listOfClaims("nbf", "exp", "cnf", "vct", "vct#integrity", "status").toSdJsonObject(RandomSource.Default).apply {
             second.shouldHaveSize(0)
             first["_sd"] shouldBe null
             first["nbf"] shouldNotBe null
             first["exp"] shouldNotBe null
             first["cnf"] shouldNotBe null
             first["vct"] shouldNotBe null
+            first["vct#integrity"] shouldNotBe null
             first["status"] shouldNotBe null
         }
     }
 
-    "several names are disallowed" {
-        listOfClaims("_sd_alg", "...").toSdJsonObject(RandomSource.Default).apply {
+    "reserved SD-JWT claim names are disallowed" {
+        listOfClaims("_sd", "_sd_alg", "...").toSdJsonObject(RandomSource.Default).apply {
             second.shouldHaveSize(0)
             first["_sd"] shouldBe null
             first["..."] shouldBe null

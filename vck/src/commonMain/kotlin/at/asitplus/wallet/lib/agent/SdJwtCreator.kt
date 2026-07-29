@@ -123,14 +123,14 @@ object SdJwtCreator {
         val simpleValues: Collection<ClaimToBeIssued>,
     )
 
-    /** See [registered JWT claims](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/). */
+    /** See [SD-JWT VC draft 17](https://www.ietf.org/archive/id/draft-ietf-oauth-sd-jwt-vc-17.html). */
     private val notDisclosableClaims = listOf(
-        "iss", "nbf", "exp", "cnf", "vct", "status"
+        "iss", "nbf", "exp", "cnf", "vct", "vct#integrity", "status"
     )
 
     /** See [RFC 9901](https://datatracker.ietf.org/doc/html/rfc9901). */
     private val disallowedNames = listOf(
-        SD_ALG, "..."
+        NAME_SD, SD_ALG, "..."
     )
 
     /**
