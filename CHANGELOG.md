@@ -1,5 +1,8 @@
 # Changelog
 
+Release 8.0.0 (unreleased):
+- tbd
+
 Release 7.0.0:
 - Credential definitions:
     - Move `CredentialScheme` out of `ConstantIndex`
