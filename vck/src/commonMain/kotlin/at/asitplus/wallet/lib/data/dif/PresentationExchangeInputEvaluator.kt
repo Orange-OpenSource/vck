@@ -13,6 +13,7 @@ import at.asitplus.jsonpath.JsonPath
 import at.asitplus.jsonpath.core.NodeList
 import at.asitplus.jsonpath.core.NodeListEntry
 import at.asitplus.jsonpath.core.NormalizedJsonPath
+import at.asitplus.jsonpath.core.NormalizedJsonPathSegment
 import at.asitplus.openid.CredentialFormatEnum
 import io.github.aakira.napier.Napier
 import kotlinx.serialization.json.JsonArray
@@ -158,15 +159,32 @@ object PresentationExchangeInputEvaluator {
     ): NodeList = constraintField.path.flatMap { jsonPath ->
         credential.candidates(jsonPath).filter { candidate ->
             pathAuthorizationValidator(candidate.normalizedJsonPath) &&
-                    constraintField.filter?.let { candidate.value.matchConstraints(it) } ?: true
+                    constraintField.filter?.let {
+                        candidate.value.matchConstraints(it, allowVcTypeArrayMatch = candidate.isVcTypeNode())
+                    } ?: true
         }
     }
 
     private fun JsonElement.candidates(jsonPath: String): NodeList =
         JsonPath(jsonPath).query(this)
+
+    /** The resolved node addresses a VC `type` member, whose value is conventionally an array of type strings. */
+    private fun NodeListEntry.isVcTypeNode(): Boolean =
+        (normalizedJsonPath.segments.lastOrNull() as? NormalizedJsonPathSegment.NameSegment)?.memberName == "type"
 }
 
-internal fun JsonElement.matchConstraints(filter: ConstraintFilter): Boolean {
+internal fun JsonElement.matchConstraints(
+    filter: ConstraintFilter,
+    allowVcTypeArrayMatch: Boolean = false,
+): Boolean {
+    // A scalar filter (const/pattern/enum) matches an array node when any element matches: VC-JWT credentials commonly
+    // carry `type` as an array, while verifiers filter `$.type` for a single type string. Scoped to the `type` field
+    // so a genuine scalar constraint on another field (e.g. `$.status`) is not silently satisfied by an array value.
+    if (allowVcTypeArrayMatch && this is JsonArray && filter.type != "array" &&
+        (filter.const != null || filter.pattern != null || filter.enum != null)
+    ) {
+        return any { it.matchConstraints(filter) }
+    }
     if (!matchType(filter)) {
         return false
     }

@@ -4,8 +4,15 @@ import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.catchingUnwrapped
 import at.asitplus.signum.indispensable.CryptoSignature
-import at.asitplus.signum.indispensable.cosef.*
+import at.asitplus.signum.indispensable.cosef.CoseAlgorithm
+import at.asitplus.signum.indispensable.cosef.CoseHeader
+import at.asitplus.signum.indispensable.cosef.CoseKey
+import at.asitplus.signum.indispensable.cosef.CoseKeyParams
+import at.asitplus.signum.indispensable.cosef.CoseMac
+import at.asitplus.signum.indispensable.cosef.CoseSigned
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
+import at.asitplus.signum.indispensable.cosef.toCoseAlgorithm
+import at.asitplus.signum.indispensable.cosef.toCoseKey
 import at.asitplus.signum.indispensable.pki.X509Certificate
 import at.asitplus.signum.supreme.asKmmResult
 import at.asitplus.signum.supreme.mac.mac
@@ -22,6 +29,7 @@ import io.matthewnelson.encoding.base16.Base16
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.encodeToByteArray
+import kotlin.jvm.JvmOverloads
 
 /** How to identify the key material in a [CoseHeader] */
 fun interface CoseHeaderIdentifierFun<T> {
@@ -320,7 +328,7 @@ fun interface VerifyCoseSignatureFun<P> {
  * Verifies COSE signatures using keys from headers or a lookup callback.
  * Use when validating signed COSE objects in verifier flows.
  */
-class VerifyCoseSignature<P : Any>(
+class VerifyCoseSignature<P : Any> @JvmOverloads constructor(
     val verifyCoseSignature: VerifyCoseSignatureWithKeyFun<P> = VerifyCoseSignatureWithKey<P>(),
     /** Need to implement if valid keys for CoseSigned are transported somehow out-of-band, e.g. provided by a trust store */
     val publicKeyLookup: PublicCoseKeyLookup = PublicCoseKeyLookup { null },
@@ -355,7 +363,7 @@ fun interface VerifyCoseSignatureWithKeyFun<P> {
  * Verifies a COSE signature using a provided [CoseKey].
  * Use when the signer key is known or resolved out of band.
  */
-class VerifyCoseSignatureWithKey<P : Any>(
+class VerifyCoseSignatureWithKey<P : Any> @JvmOverloads constructor(
     val verifySignature: VerifySignatureFun = VerifySignature(),
 ) : VerifyCoseSignatureWithKeyFun<P> {
     override suspend operator fun invoke(
@@ -393,7 +401,7 @@ fun interface VerifyCoseMacWithKeyFun<P> {
  * Verifies a COSE MAC using a provided symmetric [CoseKey].
  * Use when validating integrity-protected COSE MAC objects.
  */
-class VerifyCoseMacWithKey<P : Any>(
+class VerifyCoseMacWithKey<P : Any> @JvmOverloads constructor(
     val verifyMac: VerifyMacFun = VerifyMac(),
 ) : VerifyCoseMacWithKeyFun<P> {
     override suspend fun invoke(

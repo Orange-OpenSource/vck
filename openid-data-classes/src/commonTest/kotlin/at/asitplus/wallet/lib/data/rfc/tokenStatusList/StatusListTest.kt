@@ -1,9 +1,8 @@
 package at.asitplus.wallet.lib.data.rfc.tokenStatusList
 
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatusBitSize
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
 
 @OptIn(ExperimentalUnsignedTypes::class)

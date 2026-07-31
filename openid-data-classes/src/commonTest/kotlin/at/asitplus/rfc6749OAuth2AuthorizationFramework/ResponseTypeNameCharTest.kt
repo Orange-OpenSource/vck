@@ -1,12 +1,8 @@
 package at.asitplus.rfc6749OAuth2AuthorizationFramework
 
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.assertions.throwables.shouldThrowWithMessage
 
-@Suppress("unused")
 val ResponseTypeNameCharTest by matrixSuite {
     "_ is allowed" {
         shouldNotThrowAny {

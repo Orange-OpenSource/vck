@@ -1,9 +1,9 @@
 package at.asitplus.wallet.lib.oauth2
 
 import at.asitplus.catching
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.OpenIdAuthorizationDetails
 import at.asitplus.openid.OpenIdConstants
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidToken
 

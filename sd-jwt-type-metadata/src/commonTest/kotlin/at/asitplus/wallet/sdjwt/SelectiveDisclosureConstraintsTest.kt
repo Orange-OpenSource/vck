@@ -6,7 +6,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonPrimitive
 
-@Suppress("unused")
 val SelectiveDisclosureConstraintsTest by matrixSuite {
     /**
      * just making sure that the enum names remain consistent with the specification

@@ -14,8 +14,8 @@ package at.asitplus.wallet.lib.agent.validation.vcJws
  * see the "LICENSE" file for more details
  */
 
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.CryptoPublicKey
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.agent.matchesIdentifier
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import io.github.aakira.napier.Napier

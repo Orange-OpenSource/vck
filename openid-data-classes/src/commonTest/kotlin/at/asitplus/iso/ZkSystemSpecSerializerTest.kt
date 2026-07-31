@@ -1,7 +1,6 @@
 package at.asitplus.iso
 
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -13,7 +12,7 @@ import kotlinx.serialization.encodeToByteArray
 private const val TEST_SYSTEM_NAME = "test-system-v1"
 
 val ZkSystemSpecSerializerTest by matrixSuite {
-    
+
     ZkSystemParamRegistry.register(
         TEST_SYSTEM_NAME,
         mapOf(

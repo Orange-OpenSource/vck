@@ -1,6 +1,5 @@
 package at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives
 
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow

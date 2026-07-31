@@ -3,8 +3,13 @@ package at.asitplus.wallet.lib.agent
 import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.iso.IssuerSigned
+import at.asitplus.signum.indispensable.pki.X509Certificate
 import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
 import at.asitplus.wallet.lib.data.SelectiveDisclosureItem
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.VerifiableCredentialSdJwt
 
@@ -15,38 +20,50 @@ class InMemorySubjectCredentialStore : SubjectCredentialStore {
     override suspend fun storeCredential(
         vc: VerifiableCredentialJws,
         vcSerialized: String,
-        scheme: ConstantIndex.CredentialScheme,
+        scheme: VcJwtCredentialScheme,
         renewalInfo: CredentialRenewalInfo?,
-    ) = SubjectCredentialStore.StoreEntry.Vc(vcSerialized, vc, scheme.schemaUri, renewalInfo)
-        .also { credentials += it }
+        issuer: X509Certificate?
+    ) = SubjectCredentialStore.StoreEntry.Vc(
+        vcSerialized = vcSerialized,
+        vc = vc,
+        renewalInfo = renewalInfo,
+        issuer = issuer,
+        schemeIdentifier = scheme.vcType,
+    ).also { credentials += it }
 
     override suspend fun storeCredential(
         vc: VerifiableCredentialSdJwt,
         vcSerialized: String,
         disclosures: Map<String, SelectiveDisclosureItem?>,
-        scheme: ConstantIndex.CredentialScheme,
+        scheme: SdJwtCredentialScheme,
         renewalInfo: CredentialRenewalInfo?,
-    ) = SubjectCredentialStore.StoreEntry.SdJwt(vcSerialized, vc, disclosures, scheme.schemaUri, renewalInfo)
-        .also { credentials += it }
+        issuer: X509Certificate?
+    ) = SubjectCredentialStore.StoreEntry.SdJwt(
+        vcSerialized = vcSerialized,
+        sdJwt = vc,
+        disclosures = disclosures,
+        renewalInfo = renewalInfo,
+        issuer = issuer,
+        schemeIdentifier = scheme.sdJwtType,
+    ).also { credentials += it }
 
     override suspend fun storeCredential(
         issuerSigned: IssuerSigned,
-        scheme: ConstantIndex.CredentialScheme,
+        scheme: IsoMdocCredentialScheme,
         renewalInfo: CredentialRenewalInfo?,
-    ) = SubjectCredentialStore.StoreEntry.Iso(issuerSigned, scheme.schemaUri, renewalInfo)
-        .also { credentials += it }
+        issuer: X509Certificate?
+    ) = SubjectCredentialStore.StoreEntry.Iso(
+        issuerSigned = issuerSigned,
+        renewalInfo = renewalInfo,
+        issuer = issuer,
+        schemeIdentifier = scheme.isoDocType,
+    ).also { credentials += it }
 
     override suspend fun getCredentials(
-        credentialSchemes: Collection<ConstantIndex.CredentialScheme>?,
+        credentialSchemes: Collection<CredentialScheme>?,
     ): KmmResult<List<SubjectCredentialStore.StoreEntry>> = catching {
         credentialSchemes?.let { schemes ->
-            credentials.filter {
-                when (it) {
-                    is SubjectCredentialStore.StoreEntry.Iso -> it.scheme in schemes
-                    is SubjectCredentialStore.StoreEntry.SdJwt -> it.scheme in schemes
-                    is SubjectCredentialStore.StoreEntry.Vc -> it.scheme in schemes
-                }
-            }.toList()
+            credentials.filter { it.resolveScheme() in schemes }.toList()
         } ?: credentials
     }
 }

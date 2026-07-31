@@ -1,6 +1,5 @@
 package at.asitplus.openid.dcql
 
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow

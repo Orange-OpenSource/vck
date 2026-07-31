@@ -5,7 +5,6 @@ import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.json.Json
 
-@Suppress("unused")
 val SdJwtTypeMetadataDocumentResolverTest by matrixSuite {
     test("extending works as expected") {
         val baseType = Json.decodeFromString(

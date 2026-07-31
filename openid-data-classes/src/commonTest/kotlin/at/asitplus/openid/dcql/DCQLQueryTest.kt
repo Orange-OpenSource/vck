@@ -20,7 +20,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlin.random.Random
 
-@Suppress("unused")
 val DCQLQueryTest by matrixSuite {
     "specification" - {
         "serial names" {
@@ -30,7 +29,7 @@ val DCQLQueryTest by matrixSuite {
     }
     "instance serialization" {
         val queryId1 = DCQLCredentialQueryIdentifier(
-            Random.Default.nextBytes(32).encodeToString(Base64UrlStrict)
+            Random.nextBytes(32).encodeToString(Base64UrlStrict)
         )
         val serialized = Json.encodeToJsonElement(
             DCQLQuery(
@@ -80,7 +79,7 @@ val DCQLQueryTest by matrixSuite {
             "failing" - {
                 data(
                     mapOf(
-                        "empty database" to listOf<TestCredential>(),
+                        "empty database" to listOf(),
                         "iso mdoc database" to listOf<TestCredential>(
                             TestCredential.MdocCredential(
                                 documentType = uuid4().toString(),
@@ -149,7 +148,7 @@ val DCQLQueryTest by matrixSuite {
                                 satisfiesCryptographicHolderBinding = true,
                             ),
                         ),
-                        "with other mdoc credentials" to listOf<TestCredential>(
+                        "with other mdoc credentials" to listOf(
                             TestCredential.MdocCredential(
                                 documentType = uuid4().toString(), namespaces = mapOf()
                             ),

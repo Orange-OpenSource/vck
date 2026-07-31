@@ -1,12 +1,12 @@
 package at.asitplus.iso
 
+import kotlinx.datetime.LocalDate
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.cbor.ByteString
 import kotlinx.serialization.cbor.CborLabel
 import kotlinx.serialization.cbor.ValueTags
-import kotlinx.datetime.LocalDate
 
 /**
  * Part of the ISO/IEC 18013-5:2026 standard: ZKP Mdoc response (10.3.4)
@@ -36,7 +36,7 @@ data class ZkDocumentData (
      * This header parameter allows for a single X.509 certificate or a chain of X.509 certificates to be carried in
      * the message.
      *
-     * See [RFC9360](https://www.rfc-editor.org/rfc/rfc9360.html)
+     * See [RFC9360](https://datatracker.ietf.org/doc/html/rfc9360)
      */
     @CborLabel(33)
     @SerialName("msoX5chain")

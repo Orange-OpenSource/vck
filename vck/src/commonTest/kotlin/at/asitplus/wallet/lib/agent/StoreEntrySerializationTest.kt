@@ -4,11 +4,11 @@ import at.asitplus.iso.CborCredentialSerializer
 import at.asitplus.iso.IssuerSigned
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.rfc3986.toUri
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf

@@ -6,8 +6,26 @@ import kotlinx.serialization.Serializable
 data class Rfc3986Authority(
     val userInfo: Rfc3986UriAuthorityUserInformation?,
     val host: Rfc3986AuthorityHost,
-    val port: ULong?,
+    val rawPort: String?,
 ) {
+    constructor(
+        userInfo: Rfc3986UriAuthorityUserInformation?,
+        host: Rfc3986AuthorityHost,
+        port: ULong,
+    ) : this(
+        userInfo = userInfo,
+        host = host,
+        rawPort = port.toString()
+    )
+
+    init {
+        require(rawPort == null || rawPort.isNotEmpty() && rawPort.all { it in '0'..'9' }) {
+            "port must contain decimal digits"
+        }
+    }
+
+    val port: ULong? = rawPort?.toULongOrNull()
+
     companion object {
         operator fun invoke(string: String): Rfc3986Authority {
             val userInfoSeparatorIndex = string.indexOf('@').takeIf {
@@ -33,28 +51,19 @@ data class Rfc3986Authority(
                         portSeparatorIndex ?: string.length
                     )
                 ),
-                port = portSeparatorIndex?.let {
+                rawPort = portSeparatorIndex?.let {
                     val portString = string.substring(portSeparatorIndex + 1)
-                    if (portString.isEmpty()) null else portString.toULong()
+                    portString.ifEmpty { null }
                 }
             )
         }
     }
 
-    fun toString(incldueSensitiveInformation: Boolean) = listOfNotNull(
-        userInfo?.toString(incldueSensitiveInformation)?.let {
-            "$it@"
-        },
+    fun toString(includeSensitiveInformation: Boolean) = listOfNotNull(
+        userInfo?.toString(includeSensitiveInformation)?.let { "$it@" },
         host,
-        port?.let {
-            ":$it"
-        }
+        rawPort?.let { ":$it" }
     ).joinToString("")
 
-    @Suppress("POTENTIALLY_NON_REPORTED_ANNOTATION")
-    @Deprecated(
-        "Usage of toString in authority is discouraged as a decision should be made on whether to include sensitive information within userInfo or not, if it exists.",
-        ReplaceWith("toString(includeSensitiveInformation)")
-    )
-    override fun toString() = toString(false) // this may throw, but let's prefer that over exposin
+    override fun toString() = toString(false)
 }

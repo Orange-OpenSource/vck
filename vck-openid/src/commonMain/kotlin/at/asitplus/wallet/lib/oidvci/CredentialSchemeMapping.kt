@@ -12,12 +12,13 @@ import at.asitplus.openid.OpenIdConstants.URN_TYPE_JWK_THUMBPRINT
 import at.asitplus.openid.SupportedCredentialFormat
 import at.asitplus.openid.VcJwtCredentialDefinition
 import at.asitplus.wallet.lib.data.AttributeIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialScheme
-import at.asitplus.wallet.lib.data.ConstantIndex.supportsIso
-import at.asitplus.wallet.lib.data.ConstantIndex.supportsSdJwt
-import at.asitplus.wallet.lib.data.ConstantIndex.supportsVcJwt
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
 import at.asitplus.wallet.lib.data.VcDataModelConstants
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 
 /**
  * Defines mapping of [CredentialScheme] to identifiers used in OID4VCI in [CredentialIssuer]
@@ -60,63 +61,64 @@ interface CredentialSchemeMapper {
     fun decodeFromCredentialIdentifier(input: String): Pair<CredentialScheme, CredentialRepresentation>?
 }
 
-fun CredentialScheme.toIsoMdocSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
+fun IsoMdocCredentialScheme.toIsoMdocSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
     identifier to SupportedCredentialFormat.forIsoMdoc(
         scope = identifier,
-        docType = isoDocType!!,
+        docType = isoDocType,
         supportedBindingMethods = setOf(BINDING_METHOD_JWK, BINDING_METHOD_COSE_KEY),
-        isoClaims = claimNames.map {
-            ClaimDescription(path = OpenId4VciClaimsPathPointer(isoNamespace!!) + it.split(".").map {
-                OpenId4VciClaimsPathPointerSegmentString(it)
-            })
-        }.toSet()
+        // ISO mdoc claims must be namespace-qualified. Multi-format schemes (e.g. AtomicAttribute2023) share JSON-style
+        // claim descriptions across representations, so prefix the namespace unless the path already carries it (as
+        // metadata-derived ISO schemes do).
+        isoClaims = claimDescriptions.map { it.qualifiedWithIsoNamespace(isoNamespace) }.toSet()
     )
 
-fun CredentialScheme.toPlainJwtSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
+private fun ClaimDescription.qualifiedWithIsoNamespace(isoNamespace: String): ClaimDescription {
+    val firstSegment = path.firstOrNull()
+    val alreadyQualified = firstSegment is OpenId4VciClaimsPathPointerSegmentString && firstSegment.string == isoNamespace
+    return if (alreadyQualified) this
+    else copy(path = OpenId4VciClaimsPathPointer(isoNamespace) + path)
+}
+
+fun VcJwtCredentialScheme.toPlainJwtSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
     identifier to SupportedCredentialFormat.forVcJwt(
         scope = identifier,
         credentialDefinition = VcJwtCredentialDefinition(
-            types = setOf(VcDataModelConstants.VERIFIABLE_CREDENTIAL, vcType!!),
+            types = setOf(VcDataModelConstants.VERIFIABLE_CREDENTIAL, vcType),
         ),
         supportedBindingMethods = setOf(BINDING_METHOD_JWK, URN_TYPE_JWK_THUMBPRINT),
-        vcJwtClaims = claimNames.map {
-            ClaimDescription(path = OpenId4VciClaimsPathPointer(it.split(".")))
-        }.toSet()
+        vcJwtClaims = claimDescriptions
     )
 
-fun CredentialScheme.toSdJwtSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
+fun SdJwtCredentialScheme.toSdJwtSupportedCredentialFormat(identifier: String): Pair<String, SupportedCredentialFormat> =
     identifier to SupportedCredentialFormat.forSdJwt(
         scope = identifier,
-        sdJwtVcType = sdJwtType!!,
+        sdJwtVcType = sdJwtType,
         supportedBindingMethods = setOf(BINDING_METHOD_JWK, URN_TYPE_JWK_THUMBPRINT),
-        sdJwtClaims = claimDescriptions.takeUnless { it.isEmpty() }?.toSet()
-            ?: claimNames.map {
-                ClaimDescription(path = OpenId4VciClaimsPathPointer(it.split(".")))
-            }.toSet()
+        sdJwtClaims = claimDescriptions
     )
 
 class DefaultCredentialSchemeMapper : CredentialSchemeMapper {
 
     override fun map(scheme: CredentialScheme): Map<String, SupportedCredentialFormat> =
         listOfNotNull(
-            if (scheme.supportsIso) scheme.toIsoMdocSupportedCredentialFormat(
-                toCredentialIdentifier(scheme, CredentialRepresentation.ISO_MDOC)
-            ) else null,
-            if (scheme.supportsVcJwt) scheme.toPlainJwtSupportedCredentialFormat(
-                toCredentialIdentifier(scheme, CredentialRepresentation.PLAIN_JWT)
-            ) else null,
-            if (scheme.supportsSdJwt) scheme.toSdJwtSupportedCredentialFormat(
-                toCredentialIdentifier(scheme, CredentialRepresentation.SD_JWT)
-            ) else null
+            if (scheme is IsoMdocCredentialScheme)
+                scheme.toIsoMdocSupportedCredentialFormat(toCredentialIdentifier(scheme, ISO_MDOC))
+            else null,
+            if (scheme is VcJwtCredentialScheme)
+                scheme.toPlainJwtSupportedCredentialFormat(toCredentialIdentifier(scheme, PLAIN_JWT))
+            else null,
+            if (scheme is SdJwtCredentialScheme)
+                scheme.toSdJwtSupportedCredentialFormat(toCredentialIdentifier(scheme, SD_JWT))
+            else null
         ).toMap()
 
     override fun toCredentialIdentifier(
         scheme: CredentialScheme,
         rep: CredentialRepresentation,
     ) = when (rep) {
-        CredentialRepresentation.PLAIN_JWT -> encodeToCredentialIdentifier(scheme.vcType!!, JWT_VC)
-        CredentialRepresentation.SD_JWT -> encodeToCredentialIdentifier(scheme.sdJwtType!!, DC_SD_JWT)
-        CredentialRepresentation.ISO_MDOC -> scheme.isoNamespace!!
+        PLAIN_JWT -> encodeToCredentialIdentifier(scheme.vcType!!, JWT_VC)
+        SD_JWT -> encodeToCredentialIdentifier(scheme.sdJwtType!!, DC_SD_JWT)
+        ISO_MDOC -> scheme.isoDocType!!
     }
 
     override fun encodeToCredentialIdentifier(type: String, format: CredentialFormatEnum): String =
@@ -134,8 +136,8 @@ class DefaultCredentialSchemeMapper : CredentialSchemeMapper {
                 ?: return null
             Pair(credentialScheme, format.toRepresentation())
         } else {
-            AttributeIndex.resolveIsoNamespace(input)
-                ?.let { Pair(it, CredentialRepresentation.ISO_MDOC) }
+            AttributeIndex.resolveIsoDoctype(input)
+                ?.let { Pair(it, ISO_MDOC) }
         }
 
 }

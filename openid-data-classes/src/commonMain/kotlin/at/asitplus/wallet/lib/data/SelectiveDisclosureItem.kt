@@ -1,6 +1,5 @@
 package at.asitplus.wallet.lib.data
 
-import at.asitplus.iso.sha256
 import at.asitplus.signum.indispensable.Digest
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
@@ -22,7 +21,7 @@ data class SelectiveDisclosureItem(
 
     /**
      * Creates a disclosure, as described in section 4 of
-     * [RFC 9901](https://www.rfc-editor.org/rfc/rfc9901.html#name-disclosures)
+     * [RFC 9901](https://datatracker.ietf.org/doc/html/rfc9901#name-disclosures)
      */
     fun toDisclosure() = joseCompliantSerializer.encodeToString<SelectiveDisclosureItem>(this)
         .encodeToByteArray().encodeToString(Base64UrlStrict)
@@ -56,7 +55,7 @@ data class SelectiveDisclosureItem(
     companion object {
         /**
          * Hashes a disclosure from [SelectiveDisclosureItem.toDisclosure] according to section 4.2.3 of
-         * [RFC 9901](https://www.rfc-editor.org/rfc/rfc9901.html#name-hashing-disclosures)
+         * [RFC 9901](https://datatracker.ietf.org/doc/html/rfc9901#name-hashing-disclosures)
          **/
         fun String.hashDisclosure(digest: Digest = Digest.SHA256) =
             digest.digest(this.encodeToByteArray()).encodeToString(Base64UrlStrict)

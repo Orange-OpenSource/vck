@@ -9,7 +9,8 @@ import at.asitplus.openid.TokenResponseParameters
 import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
@@ -23,7 +24,6 @@ import at.asitplus.wallet.lib.oidvci.randomString
 import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.DummyUserProvider.user
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull

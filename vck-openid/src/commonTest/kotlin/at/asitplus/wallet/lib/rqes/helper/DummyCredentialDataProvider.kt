@@ -5,10 +5,14 @@ import at.asitplus.catching
 import at.asitplus.openid.OidcUserInfo
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.CryptoPublicKey
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
+import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import kotlinx.datetime.LocalDate
 import kotlin.time.Clock
@@ -20,15 +24,15 @@ object DummyCredentialDataProvider {
 
     fun getCredential(
         subjectPublicKey: CryptoPublicKey,
-        credentialScheme: ConstantIndex.CredentialScheme,
-        representation: ConstantIndex.CredentialRepresentation,
+        credentialScheme: CredentialScheme,
+        representation: CredentialRepresentation,
     ): KmmResult<CredentialToBeIssued> = catching {
         val issuance = Clock.System.now()
         val expiration = issuance + defaultLifetime
-        if (credentialScheme != EuPidSdJwtScheme) {
+        if (credentialScheme.sdJwtType != EU_PID_SD_JWT_VCT) {
             throw NotImplementedError()
         }
-        if (representation != ConstantIndex.CredentialRepresentation.SD_JWT) {
+        if (representation != SD_JWT) {
             throw NotImplementedError()
         }
 
@@ -38,7 +42,7 @@ object DummyCredentialDataProvider {
         val issuingCountry = "AT"
         val nationality = "FR"
         CredentialToBeIssued.VcSd(
-            claims = with(EuPidSdJwtScheme.SdJwtAttributes) {
+            claims = with(EuPidSdJwtDataElements) {
                 listOfNotNull(
                     ClaimToBeIssued(FAMILY_NAME, familyName),
                     ClaimToBeIssued(FAMILY_NAME_BIRTH, familyName),
@@ -53,7 +57,7 @@ object DummyCredentialDataProvider {
                 )
             },
             expiration = expiration,
-            scheme = credentialScheme,
+            scheme = credentialScheme as SdJwtCredentialScheme,
             subjectPublicKey = subjectPublicKey,
             userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
             sdAlgorithm = supportedSdAlgorithms.random(),

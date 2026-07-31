@@ -3,7 +3,6 @@ package at.asitplus.openid.dcql
 import at.asitplus.jsonpath.core.NodeListEntry
 import at.asitplus.jsonpath.core.NormalizedJsonPath
 import at.asitplus.jsonpath.core.NormalizedJsonPathSegment
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe

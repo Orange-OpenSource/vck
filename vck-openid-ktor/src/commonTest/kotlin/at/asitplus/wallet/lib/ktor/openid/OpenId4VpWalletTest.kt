@@ -9,8 +9,8 @@ import at.asitplus.openid.CredentialFormatEnum
 import at.asitplus.openid.OidcUserInfo
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.openid.OpenIdConstants.ResponseMode
-import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.openid.RequestObjectParameters
+import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.openid.dcql.DCQLClaimsPathPointerSegment.NameSegment
 import at.asitplus.openid.dcql.DCQLClaimsQueryList
@@ -24,9 +24,12 @@ import at.asitplus.openid.dcql.DCQLIsoMdocCredentialMetadataAndValidityConstrain
 import at.asitplus.openid.dcql.DCQLIsoMdocCredentialQuery
 import at.asitplus.openid.dcql.DCQLQuery
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
-import at.asitplus.wallet.eupid.EuPidScheme
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
+import at.asitplus.wallet.eupid.EuPidDataElements
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
+import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
@@ -38,12 +41,18 @@ import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.CredentialPresentation.DCQLPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
 import at.asitplus.wallet.lib.data.SelectiveDisclosureItem
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.data.toJsonElement
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
@@ -55,13 +64,12 @@ import at.asitplus.wallet.lib.openid.CredentialPresentationRequestBuilder
 import at.asitplus.wallet.lib.openid.DCQLMatchingResult
 import at.asitplus.wallet.lib.openid.OpenId4VpRequestOptions
 import at.asitplus.wallet.lib.openid.OpenId4VpVerifier
-import at.asitplus.wallet.lib.openid.OpenId4VpVerifier.CreationOptions
+import at.asitplus.wallet.lib.openid.CreationOptions
 import at.asitplus.wallet.lib.openid.PresentationExchangeMatchingResult
 import at.asitplus.wallet.lib.openid.VpTokenValidationResultDCQL
 import at.asitplus.wallet.lib.openid.VpTokenValidationResultPresentationExchange
-import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
+import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.github.aakira.napier.Napier
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -99,9 +107,9 @@ val OpenId4VpWalletTest by matrixSuite {
             lateinit var mockEngine: HttpClientEngine
 
             suspend fun setup(
-                scheme: ConstantIndex.CredentialScheme,
-                representation: ConstantIndex.CredentialRepresentation,
-                attributes: Map<String, String>,
+                scheme: CredentialScheme,
+                representation: CredentialRepresentation,
+                attributes: Map<DCQLClaimsPathPointer, String>,
                 responseMode: ResponseMode,
                 clientId: String,
                 storeCredentials: Boolean = true,
@@ -112,7 +120,7 @@ val OpenId4VpWalletTest by matrixSuite {
                             RequestOptionsCredential(
                                 credentialScheme = scheme,
                                 representation = representation,
-                                requestedAttributes = attributes.keys
+                                attributePaths = attributes.keys
                             )
                         ),
                     ).toDCQLRequest(),
@@ -135,7 +143,7 @@ val OpenId4VpWalletTest by matrixSuite {
 
             fun verifyReceivedAttributes(
                 authnResponseResult: KmmResult<AuthnResponseResult>,
-                expectedAttributes: Map<String, String>
+                expectedAttributes: Map<DCQLClaimsPathPointer, String>
             ) {
                 if (authnResponseResult.getOrNull()?.containsAllAttributes(expectedAttributes) ?: false) {
                     countdownLatch.unlock()
@@ -143,9 +151,9 @@ val OpenId4VpWalletTest by matrixSuite {
             }
 
             suspend fun storeMockCredentials(
-                scheme: ConstantIndex.CredentialScheme,
-                representation: ConstantIndex.CredentialRepresentation,
-                attributes: Map<String, Any>,
+                scheme: CredentialScheme,
+                representation: CredentialRepresentation,
+                attributes: Map<DCQLClaimsPathPointer, Any>,
             ) = holderAgent.storeCredential(
                 IssuerAgent(
                     keyMaterial = EphemeralKeyWithSelfSignedCert(),
@@ -156,14 +164,14 @@ val OpenId4VpWalletTest by matrixSuite {
                 ).getOrThrow().toStoreCredentialInput()
             ).getOrThrow()
 
-            fun ConstantIndex.CredentialRepresentation.toCredentialToBeIssued(
-                scheme: ConstantIndex.CredentialScheme,
-                attributes: Map<String, Any>,
+            fun CredentialRepresentation.toCredentialToBeIssued(
+                scheme: CredentialScheme,
+                attributes: Map<DCQLClaimsPathPointer, Any>,
             ): CredentialToBeIssued = when (this) {
                 ConstantIndex.CredentialRepresentation.PLAIN_JWT -> CredentialToBeIssued.VcJwt(
                     subject = AtomicAttribute2023("sub", "name", "value", "text").toJsonElement(),
                     expiration = Clock.System.now().plus(1.minutes),
-                    scheme = scheme,
+                    scheme = scheme as VcJwtCredentialScheme,
                     subjectPublicKey = keyMaterial.publicKey,
                     userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
                 )
@@ -171,7 +179,7 @@ val OpenId4VpWalletTest by matrixSuite {
                 SD_JWT -> CredentialToBeIssued.VcSd(
                     claims = attributes.map { it.toClaimToBeIssued() },
                     expiration = Clock.System.now().plus(1.minutes),
-                    scheme = scheme,
+                    scheme = scheme as SdJwtCredentialScheme,
                     subjectPublicKey = keyMaterial.publicKey,
                     userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
                     sdAlgorithm = supportedSdAlgorithms.random()
@@ -180,7 +188,7 @@ val OpenId4VpWalletTest by matrixSuite {
                 ISO_MDOC -> CredentialToBeIssued.Iso(
                     issuerSignedItems = attributes.map { it.toIssuerSignedItem() },
                     expiration = Clock.System.now().plus(1.minutes),
-                    scheme = scheme,
+                    scheme = scheme as IsoMdocCredentialScheme,
                     subjectPublicKey = keyMaterial.publicKey,
                     userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
                 )
@@ -247,11 +255,12 @@ val OpenId4VpWalletTest by matrixSuite {
         }
     } - {
         test("presentEuPidCredentialSdJwtDirectPost") {
+            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
             it.setup(
-                scheme = EuPidSdJwtScheme,
+                scheme = euPidSdJwtScheme,
                 representation = SD_JWT,
                 attributes = mapOf(
-                    EuPidSdJwtScheme.SdJwtAttributes.FAMILY_NAME to randomString()
+                    DCQLClaimsPathPointer(EuPidSdJwtDataElements.FAMILY_NAME) to randomString()
                 ),
                 responseMode = ResponseMode.DirectPost,
                 clientId = uuid4().toString()
@@ -267,11 +276,12 @@ val OpenId4VpWalletTest by matrixSuite {
         }
 
         test("presentEuPidCredentialIsoQuery") {
+            val euPidScheme = AttributeIndex.resolveIdentifier(EU_PID_DOCTYPE, ISO_MDOC)
             it.setup(
-                scheme = EuPidScheme,
+                scheme = euPidScheme,
                 representation = ISO_MDOC,
                 attributes = mapOf(
-                    EuPidScheme.Attributes.GIVEN_NAME to randomString()
+                    DCQLClaimsPathPointer(EuPidDataElements.GIVEN_NAME) to randomString()
                 ),
                 responseMode = ResponseMode.Query,
                 clientId = uuid4().toString()
@@ -287,15 +297,16 @@ val OpenId4VpWalletTest by matrixSuite {
         }
 
         test("DC API") {
+            val mdlScheme = AttributeIndex.resolveIdentifier(MDL_DOCTYPE, ISO_MDOC)
             it.setupWallet(HttpClient().engine)
 
             val attributes = mapOf(
-                "family_name" to "XXXMûstérfřău",
-                "given_name" to "XXXĤáčęk Elfriede Hàčêk",
-                "age_over_21" to true
+                DCQLClaimsPathPointer("family_name") to "XXXMûstérfřău",
+                DCQLClaimsPathPointer("given_name") to "XXXĤáčęk Elfriede Hàčêk",
+                DCQLClaimsPathPointer("age_over_21") to true
             )
 
-            val credential = it.storeMockCredentials(MobileDrivingLicenceScheme, ISO_MDOC, attributes)
+            val credential = it.storeMockCredentials(mdlScheme, ISO_MDOC, attributes)
 
             val dcqlQuery = DCQLQuery(
                 credentials = DCQLCredentialQueryList(
@@ -304,7 +315,7 @@ val OpenId4VpWalletTest by matrixSuite {
                             id = DCQLCredentialQueryIdentifier("cred1"),
                             format = CredentialFormatEnum.MSO_MDOC,
                             meta = DCQLIsoMdocCredentialMetadataAndValidityConstraints(
-                                doctypeValue = MobileDrivingLicenceScheme.isoDocType
+                                doctypeValue = mdlScheme.isoDocType!!
                             ),
                             claims = DCQLClaimsQueryList(
                                 list = nonEmptyListOf(
@@ -445,11 +456,12 @@ val OpenId4VpWalletTest by matrixSuite {
         }
 
         test("No matching credential test") {
+            val euPidScheme = AttributeIndex.resolveIdentifier(EU_PID_DOCTYPE, ISO_MDOC)
             it.setup(
-                scheme = EuPidScheme,
+                scheme = euPidScheme,
                 representation = ISO_MDOC,
                 attributes = mapOf(
-                    EuPidScheme.Attributes.GIVEN_NAME to randomString()
+                    DCQLClaimsPathPointer(EuPidDataElements.GIVEN_NAME) to randomString()
                 ),
                 responseMode = ResponseMode.Query,
                 clientId = uuid4().toString(),
@@ -472,13 +484,14 @@ val OpenId4VpWalletTest by matrixSuite {
     }
 }
 
-private fun Map.Entry<String, Any>.toClaimToBeIssued(): ClaimToBeIssued = ClaimToBeIssued(key, value)
+// TODO: ClaimToBeIssued with DCQLClaimsPathPointer!
+private fun Map.Entry<DCQLClaimsPathPointer, Any>.toClaimToBeIssued(): ClaimToBeIssued = ClaimToBeIssued(key.getFirstName(), value)
 
-private fun Map.Entry<String, Any>.toIssuerSignedItem(): IssuerSignedItem =
-    IssuerSignedItem(0U, Random.nextBytes(16), key, value)
+private fun Map.Entry<DCQLClaimsPathPointer, Any>.toIssuerSignedItem(): IssuerSignedItem =
+    IssuerSignedItem(0U, Random.nextBytes(16), key.getFirstName(), value)
 
 
-private fun AuthnResponseResult.containsAllAttributes(expectedAttributes: Map<String, String>): Boolean = catching {
+private fun AuthnResponseResult.containsAllAttributes(expectedAttributes: Map<DCQLClaimsPathPointer, String>): Boolean = catching {
     when (val vpTokenValidationResult = this.vpTokenValidationResult.shouldNotBeNull().getOrThrow()) {
         is VpTokenValidationResultDCQL -> vpTokenValidationResult.credentialQueryResponseValidations.values
             .shouldBeSingleton().first().shouldBeSingleton().first().getOrThrow()
@@ -492,7 +505,7 @@ private fun AuthnResponseResult.containsAllAttributes(expectedAttributes: Map<St
 }
 
 private fun Verifier.VerifyPresentationResult.containsAllAttributes(
-    attributes: Map<String, String>
+    attributes: Map<DCQLClaimsPathPointer, String>
 ): Boolean = when (this) {
     is Verifier.VerifyPresentationResult.SuccessIso -> containsAllAttributes(attributes)
     is Verifier.VerifyPresentationResult.SuccessSdJwt -> containsAllAttributes(attributes)
@@ -500,23 +513,26 @@ private fun Verifier.VerifyPresentationResult.containsAllAttributes(
     is Verifier.VerifyPresentationResult.SuccessUnsigned -> false
 }
 
-private fun Verifier.VerifyPresentationResult.SuccessSdJwt.containsAllAttributes(attributes: Map<String, String>): Boolean =
+private fun Verifier.VerifyPresentationResult.SuccessSdJwt.containsAllAttributes(attributes: Map<DCQLClaimsPathPointer, String>): Boolean =
     attributes.all { containsAttribute(it) }
 
-private fun Verifier.VerifyPresentationResult.SuccessSdJwt.containsAttribute(attribute: Map.Entry<String, String>): Boolean =
+private fun Verifier.VerifyPresentationResult.SuccessSdJwt.containsAttribute(attribute: Map.Entry<DCQLClaimsPathPointer, String>): Boolean =
     disclosures.toList().any { it.matchesAttribute(attribute) }
 
-private fun Verifier.VerifyPresentationResult.SuccessIso.containsAllAttributes(attributes: Map<String, String>): Boolean =
+private fun Verifier.VerifyPresentationResult.SuccessIso.containsAllAttributes(attributes: Map<DCQLClaimsPathPointer, String>): Boolean =
     attributes.all { containsAttribute(it) }
 
-private fun Verifier.VerifyPresentationResult.SuccessIso.containsAttribute(attribute: Map.Entry<String, String>): Boolean =
+private fun Verifier.VerifyPresentationResult.SuccessIso.containsAttribute(attribute: Map.Entry<DCQLClaimsPathPointer, String>): Boolean =
     documents.any { doc -> doc.validItems.any { it.matchesAttribute(attribute) } }
 
-private fun SelectiveDisclosureItem.matchesAttribute(attribute: Map.Entry<String, String>): Boolean =
-    claimName == attribute.key && claimValue.jsonPrimitive.content == attribute.value
+private fun SelectiveDisclosureItem.matchesAttribute(attribute: Map.Entry<DCQLClaimsPathPointer, String>): Boolean =
+    claimName == attribute.key.getFirstName() && claimValue.jsonPrimitive.content == attribute.value
 
-private fun IssuerSignedItem.matchesAttribute(attribute: Map.Entry<String, String>): Boolean =
-    elementIdentifier == attribute.key && elementValue.toString() == attribute.value
+private fun IssuerSignedItem.matchesAttribute(attribute: Map.Entry<DCQLClaimsPathPointer, String>): Boolean =
+    elementIdentifier == attribute.key.getFirstName() && elementValue.toString() == attribute.value
+
+private fun DCQLClaimsPathPointer.getFirstName(): String =
+    (segments.first() as NameSegment).name
 
 // If the countdownLatch has been unlocked, the correct credential has been posted to the RP, and we're done!
 private suspend fun assertPresentation(countdownLatch: Mutex) {

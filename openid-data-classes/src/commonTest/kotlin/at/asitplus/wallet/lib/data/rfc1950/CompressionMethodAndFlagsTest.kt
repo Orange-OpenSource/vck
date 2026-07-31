@@ -1,8 +1,7 @@
 package at.asitplus.wallet.lib.data.rfc1950
 
-import at.asitplus.testballoon.matrix.*
-import at.asitplus.wallet.lib.data.rfc1950.primitives.Nibble
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.lib.data.rfc1950.primitives.Nibble
 import io.kotest.matchers.shouldBe
 
 val CompressionMethodAndFlagsTest by matrixSuite {

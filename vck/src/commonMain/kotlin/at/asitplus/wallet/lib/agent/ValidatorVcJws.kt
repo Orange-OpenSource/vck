@@ -14,8 +14,8 @@ package at.asitplus.wallet.lib.agent
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.CryptoPublicKey
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.agent.Verifier.VerifyCredentialResult
 import at.asitplus.wallet.lib.agent.Verifier.VerifyPresentationResult
 import at.asitplus.wallet.lib.agent.validation.vcJws.VcJwsInputValidationResult.ContentValidationSummary
@@ -32,13 +32,14 @@ import at.asitplus.wallet.lib.jws.VerifyJwsSignature
 import at.asitplus.wallet.lib.jws.VerifyJwsSignatureFun
 import io.github.aakira.napier.Napier
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.jvm.JvmOverloads
 
 /**
  * Parses and validates Verifiable Credentials and Verifiable Presentations.
  * Does verify the cryptographic authenticity of the data.
  * Does verify the revocation status of the data (when a status information is encoded in the credential).
  */
-class ValidatorVcJws(
+class ValidatorVcJws @JvmOverloads constructor(
     private val verifySignature: VerifySignatureFun = VerifySignature(),
     private val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(verifySignature),
     private val verifyJwsObject: VerifyJwsObjectFun = VerifyJwsObject(verifyJwsSignature),
@@ -158,4 +159,3 @@ class ValidatorVcJws(
         }
     }
 }
-

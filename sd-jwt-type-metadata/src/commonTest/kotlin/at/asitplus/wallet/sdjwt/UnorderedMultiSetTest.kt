@@ -4,7 +4,6 @@ import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 
-@Suppress("unused")
 val UnorderedMultiSetTest by matrixSuite {
     test("order does not matter for equality, but multiplicity does") {
         UnorderedMultiSet<Nothing>() shouldBe UnorderedMultiSet<Nothing>()

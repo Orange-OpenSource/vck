@@ -1,38 +1,48 @@
-package at.asitplus.wallet.sdjwt
+package at.asitplus.wallet.lib.ktor.openid
 
+import at.asitplus.catchingUnwrapped
 import at.asitplus.rfc3986uri.Rfc3986UniformResourceIdentifier
 import at.asitplus.rfc3986uri.Rfc3986UriSchemeName
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.get
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDefinition
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocument
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocumentIntegrityChecker
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDocumentRetriever
+import at.asitplus.wallet.sdjwt.SdJwtVcType
+import at.asitplus.wallet.sdjwt.W3cSubresourceIntegrityMetadata
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.request.*
 import io.ktor.client.utils.CacheControl
-import io.ktor.http.Headers
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
+import io.ktor.http.*
 import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
-// unused because there are currently no officially available type metadata documents
-@Suppress("unused")
 class KtorSdJwtTypeMetadataDocumentRetriever(
     val httpClient: HttpClient,
     val clock: Clock,
+    /**
+     * Resolves the URL a metadata document is hosted at for a given `vct` (used both as document identity and for
+     * walking `extends`). Required because a `vct` is not necessarily a URL (e.g. `urn:eudi:pid:1`); the owning
+     * [at.asitplus.wallet.lib.data.CredentialMetadataRegistry] keeps the actual `vct -> URL` mapping and supplies this
+     * lookup. A `vct` for which this returns `null` cannot be fetched, and [retrieve] returns `null` for it.
+     */
+    val locateUrl: (SdJwtVcType) -> String?,
     val json: Json = Json.Default,
     val integrityChecker: SdJwtTypeMetadataDocumentIntegrityChecker = SdJwtTypeMetadataDocumentIntegrityChecker.DEFAULT,
 ) : SdJwtTypeMetadataDocumentRetriever {
-    private val staticCache = mutableMapOf<SdJwtVcType, Pair<W3cSubresourceIntegrityMetadata, SdJwtTypeMetadataDocument>>()
+    private val staticCache =
+        mutableMapOf<SdJwtVcType, Pair<W3cSubresourceIntegrityMetadata, SdJwtTypeMetadataDocument>>()
     private val dynamicCache = mutableMapOf<SdJwtVcType, Pair<Instant, SdJwtTypeMetadataDocument>>()
 
     override suspend fun retrieve(
         sdJwtVcType: SdJwtVcType,
         integrityMetadata: W3cSubresourceIntegrityMetadata?,
     ): SdJwtTypeMetadataDocument? {
-        val uri = runCatching {
-            Rfc3986UniformResourceIdentifier.Companion(sdJwtVcType.string)
-        }.getOrNull() ?: return null
+        val url = locateUrl(sdJwtVcType) ?: return null
+        val uri = catchingUnwrapped { Rfc3986UniformResourceIdentifier(url) }.getOrNull() ?: return null
 
         if (uri.schemeName !in Rfc3986UriSchemeName.Common.run { listOf(HTTPS, HTTP) }) {
             return null
@@ -54,7 +64,7 @@ class KtorSdJwtTypeMetadataDocumentRetriever(
             }
         }
 
-        val response = httpClient.get(sdJwtVcType.string)
+        val response = httpClient.get(url)
         if (response.status == HttpStatusCode.OK) {
             val rawBytes = response.body<ByteArray>()
             val definition = json.decodeFromString(SdJwtTypeMetadataDefinition.serializer(), rawBytes.decodeToString())

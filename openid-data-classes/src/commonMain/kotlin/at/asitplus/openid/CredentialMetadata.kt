@@ -2,7 +2,6 @@ package at.asitplus.openid
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 
 /**
  * OID4VCI: Object containing information relevant to the usage and display of issued Credentials. Credential

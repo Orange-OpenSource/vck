@@ -6,7 +6,6 @@ import at.asitplus.iso.IssuerSignedItem.Companion.PROP_ELEMENT_ID
 import at.asitplus.iso.IssuerSignedItem.Companion.PROP_ELEMENT_VALUE
 import at.asitplus.iso.IssuerSignedItem.Companion.PROP_RANDOM
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
-import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ByteArraySerializer
@@ -22,6 +21,7 @@ import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.encoding.encodeStructure
 import net.orandja.obor.data.CborMap
 import net.orandja.obor.data.CborText
+import kotlin.time.Instant
 
 open class IssuerSignedItemSerializer(
     private val namespace: String,
@@ -186,7 +186,7 @@ open class IssuerSignedItemSerializer(
 
         val elementValueContainer = first { (it.key as CborText).value == PROP_ELEMENT_VALUE }.value
         val elementValue = CborCredentialSerializer.lookupSerializer(namespace, elementId)?.let {
-            runCatching {
+            catchingUnwrapped {
                 coseCompliantSerializer.decodeFromByteArray(it, elementValueContainer.cbor)
             }.getOrElse {
                 decodeGenericElementValue(elementValueContainer.cbor)
@@ -197,14 +197,14 @@ open class IssuerSignedItemSerializer(
     }
 
     private fun decodeGenericElementValue(bytes: ByteArray): Any {
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(LocalDate.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(InstantStringSerializer, bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(String.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(Long.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(Float.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(Double.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(Boolean.serializer(), bytes) }
-        runCatching { return coseCompliantSerializer.decodeFromByteArray(ByteArraySerializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(LocalDate.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(InstantStringSerializer, bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(String.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(Long.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(Float.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(Double.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(Boolean.serializer(), bytes) }
+        catchingUnwrapped { return coseCompliantSerializer.decodeFromByteArray(ByteArraySerializer(), bytes) }
         return bytes
     }
 

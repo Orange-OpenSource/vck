@@ -8,17 +8,18 @@ import at.asitplus.openid.TokenResponseParameters
 import at.asitplus.openid.truncateToSeconds
 import at.asitplus.signum.indispensable.josef.ConfirmationClaim
 import at.asitplus.signum.indispensable.josef.JsonWebKey
+import at.asitplus.wallet.lib.DefaultNonceService
+import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
-import at.asitplus.wallet.lib.utils.DefaultMapStore
-import at.asitplus.wallet.lib.DefaultNonceService
-import at.asitplus.wallet.lib.utils.MapStore
-import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidDpopProof
+import at.asitplus.wallet.lib.utils.DefaultMapStore
+import at.asitplus.wallet.lib.utils.MapStore
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Clock.System
 import kotlin.time.Duration.Companion.days
@@ -44,7 +45,7 @@ interface TokenGenerationService {
  * Implemented from
  * [OAuth 2.0 Demonstrating Proof of Possession (DPoP)](https://datatracker.ietf.org/doc/html/rfc9449)
  */
-class JwtTokenGenerationService(
+class JwtTokenGenerationService @JvmOverloads constructor(
     /** Used to create nonces for tokens during issuing. */
     internal val nonceService: NonceService,
     /** Used to create nonces for refresh tokens during issuing, which are long-lived. */
@@ -137,7 +138,7 @@ class JwtTokenGenerationService(
 /**
  * Simple bearer token generation (just a nonce) for an OAuth 2.0 authorization server.
  */
-class BearerTokenGenerationService(
+class BearerTokenGenerationService @JvmOverloads constructor(
     /** Used to create nonces for tokens during issuing. */
     internal val nonceService: NonceService = DefaultNonceService(),
     private val accessTokenToValidatedAccessToken: MapStore<String, ValidatedAccessToken> = DefaultMapStore(),

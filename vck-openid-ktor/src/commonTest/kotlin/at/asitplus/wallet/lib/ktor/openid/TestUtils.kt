@@ -15,14 +15,19 @@ import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.wallet.eupid.EuPidScheme
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
+import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
 import at.asitplus.wallet.lib.agent.Holder
 import at.asitplus.wallet.lib.agent.ValidatorSdJwt
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.AttributeIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
 import at.asitplus.wallet.lib.data.MediaTypes
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import at.asitplus.wallet.lib.oauth2.RequestInfo
@@ -44,6 +49,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.random.Random
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 
 object TestUtils {
 
@@ -74,8 +80,8 @@ object TestUtils {
     fun dummyUser(): OidcUserInfoExtended = OidcUserInfoExtended.deserialize("{\"sub\": \"foo\"}").getOrThrow()
 
     fun credentialDataProviderFun(
-        scheme: ConstantIndex.CredentialScheme,
-        representation: ConstantIndex.CredentialRepresentation,
+        scheme: CredentialScheme,
+        representation: CredentialRepresentation,
         attributes: Map<String, String>,
         revocationKind: RevocationList.Kind = RevocationList.Kind.STATUS_LIST,
     ): CredentialDataProviderFun = CredentialDataProviderFun {
@@ -84,25 +90,25 @@ object TestUtils {
             require(it.credentialRepresentation == representation)
             var digestId = 0u
             when (representation) {
-                ConstantIndex.CredentialRepresentation.PLAIN_JWT -> TODO()
-                ConstantIndex.CredentialRepresentation.SD_JWT -> CredentialToBeIssued.VcSd(
+                PLAIN_JWT -> TODO()
+                SD_JWT -> CredentialToBeIssued.VcSd(
                     claims = attributes.map { ClaimToBeIssued(it.key, it.value) },
-                    expiration = Clock.System.now(),
-                    scheme = it.credentialScheme,
+                    expiration = Clock.System.now().plus(1.minutes),
+                    scheme = it.credentialScheme as SdJwtCredentialScheme,
                     subjectPublicKey = it.subjectPublicKey,
                     userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject"))
                         .getOrThrow(),
                     sdAlgorithm = supportedSdAlgorithms.random()
                 )
 
-                ConstantIndex.CredentialRepresentation.ISO_MDOC -> CredentialToBeIssued.Iso(
-                    attributes.map {
+                ISO_MDOC -> CredentialToBeIssued.Iso(
+                    issuerSignedItems = attributes.map {
                         IssuerSignedItem(digestId++, Random.nextBytes(32), it.key, it.value)
                     },
-                    Clock.System.now(),
-                    it.credentialScheme,
-                    it.subjectPublicKey,
-                    OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
+                    expiration = Clock.System.now().plus(1.minutes),
+                    scheme = it.credentialScheme as IsoMdocCredentialScheme,
+                    subjectPublicKey = it.subjectPublicKey,
+                    userInfo = OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
                     revocationKind = revocationKind,
                 )
             }
@@ -114,9 +120,10 @@ object TestUtils {
         expectedClaimValue: String,
         credentialKey: CryptoPublicKey,
     ) {
+        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
         credentials.shouldBeSingleton().also {
             it.first().shouldBeInstanceOf<Holder.StoreCredentialInput.SdJwt>().also {
-                it.scheme shouldBe EuPidSdJwtScheme
+                it.scheme shouldBe euPidSdJwtScheme
                 ValidatorSdJwt().verifySdJwt(it.signedSdJwtVc, credentialKey).getOrThrow()
                     .disclosures.values.any {
                         it.claimName == claimName &&
@@ -127,13 +134,14 @@ object TestUtils {
         }
     }
 
-    fun CredentialIssuanceResult.Success.verifyIsoMdocCredential(
+    suspend fun CredentialIssuanceResult.Success.verifyIsoMdocCredential(
         claimName: String,
         expectedClaimValue: String,
     ) {
+        val euPidScheme = AttributeIndex.resolveIdentifier(EU_PID_DOCTYPE, ISO_MDOC)
         credentials.shouldBeSingleton().also {
             it.first().shouldBeInstanceOf<Holder.StoreCredentialInput.Iso>().also {
-                it.scheme shouldBe EuPidScheme
+                it.scheme shouldBe euPidScheme
                 it.issuerSigned.namespaces?.values?.flatMap { it.entries }?.map { it.value }
                     ?.any { it.elementIdentifier == claimName && it.elementValue == expectedClaimValue }
                     ?.shouldNotBeNull()?.shouldBeTrue()

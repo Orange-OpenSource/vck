@@ -7,24 +7,31 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.encoding.CompositeEncoder
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.concurrent.atomics.update
 
+@OptIn(ExperimentalAtomicApi::class)
 object CborCredentialSerializer {
 
-    private val decoderMap = mutableMapOf<String, Map<String, ItemValueDecoder>>()
-    private val encoderMap = mutableMapOf<String, Map<String, ItemValueEncoder>>()
-    private val serializerLookupMap = mutableMapOf<String, Map<String, KSerializer<*>>>()
+    private data class NamespaceSerializers(
+        val decoders: Map<String, ItemValueDecoder>,
+        val encoders: Map<String, ItemValueEncoder>,
+        val serializers: Map<String, KSerializer<*>>,
+    )
+
+    private val serializersByNamespaceRef = AtomicReference(emptyMap<String, NamespaceSerializers>())
 
     fun register(serializerMap: Map<String, KSerializer<*>>, isoNamespace: String) {
-        decoderMap[isoNamespace] =
-            serializerMap.map { (k, ser) ->
-                k to decodeFun(ser)
-            }.toMap()
-        encoderMap[isoNamespace] =
-            serializerMap.map { (k, ser) ->
+        val namespaceSerializers = NamespaceSerializers(
+            decoders = serializerMap.mapValues { (_, serializer) -> decodeFun(serializer) },
+            encoders = serializerMap.mapValues { (_, serializer) ->
                 @Suppress("UNCHECKED_CAST")
-                k to encodeFun(ser as KSerializer<Any>)
-            }.toMap()
-        serializerLookupMap[isoNamespace] = serializerMap
+                encodeFun(serializer as KSerializer<Any>)
+            },
+            serializers = serializerMap,
+        )
+        serializersByNamespaceRef.update { it + (isoNamespace to namespaceSerializers) }
     }
 
     private fun decodeFun(ser: KSerializer<*>) =
@@ -38,7 +45,7 @@ object CborCredentialSerializer {
         }
 
     fun lookupSerializer(namespace: String, elementIdentifier: String): KSerializer<*>? =
-        serializerLookupMap[namespace]?.get(elementIdentifier)
+        serializersByNamespaceRef.load()[namespace]?.serializers?.get(elementIdentifier)
 
     fun encode(
         namespace: String,
@@ -48,7 +55,8 @@ object CborCredentialSerializer {
         compositeEncoder: CompositeEncoder,
         value: Any,
     ) {
-        encoderMap[namespace]?.get(elementIdentifier)?.invoke(descriptor, index, compositeEncoder, value)
+        serializersByNamespaceRef.load()[namespace]?.encoders?.get(elementIdentifier)
+            ?.invoke(descriptor, index, compositeEncoder, value)
     }
 
     fun decode(
@@ -57,7 +65,7 @@ object CborCredentialSerializer {
         compositeDecoder: CompositeDecoder,
         elementIdentifier: String,
         isoNamespace: String,
-    ): Any? = decoderMap[isoNamespace]?.get(elementIdentifier)?.let {
+    ): Any? = serializersByNamespaceRef.load()[isoNamespace]?.decoders?.get(elementIdentifier)?.let {
         catchingUnwrapped { it.invoke(descriptor, index, compositeDecoder) }.getOrNull()
     }
 }

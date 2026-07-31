@@ -1,5 +1,66 @@
 # Changelog
 
+Release 7.0.0:
+- Credential definitions:
+    - Move `CredentialScheme` out of `ConstantIndex`
+    - Provide type alias for `CredentialRepresentation`
+    - Introduce typed sub-interfaces of `CredentialScheme`: `VcJwtCredentialScheme`, `SdJwtCredentialScheme` and `IsoMdocCredentialScheme`
+    - That implies changes to `CredentialToBeIssued`, `IssuedCredential`, `StoreCredentialInput` and methods in `SubjectCredentialStore`
+    - In `CredentialScheme` deprecate `claimNames` (list of strings), to be replaced with `claimDescriptions` (set of typed descriptions)
+    - In `CredentialScheme` deprecate `schemaUri`, clients should use the identifiers for each credential representation instead
+    - In `StoreEntry` deprecate property `scheme` and add suspending function `resolveScheme()` to replace it
+    - Add `UnknownCredentialScheme` so that the `scheme` property in several methods and classes is not null
+    - Import data classes and data element strings from credentials into this library for [EU PID](https://github.com/a-sit-plus/eu-pid-credential), [EU PID in SD-JWT](https://github.com/a-sit-plus/eu-pid-credential-sdjwt/) and [Mobile Driving Licence](https://github.com/a-sit-plus/mobile-driving-licence-credential/)
+    - Document usage of remote metadata retrieval
+    - Make JSON and ISO CBOR serializer registration safe for concurrent extension-library initialization
+- OpenID for Verifiable Presentations:
+    - Compare signed DC API `expected_origins` values to the provided origin as exact strings and add a configurable holder-side origin-scheme allowlist
+    - Support non-web Android Digital Credentials API origins starting with `android:apk-key-hash:<hash>` for OpenID4VP; ISO18013-7 mdoc presentations require authority-based origins and reject opaque Android application origins
+    - Fix SD-JWT presentation validation for Digital Credentials API responses by checking the key binding JWT audience against the request origin (`origin:<origin>`) instead of the verifier client identifier
+    - Fix DCQL matching for credential queries without `claims`: selectively disclosable credentials now return an explicit mandatory-claims-only result, while non-selectively disclosable credentials still return all claims
+    - Fix disclosure of SD-JWT claims from foreign issuers: match disclosure digests against the originally serialized disclosures instead of re-serializing them, since digests are computed over the exact bytes (RFC 9901, section 4.2.3), e.g. failing for disclosures serialized with whitespace
+    - Extend `DCQLCredentialQueryMatchingResult` by case `AllMandatoryClaimsMatchingResult`
+    - Consolidate interface of `OpenId4VpVerifier`: All clients should use `createAuthnRequest()`, so we deprecate methods `submitAuthnRequest()` or `createAuthnRequestAsSignedRequestObject()`
+    - Extract `DcApiVerifier` as a pendant to `OpenId4VpVerifier` which handles DCAPI requests only, deprecating `Iso180137AnnexCVerifier`
+    - Move `CreationOptions` and `CreatedRequest` to upper level (`at.asitplus.wallet.lib.openid`) instead of nesting in `OpenId4VpVerifier`
+- Digital Credentials API:
+    - Add `DcApiHolder` as the unified wallet-side entry point for OpenID4VP and ISO/IEC 18013-7 Annex C requests received through the Digital Credentials API
+    - Add platform response codecs for Android JSON and iOS ISO/IEC 18013-7 Annex C bytes without introducing platform dependencies
+    - Add request-option conversion helpers that combine a selected DC API protocol with trusted platform metadata into `RequestParametersFrom.DcApiRequest`
+    - Add the iOS-specific `IosDcApiMdocPreRequestSummary` model for pre-request credential matching and consistency checks against the full Annex C request
+    - BREAKING: Remove the `origin` property from Digital Credentials API response models
+- Verifier:
+    - Add `NonceChallengeVerifier`, a thin `Verifier` wrapper that creates presentation challenges from a `NonceService` and verifies SD-JWT/VC-JWT presentations against the embedded challenge
+    - Move OpenID4VP request nonce handling out of `VerifierAgent` and consume nonces after successful response validation to prevent replay
+    - Deprecate abstract base class `AbstractMdocVerifier`
+    - Extract `MdocDeviceSignatureVerifier` from `AbstractMdocVerifier`
+    - Extract `VpTokenValidator` from common code in `OpenId4VpVerifier` and `DcApiVerifier`
+- OpenID for Verifiable Credential Issuance:
+    - Wallet does not send any proofs when the issuer doesn't [support any proof types](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#section-12.2.4-2.11.2.5.1)
+    - Update Wallet Instance Attestation and Key Attestation to [EUDI Wallet TS3 1.5.2](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md) from 2026-05-26
+    - In `IssuerAgent` introduce constructor parameter `statusListAgent` to decouple creation of status elements from issuing credentials
+    - Rework `IssuerCredentialStore` by moving some functionality to `ReferencedTokenStore`
+    - Status claims for identifier lists from ISO 18013-5 contain the certificate of the status list issuer
+- JVM interoperability:
+    - Add `@JvmOverloads` to public API constructors with default parameters across the published modules
+    - Provide methods to use non-negative `Long` values for status list indices and accompanying API
+    - Preserve RFC 3986 port and IPvFuture syntax without artificial `ULong` limits
+- Refactorings:
+    - `OpenId4VpHolder.getMatchingCredentials()` returns `KmmResult` instead of `Result`
+    - In `SdJwtInputValidationResult` transport error during integrity validation in `integrityValidationResult` instead of `isIntegrityGood`
+    - `vck-openid-ktor` HTTP clients throw `HttpErrorResponseException` for non-success responses, preserving OAuth errors, RFC 9457 problem details, and the raw response body
+    - Add `ClaimToBeIssued(OpenId4VciClaimsPathPointer, value)` shorthand and Java-safe `ClaimToBeIssued.fromPath(List<String>, value)` for creating nested claims from string path segments.
+- Trust Evaluation:
+    - Add `LoTEFilterService` for extracting trust list certificates from `LoTE` based on `ServiceTypeIdentifier`
+    - Add signature and time validity checks of certificate against the trust list
+    - Add JAdES B-B validation (Used when fetching LoTE)
+    - Add `issuer` property in `StoreEntry`, for evaluation of trust against trust list
+ - Deprecations:
+    - Remove code deprecated in 6.0.0, e.g. various `DCAPIWallet*` and related classes, `vckJsonSerializer`
+    - In `OpenId4VpWallet` deprecate `sendAuthnErrorResponse()` with parameter of type `RequestParametersFrom`, use parameter of type `AuthorizationResponsePreparationState` instead
+ - Dependencies:
+    - Update to [Signum 3.24.0](https://github.com/a-sit-plus/signum/releases/tag/3.24.0) for HPKE support
+
 Release 6.0.0:
  - JWS:
    - BREAKING: Replace `JwsSigned` with `JwsCompact` and `JwsCompactTyped` in signing, verification, OpenID request/response, OAuth 2.0 DPoP/client attestation, OID4VCI proof, JWT VC, status list JWT, and SD-JWT APIs
@@ -13,7 +74,7 @@ Release 6.0.0:
    - Change: `SdJwtSigned` now stores the issuer JWS as `JwsCompact` and key binding JWS as `JwsCompactTyped<KeyBindingJws>`
    - Deprecate `SdJwtSigned.getPayloadAsVerifiableCredentialSdJwt()` and `SdJwtSigned.getPayloadAsJsonObject()`, use `SdJwtSigned.jws.getPayload<...>()`
  - OpenID for Verifiable Presentations:
-   - BREAKING: Integrate DC API request wrappers into `RequestParametersFrom` as `OpenId4VpDcApiUnsigned`, `OpenId4VpDcApiSigned`, `OpenId4VpDcApiMultiSigned`, and `IsoMdocDcApi`; DC API metadata such as `protocol`, `credentialIds`, `callingPackageName`, and `callingOrigin` is now represented directly on `RequestParametersFrom.DcApiRequest`
+   - BREAKING: Integrate DC API request wrappers into `RequestParametersFrom` as `OpenId4VpDcApiUnsigned`, `OpenId4VpDcApiSigned`, `OpenId4VpDcApiMultiSigned`, and `IsoMdocDcApi`; DC API metadata such as `protocol`, `credentialIds`, `callingPackageName`, and `dcApiCallingOrigin` is now represented directly on `RequestParametersFrom.DcApiRequest`
    - Change: Signed and multisigned DC API requests are now rejected unless `expected_origins` is set, as required by OpenID4VP for signed requests over the Digital Credentials API
    - Fix: Unsigned DC API requests are no longer rejected when a `client_id` is present; per [OpenID4VP](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html#name-request) the Wallet MUST ignore any `client_id` parameter in an unsigned request
    - Add `attributePaths` and `optionalAttributePaths` to `RequestOptionsCredential` for requesting literal claim names containing dots with `DCQLClaimsPathPointer`, while keeping the deprecated string attributes as nested dot-notation shorthand. ISO mdoc requests also accept explicit namespace/name paths and prefix single claim names with the credential scheme namespace.
@@ -32,7 +93,7 @@ Release 6.0.0:
    - Update `loadInstanceAttestation` and `loadKeyAttestation` to use input parameter
    - JWT proof creation only loads/attaches a key attestation when issuer metadata requires it
    - Reject Wallet Instance Attestations, attestation proofs, JWT proofs, and Key Attestations that use signing algorithms outside the TS3 ES256/ES384/ES512 set
-   - Change: Add typed subclasses for `SupportedCredentialFormat` for every credential representation 
+   - Change: Add typed subclasses for `SupportedCredentialFormat` for every credential representation
    - Change: In `SupportedCredentialFormat` replace `List<String>` with `OpenId4VciClaimsPathPointer` for claim definitions
  - Deprecations:
    - Remove code deprecated in 5.12.0, e.g. `CredentialSubject` as base class for JWT VC
@@ -50,7 +111,7 @@ Release 6.0.0:
    - Update to [Supreme 0.14.0](https://github.com/a-sit-plus/signum/pull/451)
    - Update to Ktor 3.5.0
    - Update Bouncy Castle 1.84
-   - Update to kotlinx.coroutines 1.11.0
+   - Update to `kotlinx.coroutines` 1.11.0
  - Matrix testing
 
 Release 5.12.0:
@@ -72,7 +133,7 @@ Release 5.12.0:
    - Change: Update DCQLClaimsQuery and DCQLCredentialQuery to OpenID4VP 1.0
    - Change: Do not fail when only matching credentials without submitting a presentation
    - Allow issuance and verification of `IdentifierList` Revocation Mechanism
-   - Change: Don't send response on user initiated signature cancellation
+   - Change: Don't send response on user-initiated signature cancellation
    - BREAKING CHANGE: The result type from `verifyAuthnResponse`, `AuthnResponseResult` has been reworked to a data class
    - DCQL: Add custom credential types and proper satisfaction evaluation
    - Add: DCQL submission requirements validation
@@ -200,7 +261,7 @@ Release 5.10.0:
    - Drop single `proof` in credential request
    - Support credential response encryption correctly, see changed API in `CredentialIssuer.credential()`
    - Correctly verify credential request regarding `credential_configuration_id` and `credential_identifiers`
-   - Support credential request encryption correctly, if metadata is set at Issuer
+   - Support credential request encryption correctly if metadata is set at Issuer
  - OpenID for Verifiable Presentations:
    - Update implementation to 1.0 from 2025-07-09
    - Remove code elements deprecated in 5.9.0
@@ -230,9 +291,9 @@ Release 5.9.1
 
 Release 5.9.0
  - Remove code elements deprecated in 5.8.0
- - Gradle modules: 
+ - Gradle modules:
    - Change dependency structure of modules
-   - Remove `vck-rqes` module, relevant classes have been moved to `vck-openid` 
+   - Remove `vck-rqes` module, relevant classes have been moved to `vck-openid`
    - Rename `rqes-data-classes` to `csc-data-classes`
    - Move DIF-related classes to `dif-data-classes`
    - Move OpenId-related classes to `openid-data-classes`
@@ -278,15 +339,15 @@ Release 5.9.0
    - `SimpleAuthorizationService` supports token exchange acc. to [RFC 8693](https://datatracker.ietf.org/doc/html/rfc8693)
    - `SimpleAuthorizationService` supports token introspection acc. to [RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662)
    - Implement `RemoteOAuth2AuthorizationServerAdapter` so that credential issuers may be connected to external OAuth2.0 authorization servers
-   - Implement `OAuth2KtorClient` to implement a ktor-based client for OAuth 2.0, including [OAuth 2.0 Demonstrating Proof of Possession (DPoP)](https://datatracker.ietf.org/doc/html/rfc9449)  
+   - Implement `OAuth2KtorClient` to implement a ktor-based client for OAuth 2.0, including [OAuth 2.0 Demonstrating Proof of Possession (DPoP)](https://datatracker.ietf.org/doc/html/rfc9449)
    - Remove generics from methods in `OpenId4VpHolder` and work directly with `AuthorizationRequestParameters`
    - In `PresentationFactory` replace `RequestParameters` in function signatures to work directly with `AuthorizationRequestParameters`
    - Remove all parameters from `RequestParameters`, moved into their respective implementing class
-   - Add data class `JarRequestParameters` implementing `RequestParameters` to handle [JWT-secured authorization requests](https://www.rfc-editor.org/rfc/rfc9101.html) explicitly
+   - Add data class `JarRequestParameters` implementing `RequestParameters` to handle [JWT-secured authorization requests](https://datatracker.ietf.org/doc/html/rfc9101) explicitly
    - In `AuthorizationService` and `SimpleAuthorizationService` deprecate method `authorize` with `AuthenticationRequestParameters`, use `RequestParameters` instead
    - In `AuthorizationService` and `SimpleAuthorizationService` deprecate method `par` with `AuthenticationRequestParameters`, use `RequestParameters` instead
    - In `OAuth2Client` add method `createAuthRequestJar` to make intent more explicit
-   - Allow `SimpleAuthorizationService` to toggle usage of PAR and JAR with new `requirePushedAuthorizationRequests` and `requestObjectSigningAlgorithms` parameters 
+   - Allow `SimpleAuthorizationService` to toggle usage of PAR and JAR with new `requirePushedAuthorizationRequests` and `requestObjectSigningAlgorithms` parameters
  - Cryptography:
    - Use [secure random](https://github.com/KotlinCrypto/random) for source of nonces by default, but also expose constructor parameters to override it
  - Update implementation of [OpenID for Verifiable Credential Issuance](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html) to draft 17:
@@ -342,10 +403,10 @@ Release 5.8.0:
  - Refactor `AuthorizationServiceStrategy`
    - Allow for general AuthorizationDetails
    - Remove `filterAuthorizationDetails` function
-   - Add `validateAuthorizationDetails` function 
+   - Add `validateAuthorizationDetails` function
    - Add `matchAuthorizationDetails` function
    - Add `RqesAuthorizationServiceStrategy` class
- - Refactor `SimpleAuthorizationService` and 
+ - Refactor `SimpleAuthorizationService` and
    - Add `SimpleQtspAuthorizationService` class
    - Remove `AuthorizationDetail` matching and validation from class to interface function
  - Code organization:
@@ -369,11 +430,11 @@ Release 5.8.0:
    - In `SimpleAuthorizationService` deprecate constructor parameter `dataProvider`, use `authorize()` with `OAuth2LoadUserFun` instead
    - In `AuthorizationService` deprecate `authorize()` methods, adding `authorize()` with `OAuth2LoadUserFun`
  - Credential schemes:
-   - Provide fallback credential schemes, to be used when no matching scheme is registered with this library:
+   - Provide fallback credential schemes to be used when no matching scheme is registered with this library:
      - `SdJwtFallbackCredentialScheme`
      - `VcFallbackCredentialScheme`
      - `IsoMdocFallbackCredentialScheme`
-   - Note that these schemes are not resolved automatically, and need to be used explicitly in client applications
+   - Note that these schemes are not resolved automatically and need to be used explicitly in client applications
  - SD-JWT:
    - Add data class for [SD-JWT VC Type metadata](https://www.ietf.org/archive/id/draft-ietf-oauth-sd-jwt-vc-10.html#name-sd-jwt-vc-type-metadata) in `SdJwtTypeMetadata`
    - Update signum to provide SD-JWT VC Type metadata in `vctm` in the header of a SD-JWT
@@ -425,7 +486,7 @@ Release 5.7.0:
    - Remove code elements deprecated in `5.6.0`
  - OpenID for Verifiable Credential Issuance:
    - Expose `oauth2Client` in `WalletService`
-   - Remove code elements deprecated in `5.6.3` in `OpenId4VciClient` 
+   - Remove code elements deprecated in `5.6.3` in `OpenId4VciClient`
    - Update `transaction_data_hashes` according to result from <https://github.com/openid/OpenID4VP/pull/621>
  - Holder:
    - Replace `keyPair` with `keyMaterial`
@@ -433,7 +494,7 @@ Release 5.7.0:
    - Replace type aliases with functional interfaces (providing named parameters in implementations)
    - Make cryptographic verification functions suspending
  - Fully integrated crypto functionality based on Signum 3.16.2. This carries over breaking changes:
-   - All debug-only kotlinx.serialization for cryptographic datatypes like certificates, public keys, etc. was removed
+   - All debug-only `kotlinx.serialization` for cryptographic datatypes like certificates, public keys, etc. was removed
    - This finally cleans up the RSAorHMAC
      - `SignatureAlgorithm.RSAorHMAC` is now properly split into `SignatureAlgorithm` and `MessageAuthenticationCode`. Both implement `DataIntegrityAlgorithm`.
      - This split also affects `JwsAlgorithm`, which now has subtypes: `Signature` and `MAC`. Hence, `JwsAlgorithm.ES256` -> `JwsAlgorithm.Signature.ES256`
@@ -442,7 +503,7 @@ Release 5.7.0:
    - Change `Validator.verifyVcJws` to not perform timeliness validation
    - Change `Validator.verifySdJwt` to not perform timeliness validation
    - Replace property`isRevoked` with property `freshnessSummary` in:
-     - `Verifier.VerifyPresentationResult.SuccessSdJwt` 
+     - `Verifier.VerifyPresentationResult.SuccessSdJwt`
      - `IsoDocumentParsed`
      - `AuthnResponseResult.SuccessSdJwt`
    - Change type of `VerifiablePresentationParsed.verifiableCredentials` and `revokedVerifiableCredentials` to `Collection<VcJwsVerificationResultWrapper>`
@@ -451,7 +512,7 @@ Release 5.7.0:
    - Remove `Validator.checkRevocationStatus` in favor of `Validator.checkCredentialFreshness`
    - Remove `Holder.StoredCredential.status`
    - Remove `Verifier.VerifyCredentialResult.Revoked`
-   - Add constructor parameter `Validator.acceptedTokenStatuses` to allow library client to define token statuses deemed valid
+   - Add constructor parameter `Validator.acceptedTokenStatuses` to allow library clients to define token statuses deemed valid
  - Add support for Digital Credentials API as defined in OID4VP draft 28 and ISO 18013-7 Annex C:
    - Implement `DCAPIRequest` for requests received via the Digital Credentials API, with implementations for OID4VP (`Oid4vpDCAPIRequest`), ISO 18013-7 Annex C (`IsoMdocRequest`) and a non-standardised preview protocol (`PreviewDCAPIRequest`)
    - New property of type `Oid4vpDCAPIRequest` for requests originating from the Digital Credentials API in `AuthorizationResponsePreparationState`
@@ -459,7 +520,7 @@ Release 5.7.0:
    - New optional parameter `filterById` of type `String` in `Holder.matchInputDescriptorsAgainstCredentialStore`, `HolderAgent.getValidCredentialsByPriority` `HolderAgent.matchInputDescriptorsAgainstCredentialStore` `HolderAgent.matchDCQLQueryAgainstCredentialStore` to filter credentials by id
    - New method `SubjectCredentialStore.getDcApiId` to generate an id of type `String` for a credential
    - New optional property of type `DCAPIHandover` for `SessionTranscript`
- - Return member of interface `AuthenticationResult` instead of `AuthenticationSuccess` as authorization response in `OpenId4VpWallet`. Can either be
+ - Return member of interface `AuthenticationResult` instead of `AuthenticationSuccess` as authorization response in `OpenId4VpWallet`:
    - `AuthenticationSuccess`: contains a `redirectUri` (same behaviour as in 5.6.x)
    - `AuthenticationForward`: contains the `authenticationResponseResult` for responses via the Digital Credentials API
  - Refactoring of ISO data classes:
@@ -471,7 +532,7 @@ Release 5.7.0:
    - Update AGP to 8.6.1 for composite builds with Valera
    - Make `OAuth2Exception` serializable
    - Add data class `LocalDateOrInstant` to be used by credentials
-  
+
 Release 5.6.6:
  - OpenID for Verifiable Presentations:
    - Fix applying presentation exchange filters to credentials (`array` and `object` filters)
@@ -504,7 +565,7 @@ Release 5.6.3:
    - In `OpenId4VciClient` deprecate constructor parameters needed for callbacks, and return `CredentialIssuanceResult` in method calls instead
      - Deprecates parameters`openUrlExternally`, `storeProvisioningContext`, `loadProvisioningContext`, `storeCredential`, `storeRefreshToken`
      - Deprecates methods `startProvisioningWithAuthRequest`, `resumeWithAuthCode` (without `context`), `refreshCredential`, `loadCredentialWithOffer`
- 
+
 Release 5.6.2:
  - OpenID for Verifiable Presentations:
    - Send `state` parameter for `direct_post.jwt` to increase compatibility with buggy verifiers
@@ -615,14 +676,14 @@ Release 5.5.0:
    - `CredentialIssuer` supports encrypting issued credentials
    - In `CredentialIssuer` deprecate methods for credential offers, moving them to `SimpleAuthorizationService`
  - Update implementation of authorization service for [OpenID4VC High Assurance Interoperability Profile](https://openid.net/specs/openid4vc-high-assurance-interoperability-profile-1_0.html) draft 03:
-   - `SimpleAuthorizationService` implements [pushed authorization requests](https://www.rfc-editor.org/rfc/rfc9126.html)
+   - `SimpleAuthorizationService` implements [pushed authorization requests](https://datatracker.ietf.org/doc/html/rfc9126)
    - `SimpleAuthorizationService` implements attestation-based client authentication as defined in [OAuth 2.0 Attestation-Based Client Authentication](https://www.ietf.org/archive/id/draft-ietf-oauth-attestation-based-client-auth-05.html)
    - `SimpleAuthorizationService` requires constructor parameter to select access token strategy
    - `TokenService.jwt()` implements sender-constrained access tokens as defined in [OAuth 2.0 Demonstrating Proof of Possession (DPoP)](https://datatracker.ietf.org/doc/html/rfc9449)
    - `TokenService.bearer()` implements traditional bearer access tokens
    - In `SimpleAuthorizationService` add constructor parameter to validate the client attestation JWT
    - In `CredentialIssuer.credential()` callers need to pass the whole `Authorization` header instead of just the access token value
-   - In `OAuth2Client` add constructor parameter `jwsService` te enable sending [JWT-secured authorization requests](https://www.rfc-editor.org/rfc/rfc9101.html)
+   - In `OAuth2Client` add constructor parameter `jwsService` te enable sending [JWT-secured authorization requests](https://datatracker.ietf.org/doc/html/rfc9101)
    - Enable issuing and usage of (JWT-based, sender-constrained) refresh tokens, e.g. extend `AuthorizationForToken`, add grant type `refresh_token`
    - Add method to `OpenId4VciClient` to refresh a credential with a refresh token that has been received when loading the credential
    - Remove methods from internal interface `OAuth2AuthorizationServerAdapter`
@@ -711,7 +772,7 @@ Release 5.3.0:
     - Add token status bitsize
     - Change iso credential identifier to make it deterministic
   - `Issuer`:
-    - Change `buildRevocationList` to `buildStatusList` 
+    - Change `buildRevocationList` to `buildStatusList`
     - Add functions for issuing status lists and status list tokens
     - Remove `compileCurrentRevocationLists`
     - Add inheritance from token status agent interfaces
@@ -724,10 +785,10 @@ Release 5.3.0:
     - Change revocation status to token status
     - Change revocation check to token status invalid check by using new status mechanism
     - Add validation for status list tokens
-  - `Verifier`: 
+  - `Verifier`:
     - Remove `setRevocationList`
     - Add `verifyRevocationStatusListJwtIntegrity` and `verifyRevocationStatusListCwtIntegrity`
-  - `CoseService`: 
+  - `CoseService`:
     - Add check without specifying signer (using cose signed public key or trust store)
   - `VerifiableCredential`: Change `credentialStatus` to `status` and using new status mechanism
   - `VerifiableCredentialSdJwt`: Change `credentialStatus` to use new status mechanism
@@ -768,7 +829,7 @@ Release 5.3.0:
   - Remove `VcLibException`
 - Dependency updates:
   - Update signum to 3.12.1
-- Add isolated DCQL implementation 
+- Add isolated DCQL implementation
 
 Release 5.2.4:
  - SD-JWT: Be more lenient in parsing `status` information from credentials
@@ -782,7 +843,7 @@ Release 5.2.3:
 
 Release 5.2.2:
  - Remote qualified electronic signatures:
-   - Add request, response and auxiliary data classes defined in CSC API v2.0.0.2 Ch. 11.4 `credentials/list` and Ch. 11.5 `credentials/info` 
+   - Add request, response and auxiliary data classes defined in CSC API v2.0.0.2 Ch. 11.4 `credentials/list` and Ch. 11.5 `credentials/info`
  - Fix serialization of device signed items in ISO credentials
 
 Release 5.2.1:
@@ -830,7 +891,7 @@ Release 5.2.0:
     - Remove `scopePresentationDefinitionRetriever` from `OidcSiopWallet` to keep implementation simple
 - Dependency Updates:
     - Signum 3.11.1
-    - Kotlin 2.1.0  through Conventions 2.1.0+20241204
+    - Kotlin 2.1.0 through Conventions 2.1.0+20241204
 
 Release 5.1.0:
  - Drop ARIES protocol implementation, and the `vck-aries` artifact
@@ -877,7 +938,7 @@ Release 5.0.0:
    * New member `transaction_data`
    * Removed member `schema`
  * Update `AuthorizationDetails`
-   * Now sealed class with subclasses 
+   * Now sealed class with subclasses
      * `OpenIdCredential`
      * `CSCCredential`
  * Extend `AuthenticationRequestParameters` to be able to handle CSC/QES flows
@@ -899,7 +960,7 @@ Release 5.0.0:
    - Remove binding method for `did:key`, as it was never completely implemented, but add binding method `jwk` for JSON Web Keys.
    - Rework interface of `WalletService` to make selecting the credential configuration by its ID more explicit
    - Support requesting issuance of credential using scope values
-   - Introudce `OAuth2Client` to extract creating authentication requests and token requests from OID4VCI `WalletService`
+   - Introduce `OAuth2Client` to extract creating authentication requests and token requests from OID4VCI `WalletService`
    - Refactor `SimpleAuthorizationService` to extract actual authentication and authorization into `AuthorizationServiceStrategy`
  - Implement JWE encryption with AES-CBC-HMAC algorithms
  - SIOPv2/OpenID4VP: Support requesting and receiving claims from different credentials, i.e. a combined presentation

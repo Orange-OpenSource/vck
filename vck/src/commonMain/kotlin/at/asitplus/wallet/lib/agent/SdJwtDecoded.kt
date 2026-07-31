@@ -25,7 +25,7 @@ import kotlinx.serialization.json.jsonPrimitive
  * Decodes a [SdJwtSigned], by substituting all blinded disclosure values (inside `_sd` elements of the payload)
  * with the claims of the disclosures appended to the SD-JWT (by a `~`).
  *
- * See [Selective Disclosure for JSON Web Tokens](https://www.rfc-editor.org/rfc/rfc9901.html)
+ * See [Selective Disclosure for JSON Web Tokens](https://datatracker.ietf.org/doc/html/rfc9901)
  */
 class SdJwtDecoded @Throws(IllegalArgumentException::class)
 constructor(sdJwtSigned: SdJwtSigned) {

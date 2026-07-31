@@ -1,12 +1,11 @@
 package at.asitplus.wallet.lib.data
 
 import at.asitplus.KmmResult
-import at.asitplus.signum.supreme.sign.Verifier
 import at.asitplus.signum.indispensable.josef.JwsCompact
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.signum.supreme.sign.Verifier
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.StatusListAgent
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListInfo
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 

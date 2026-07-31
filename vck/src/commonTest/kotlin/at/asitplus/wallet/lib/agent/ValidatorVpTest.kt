@@ -16,7 +16,8 @@ package at.asitplus.wallet.lib.agent
 
 import at.asitplus.dif.DifInputDescriptor
 import at.asitplus.dif.PresentationDefinition
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.Verifier.VerifyPresentationResult
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
@@ -33,7 +34,6 @@ import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.randomCwtOrJwtResolver
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldBeSingleton
@@ -96,26 +96,30 @@ val ValidatorVpTest by matrixSuite {
             val verifiablePresentationFactory = VerifiablePresentationFactory(holderKeyMaterial)
             val holderSignVp = SignJwt<VerifiablePresentationJws>(holderKeyMaterial, JwsHeaderCertOrJwk())
             val verifierId = "urn:${uuid4()}"
-            val verifier = VerifierAgent(
-                identifier = verifierId,
-                validatorVcJws = validator
+            val verifier = NonceChallengeVerifier(
+                verifierId = verifierId,
+                verifier = VerifierAgent(
+                    identifier = verifierId,
+                    validatorVcJws = validator,
+                ),
             )
-            val challenge = uuid4().toString()
         }
     } }) - {
 
         "correct challenge in VP leads to Success" {
+            val request = it.verifier.createPresentationRequest()
             val presentationParameters = it.holder.createPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = request,
                 credentialPresentation = singularPresentationDefinition,
             ).getOrNull().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
 
             val vp = presentationParameters.presentationResults.first()
                 .shouldBeInstanceOf<CreatePresentationResult.VpJws>()
-            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull(), it.challenge).getOrThrow()
+            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow()
         }
 
         "Presentation of VC from different holder is detected" {
+            val request = it.verifier.createPresentationRequest()
             val otherHolderKeyMaterial = EphemeralKeyWithoutCert()
             val otherHolder = HolderAgent(otherHolderKeyMaterial)
             otherHolder.storeCredential(
@@ -133,10 +137,10 @@ val ValidatorVpTest by matrixSuite {
                 .filterIsInstance<SubjectCredentialStore.StoreEntry.Vc>()
             val vp = it.verifiablePresentationFactory.createVcPresentation(
                 holderVc,
-                PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId)
+                request,
             ).shouldBeInstanceOf<CreatePresentationResult.VpJws>()
 
-            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull(), it.challenge).getOrThrow().also {
+            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow().also {
                 it.vp.freshVerifiableCredentials.shouldBeEmpty()
                 it.vp.notVerifiablyFreshVerifiableCredentials.shouldBeEmpty()
                 it.vp.invalidVerifiableCredentials.shouldBe(holderVc.map { it.vcSerialized })
@@ -152,26 +156,28 @@ val ValidatorVpTest by matrixSuite {
             val vp = presentationParameters.presentationResults.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.VpJws>()
             shouldThrowAny {
-                it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull(), it.challenge).getOrThrow()
+                it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow()
             }
         }
 
         "wrong audience in VP leads to error" {
+            val request = it.verifier.createPresentationRequest()
             val presentationParameters = it.holder.createPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = "keyId"),
+                request = PresentationRequestParameters(nonce = request.nonce, audience = "keyId"),
                 credentialPresentation = singularPresentationDefinition,
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
 
             val vp = presentationParameters.presentationResults.first()
                 .shouldBeInstanceOf<CreatePresentationResult.VpJws>()
             shouldThrowAny {
-                it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull(), it.challenge).getOrThrow()
+                it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow()
             }
         }
 
         "valid parsed presentation should separate revoked and valid credentials" {
+            val request = it.verifier.createPresentationRequest()
             val presentationResults = it.holder.createPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = request,
                 credentialPresentation = singularPresentationDefinition,
             ).getOrNull().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
 
@@ -188,7 +194,7 @@ val ValidatorVpTest by matrixSuite {
                     ) shouldBe true
                 }
 
-            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull(), it.challenge).getOrThrow().also {
+            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow().also {
                 it.shouldBeInstanceOf<VerifyPresentationResult.Success>()
                 it.vp.freshVerifiableCredentials.shouldBeEmpty()
             }
@@ -197,6 +203,7 @@ val ValidatorVpTest by matrixSuite {
         }
 
         "Manually created and presentation with jwkThumbprint is valid" {
+            val request = it.verifier.createPresentationRequest()
             val credentials = it.holderCredentialStore.getCredentials().getOrThrow()
             val validCredentials = credentials
                 .filterIsInstance<SubjectCredentialStore.StoreEntry.Vc>()
@@ -208,9 +215,9 @@ val ValidatorVpTest by matrixSuite {
 
             val vp = VerifiablePresentation(validCredentials)
             val vpSerialized = vp.toJws(
-                challenge = it.challenge,
+                challenge = request.nonce,
                 issuerId = it.holder.keyMaterial.jsonWebKey.jwkThumbprint,
-                audienceId = it.verifierId,
+                audienceId = request.audience,
             )
             val vpJws = it.holderSignVp(
                 JwsContentTypeConstants.JWT,
@@ -218,11 +225,12 @@ val ValidatorVpTest by matrixSuite {
                 VerifiablePresentationJws.serializer()
             ).getOrThrow()
 
-            it.verifier.verifyPresentationVcJwt(vpJws, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationVcJwt(vpJws).getOrThrow()
                 .shouldBeInstanceOf<VerifyPresentationResult.Success>()
         }
 
         "Manually created and presentation with did is valid" {
+            val request = it.verifier.createPresentationRequest()
             val credentials = it.holderCredentialStore.getCredentials().getOrThrow()
             val validCredentials = credentials
                 .filterIsInstance<SubjectCredentialStore.StoreEntry.Vc>()
@@ -234,9 +242,9 @@ val ValidatorVpTest by matrixSuite {
 
             val vp = VerifiablePresentation(validCredentials)
             val vpSerialized = vp.toJws(
-                challenge = it.challenge,
+                challenge = request.nonce,
                 issuerId = it.holder.keyMaterial.jsonWebKey.didEncoded!!,
-                audienceId = it.verifierId,
+                audienceId = request.audience,
             )
             val vpJws = it.holderSignVp(
                 JwsContentTypeConstants.JWT,
@@ -244,19 +252,20 @@ val ValidatorVpTest by matrixSuite {
                 VerifiablePresentationJws.serializer()
             ).getOrThrow()
 
-            it.verifier.verifyPresentationVcJwt(vpJws, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationVcJwt(vpJws).getOrThrow()
                 .shouldBeInstanceOf<VerifyPresentationResult.Success>()
         }
 
         "Wrong jwtId in VP is not valid" {
+            val request = it.verifier.createPresentationRequest()
             val credentials = it.holderCredentialStore.getCredentials().getOrThrow()
                 .filterIsInstance<SubjectCredentialStore.StoreEntry.Vc>()
             val vp = VerifiablePresentation(credentials.map { it.vcSerialized })
             val vpSerialized = VerifiablePresentationJws(
                 vp = vp,
-                challenge = it.challenge,
+                challenge = request.nonce,
                 issuer = it.holder.keyMaterial.publicKey.didEncoded,
-                audience = it.verifierId,
+                audience = request.audience,
                 jwtId = "wrong_jwtId",
             )
             val vpJws = it.holderSignVp(
@@ -266,11 +275,12 @@ val ValidatorVpTest by matrixSuite {
             ).getOrThrow()
 
             shouldThrowAny {
-                it.verifier.verifyPresentationVcJwt(vpJws, it.challenge).getOrThrow()
+                it.verifier.verifyPresentationVcJwt(vpJws).getOrThrow()
             }
         }
 
         "Wrong type in VP is not valid" {
+            val request = it.verifier.createPresentationRequest()
             val credentials = it.holderCredentialStore.getCredentials().getOrThrow()
                 .filterIsInstance<SubjectCredentialStore.StoreEntry.Vc>()
             val vp = VerifiablePresentation(
@@ -280,9 +290,9 @@ val ValidatorVpTest by matrixSuite {
             )
 
             val vpSerialized = vp.toJws(
-                challenge = it.challenge,
+                challenge = request.nonce,
                 issuerId = it.holder.keyMaterial.publicKey.didEncoded,
-                audienceId = it.verifierId,
+                audienceId = request.audience,
             )
             val vpJws = it.holderSignVp(
                 JwsContentTypeConstants.JWT,
@@ -291,7 +301,7 @@ val ValidatorVpTest by matrixSuite {
             ).getOrThrow()
 
             shouldThrowAny {
-                it.verifier.verifyPresentationVcJwt(vpJws, it.challenge).getOrThrow()
+                it.verifier.verifyPresentationVcJwt(vpJws).getOrThrow()
             }
         }
     }

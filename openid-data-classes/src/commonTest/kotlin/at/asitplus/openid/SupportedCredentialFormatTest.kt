@@ -4,7 +4,6 @@ import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.json.Json
 
-@Suppress("unused")
 val SupportedCredentialFormatTest by matrixSuite {
     testSuite("mdoc format deserialization") {
         data(

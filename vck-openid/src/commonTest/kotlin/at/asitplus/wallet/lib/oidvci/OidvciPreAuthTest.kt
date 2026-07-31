@@ -3,12 +3,14 @@ package at.asitplus.wallet.lib.oidvci
 import at.asitplus.openid.CredentialOffer
 import at.asitplus.openid.CredentialRequestParameters
 import at.asitplus.openid.CredentialRequestProofContainer
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.OpenIdAuthorizationDetails
 import at.asitplus.openid.TokenResponseParameters
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
@@ -17,9 +19,7 @@ import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
 import at.asitplus.wallet.lib.openid.DummyOAuth2IssuerCredentialDataProvider
 import at.asitplus.wallet.lib.openid.DummyUserProvider
-import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -33,7 +33,7 @@ val OidvciPreAuthTest by matrixSuite {
             val mapper = DefaultCredentialSchemeMapper()
             val authorizationService = SimpleAuthorizationService(
                 strategy = CredentialAuthorizationServiceStrategy(
-                    credentialSchemes = setOf(AtomicAttribute2023, MobileDrivingLicenceScheme),
+                    credentialSchemes =  AttributeIndex.schemeSet,
                     mapper = mapper,
                 ),
             )
@@ -43,7 +43,7 @@ val OidvciPreAuthTest by matrixSuite {
                     identifier = "https://issuer.example.com".toUri(),
                     randomSource = RandomSource.Default
                 ),
-                credentialSchemes = setOf(AtomicAttribute2023, MobileDrivingLicenceScheme),
+                credentialSchemes =  AttributeIndex.schemeSet,
                 credentialSchemeMapper = mapper,
             )
             val client = WalletService()
@@ -107,14 +107,14 @@ val OidvciPreAuthTest by matrixSuite {
                 schemes = emptySet(),
             )
             val credentialIdsToRequest = credentialOffer.configurationIds
-                .shouldHaveSize(4) // Atomic Attribute in 3 representations (JWT, ISO, dc+sd-jwt), mDL in ISO
+                .shouldHaveSize(6) // Atomic Attribute in 3 representations (JWT, ISO, dc+sd-jwt), mDL in ISO, EUPID, EU-PID-SDJWT
                 .toSet()
 
             val token = it.getToken(credentialOffer, credentialIdsToRequest)
             val clientNonce = it.issuer.nonceWithDpopNonce().getOrThrow().response.clientNonce
             val authnDetails = token.authorizationDetails
                 .shouldNotBeNull()
-                .shouldHaveSize(4)
+                .shouldHaveSize(6)
 
             authnDetails.forEach { authnDetail ->
                 authnDetail.shouldBeInstanceOf<OpenIdAuthorizationDetails>()

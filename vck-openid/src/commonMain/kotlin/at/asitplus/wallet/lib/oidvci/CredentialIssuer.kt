@@ -2,12 +2,14 @@ package at.asitplus.wallet.lib.oidvci
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
+import at.asitplus.catchingUnwrapped
 import at.asitplus.openid.BatchCredentialIssuanceMetadata
 import at.asitplus.openid.ClientNonceResponse
 import at.asitplus.openid.CredentialRequestParameters
 import at.asitplus.openid.CredentialResponseParameters
 import at.asitplus.openid.IssuerMetadata
 import at.asitplus.openid.JwtVcIssuerMetadata
+import at.asitplus.openid.OAuth2AuthorizationServerMetadata
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.signum.indispensable.SignatureAlgorithm
@@ -19,8 +21,8 @@ import at.asitplus.wallet.lib.agent.Issuer
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.validation.StatusListTokenResolver
 import at.asitplus.wallet.lib.agent.validation.toTokenStatusResolver
-import at.asitplus.wallet.lib.data.ConstantIndex
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialScheme
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationListInfo
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListInfo
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus
@@ -33,6 +35,9 @@ import at.asitplus.wallet.lib.oidvci.OAuth2Exception.*
 import io.github.aakira.napier.Napier
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlin.jvm.JvmOverloads
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
 
 /**
  * Server implementation to issue credentials using OID4VCI.
@@ -41,7 +46,7 @@ import kotlinx.serialization.json.decodeFromJsonElement
  * [OpenID for Verifiable Credential Issuance](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html)
  * 1.0 from 2025-09-16.
  */
-class CredentialIssuer(
+class CredentialIssuer @JvmOverloads constructor(
     /** Used to verify the validity of a unit attestation */
     private val statusListTokenResolver: StatusListTokenResolver? = null,
     /** Used to get the user data, and access tokens. */
@@ -73,7 +78,7 @@ class CredentialIssuer(
         publicContext = publicContext,
         requireKeyAttestation = requireKeyAttestation,
         verifyAttestationProof = {
-            val tokenStatusValid = runCatching {
+            val tokenStatusValid = catchingUnwrapped {
                 it.payload.keyStorageStatus?.status?.get(StatusListInfo.SerialNames.STATUS_LIST_INFO)?.let { statusList ->
                     Json.decodeFromJsonElement<StatusListInfo>(statusList).let { statusListInfo ->
                         if (statusListTokenResolver?.toTokenStatusResolver()
@@ -84,7 +89,7 @@ class CredentialIssuer(
                 }
             }.isSuccess
 
-            val signatureValid = runCatching {
+            val signatureValid = catchingUnwrapped {
                 VerifyJwsObject().verifyJwsSignature(it.jws, it.jws.jwsHeader.publicKey!!).isSuccess
             }.getOrDefault(false)
 
@@ -97,6 +102,8 @@ class CredentialIssuer(
     private val encryptionService: IssuerEncryptionService = IssuerEncryptionService(),
     /** Maps from/to strings in metadata from/to credential schemes. */
     private val credentialSchemeMapper: CredentialSchemeMapper = DefaultCredentialSchemeMapper(),
+    /** Used for [IssuerMetadata.preferredClientStatusPeriod]. */
+    private val preferredClientStatusPeriod: Duration? = 31.days,
 ) {
 
     sealed interface CredentialResponse {
@@ -149,6 +156,7 @@ class CredentialIssuer(
             batchCredentialIssuance = BatchCredentialIssuanceMetadata(1),
             credentialResponseEncryption = encryptionService.metadataCredentialResponseEncryption,
             credentialRequestEncryption = encryptionService.metadataCredentialRequestEncryption,
+            preferredClientStatusPeriod = preferredClientStatusPeriod,
         )
     }
 
@@ -300,7 +308,7 @@ class CredentialIssuer(
 
 
     private fun CredentialRequestParameters.extractCredentialRepresentation()
-            : Pair<CredentialScheme, ConstantIndex.CredentialRepresentation> =
+            : Pair<CredentialScheme, CredentialRepresentation> =
         credentialIdentifier?.let {
             credentialSchemeMapper.decodeFromCredentialIdentifier(it)
                 ?: throw UnknownCredentialIdentifier(it)
@@ -311,7 +319,7 @@ class CredentialIssuer(
 
     private fun extractFromCredentialConfigurationId(
         credentialConfigurationId: String,
-    ): Pair<CredentialScheme, ConstantIndex.CredentialRepresentation>? =
+    ): Pair<CredentialScheme, CredentialRepresentation>? =
         supportedCredentialConfigurations[credentialConfigurationId]?.let {
             credentialSchemeMapper.decodeFromCredentialIdentifier(credentialConfigurationId)
         }

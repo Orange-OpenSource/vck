@@ -1,5 +1,6 @@
 package at.asitplus.openid
 
+import at.asitplus.catchingUnwrapped
 import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.JwsCompact
 import at.asitplus.signum.indispensable.josef.JwsCompactStringSerializer
@@ -33,13 +34,13 @@ data class CredentialRequestProofContainer(
 
     val jwtParsed: Collection<JwsCompactTyped<JsonWebToken>>? by lazy {
         jwt?.mapNotNull {
-            runCatching<JwsCompactTyped<JsonWebToken>> { it.typed() }.getOrNull()
+            catchingUnwrapped<JwsCompactTyped<JsonWebToken>> { it.typed() }.getOrNull()
         }
     }
 
     val attestationParsed: Collection<JwsCompactTyped<KeyAttestationJwt>>? by lazy {
         attestation?.mapNotNull {
-            runCatching<JwsCompactTyped<KeyAttestationJwt>> { it.typed() }.getOrNull()
+            catchingUnwrapped<JwsCompactTyped<KeyAttestationJwt>> { it.typed() }.getOrNull()
         }
     }
 }

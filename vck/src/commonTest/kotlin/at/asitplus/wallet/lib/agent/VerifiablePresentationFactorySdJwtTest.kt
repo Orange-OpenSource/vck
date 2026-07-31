@@ -3,12 +3,11 @@ package at.asitplus.wallet.lib.agent
 import at.asitplus.jsonpath.core.NormalizedJsonPath
 import at.asitplus.openid.OidcUserInfo
 import at.asitplus.openid.OidcUserInfoExtended
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
-import io.kotest.assertions.withClue
 import io.kotest.matchers.maps.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe

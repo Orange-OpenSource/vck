@@ -7,7 +7,6 @@ import at.asitplus.openid.ClientNonceResponse
 import at.asitplus.openid.CredentialOffer
 import at.asitplus.openid.IssuerMetadata
 import at.asitplus.openid.OAuth2AuthorizationServerMetadata
-import at.asitplus.openid.OpenIdConstants.TOKEN_TYPE_DPOP
 import at.asitplus.openid.OpenIdConstants.WellKnownPaths
 import at.asitplus.openid.SupportedCredentialFormat
 import at.asitplus.openid.SupportedCredentialFormatIsoMdoc
@@ -16,19 +15,15 @@ import at.asitplus.openid.SupportedCredentialFormatW3cVcJsonLd
 import at.asitplus.openid.SupportedCredentialFormatW3cVcJwt
 import at.asitplus.openid.SupportedCredentialFormatW3cVcJwtJsonLd
 import at.asitplus.signum.indispensable.josef.JsonWebKey
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
 import at.asitplus.wallet.lib.agent.Holder
 import at.asitplus.wallet.lib.data.AttributeIndex
-import at.asitplus.wallet.lib.data.ConstantIndex
-import at.asitplus.wallet.lib.data.IsoMdocFallbackCredentialScheme
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.MediaTypes
-import at.asitplus.wallet.lib.data.SdJwtFallbackCredentialScheme
-import at.asitplus.wallet.lib.data.VcDataModelConstants.VERIFIABLE_CREDENTIAL
-import at.asitplus.wallet.lib.data.VcFallbackCredentialScheme
 import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.oauth2.OAuth2Utils.insertWellKnownPath
-import at.asitplus.wallet.lib.oauth2.OpenId4VciAccessToken
 import at.asitplus.wallet.lib.oidvci.WalletService
 import at.asitplus.wallet.lib.oidvci.toRepresentation
 import com.benasher44.uuid.uuid4
@@ -69,7 +64,9 @@ class OpenId4VciClient(
      * back from browser works, `cryptoService` provides proof of possession for credential key material.
      */
     private val oid4vciService: WalletService = WalletService(),
+    /** Internal OAuth 2.0 client passed on to [oauth2Client] with the `clientId` from [oid4vciService] */
     private val oauth2InternalClient: OAuth2Client = OAuth2Client(clientId = oid4vciService.clientId),
+    /** OAuth 2.0 client to use during the protocol run. */
     private val oauth2Client: OAuth2KtorClient = OAuth2KtorClient(
         engine = engine,
         cookiesStorage = cookiesStorage,
@@ -110,30 +107,12 @@ class OpenId4VciClient(
             }
         }
 
-    private fun SupportedCredentialFormat.resolveCredentialScheme(): ConstantIndex.CredentialScheme? = when (this) {
-        is SupportedCredentialFormatIsoMdoc -> AttributeIndex.resolveIsoDoctype(docType)
-            ?: IsoMdocFallbackCredentialScheme(isoDocType = docType)
-
-        is SupportedCredentialFormatSdJwt -> AttributeIndex.resolveSdJwtAttributeType(sdJwtVcType)
-            ?: SdJwtFallbackCredentialScheme(sdJwtType = sdJwtVcType)
-
-        is SupportedCredentialFormatW3cVcJwt -> credentialDefinition.types
-            .filterNot { it == VERIFIABLE_CREDENTIAL }.run {
-                firstNotNullOfOrNull { AttributeIndex.resolveAttributeType(it) }
-                    ?: firstOrNull()?.let { VcFallbackCredentialScheme(vcType = it) }
-            }
-
-        is SupportedCredentialFormatW3cVcJsonLd -> credentialDefinition.type
-            .filterNot { it == VERIFIABLE_CREDENTIAL }.run {
-                firstNotNullOfOrNull { AttributeIndex.resolveAttributeType(it) }
-                    ?: firstOrNull()?.let { VcFallbackCredentialScheme(vcType = it) }
-            }
-
-        is SupportedCredentialFormatW3cVcJwtJsonLd -> credentialDefinition.type
-            .filterNot { it == VERIFIABLE_CREDENTIAL }.run {
-                firstNotNullOfOrNull { AttributeIndex.resolveAttributeType(it) }
-                    ?: firstOrNull()?.let { VcFallbackCredentialScheme(vcType = it) }
-            }
+    private suspend fun SupportedCredentialFormat.resolveCredentialScheme(): CredentialScheme? = when (this) {
+        is SupportedCredentialFormatIsoMdoc -> AttributeIndex.resolveIdentifier(docType, ISO_MDOC)
+        is SupportedCredentialFormatSdJwt -> AttributeIndex.resolveIdentifier(sdJwtVcType, SD_JWT)
+        is SupportedCredentialFormatW3cVcJwt -> AttributeIndex.resolveIdentifierPlainJwt(credentialDefinition.types)
+        is SupportedCredentialFormatW3cVcJsonLd -> AttributeIndex.resolveIdentifierPlainJwt(credentialDefinition.type)
+        is SupportedCredentialFormatW3cVcJwtJsonLd -> AttributeIndex.resolveIdentifierPlainJwt(credentialDefinition.type)
     }
 
     /**
@@ -165,6 +144,7 @@ class OpenId4VciClient(
                 issuerMetadata.authorizationServers
             ),
             scope = credentialIdentifierInfo.supportedCredentialFormat.scope,
+            issuerMetadata = issuerMetadata,
         ).getOrThrow().let {
             CredentialIssuanceResult.OpenUrlForAuthnRequest(
                 url = it.url,
@@ -206,19 +186,9 @@ class OpenId4VciClient(
             authorizationDetails = oid4vciService.buildAuthorizationDetails(
                 context.credential.credentialIdentifier,
                 context.issuerMetadata.authorizationServers
-            )
+            ),
+            issuerMetadata = context.issuerMetadata,
         ).getOrThrow()
-
-        if (tokenResponse.params.tokenType.equals(other = TOKEN_TYPE_DPOP, ignoreCase = true)) {
-            catching {
-                JwsCompactTyped<OpenId4VciAccessToken>(tokenResponse.params.accessToken)
-            }.getOrNull()?.let {
-                if (!it.payload.verifyDpopThumbprint()) {
-                    // TODO: Change to exception after 6.0 release
-                    Napier.e("Instance attestation key not used for Dpop! Please remove `signDpop` from OAuth2KtorClient")
-                }
-            }
-        }
 
         val credentialScheme = context.credential.supportedCredentialFormat.resolveCredentialScheme()
             ?: throw Exception("Unknown credential scheme in ${context.credential}")
@@ -259,7 +229,8 @@ class OpenId4VciClient(
                 authorizationDetails = oid4vciService.buildAuthorizationDetails(
                     credentialIdentifier,
                     issuerMetadata.authorizationServers
-                )
+                ),
+                issuerMetadata = issuerMetadata,
             ).getOrThrow()
             Napier.i("Received token response")
             Napier.d("Received token response $tokenResponse")
@@ -288,7 +259,7 @@ class OpenId4VciClient(
         issuerMetadata: IssuerMetadata,
         tokenResponse: TokenResponseWithDpopNonce,
         credentialFormat: SupportedCredentialFormat,
-        credentialScheme: ConstantIndex.CredentialScheme,
+        credentialScheme: CredentialScheme,
         oauthMetadata: OAuth2AuthorizationServerMetadata,
         credentialIdentifier: String,
         previouslyRequestedScope: String?,
@@ -339,39 +310,41 @@ class OpenId4VciClient(
         request: WalletService.CredentialRequest,
         tokenResponse: TokenResponseWithDpopNonce,
         format: SupportedCredentialFormat,
-        scheme: ConstantIndex.CredentialScheme,
+        scheme: CredentialScheme,
         dpopNonce: String?,
         retryCount: Int = 0,
-    ): Collection<Holder.StoreCredentialInput> = oauth2Client.client.post(url) {
-        when (request) {
-            is WalletService.CredentialRequest.Encrypted -> {
-                contentType(ContentType.parse(MediaTypes.Application.JWT))
-                setBody(request.request.serialize())
-            }
+    ): Collection<Holder.StoreCredentialInput> = try {
+        oauth2Client.client.post(url) {
+            when (request) {
+                is WalletService.CredentialRequest.Encrypted -> {
+                    contentType(ContentType.parse(MediaTypes.Application.JWT))
+                    setBody(request.request.serialize())
+                }
 
-            is WalletService.CredentialRequest.Plain -> {
-                contentType(ContentType.Application.Json)
-                setBody(request.request)
+                is WalletService.CredentialRequest.Plain -> {
+                    contentType(ContentType.Application.Json)
+                    setBody(request.request)
+                }
             }
+            oauth2Client.applyToken(
+                tokenResponse = tokenResponse.params,
+                resourceUrl = url,
+                httpMethod = HttpMethod.Post,
+                dpopNonce = dpopNonce ?: tokenResponse.dpopNonce
+            )()
+        }.let { response ->
+            oid4vciService.parseCredentialResponse(
+                response = response.bodyAsText(),
+                isEncrypted = response.contentType()?.match(ContentType.parse(MediaTypes.Application.JWT)) == true,
+                representation = format.format.toRepresentation(),
+                scheme = scheme
+            ).getOrThrow()
         }
-        oauth2Client.applyToken(
-            tokenResponse = tokenResponse.params,
-            resourceUrl = url,
-            httpMethod = HttpMethod.Post,
-            dpopNonce = dpopNonce ?: tokenResponse.dpopNonce
-        )()
-    }.onFailure { response ->
-        dpopNonce(response)
+    } catch (error: HttpErrorResponseException) {
+        error.dpopNonce()
             ?.takeIf { retryCount == 0 }
             ?.let { fetchCredential(url, request, tokenResponse, format, scheme, it, retryCount + 1) }
-            ?: throw Exception("Error requesting credential: ${this?.errorDescription ?: this?.error}")
-    }.onSuccessCredential { response ->
-        oid4vciService.parseCredentialResponse(
-            response = this,
-            isEncrypted = response.contentType()?.match(ContentType.parse(MediaTypes.Application.JWT)) == true,
-            representation = format.format.toRepresentation(),
-            scheme = scheme
-        ).getOrThrow()
+            ?: throw error
     }
 
     /**
@@ -409,7 +382,8 @@ class OpenId4VciClient(
                 preAuthorizedCode = preAuthorizedCode.preAuthorizedCode,
                 transactionCode = transactionCode,
                 scope = credentialIdentifierInfo.supportedCredentialFormat.scope,
-                authorizationDetails = authorizationDetails
+                authorizationDetails = authorizationDetails,
+                issuerMetadata = issuerMetadata,
             ).getOrThrow()
             Napier.i("Received token response")
             Napier.d("Received token response: $tokenResponse")
@@ -435,6 +409,7 @@ class OpenId4VciClient(
                     issuerMetadata.authorizationServers
                 ),
                 scope = credentialIdentifierInfo.supportedCredentialFormat.scope,
+                issuerMetadata = issuerMetadata,
             ).getOrThrow().let {
                 CredentialIssuanceResult.OpenUrlForAuthnRequest(
                     url = it.url,
@@ -478,14 +453,6 @@ class OpenId4VciClient(
         oauth2Client.client
             .get(insertWellKnownPath(publicContext, WellKnownPaths.OpenidConfiguration))
             .body<OAuth2AuthorizationServerMetadata>()
-
-    /**
-     * ts3-wallet-unit-attestation 1.5.1
-     * Use instance attestation key for Dpop
-     * Verify access token `cnf.jkt` matches instance attestation `cnf` key
-     */
-    private fun OpenId4VciAccessToken.verifyDpopThumbprint() =
-        this.confirmationClaim?.jsonWebKeyThumbprint == oauth2Client.keyMaterial.jsonWebKey.jwkThumbprintPlain
 
 }
 
@@ -535,10 +502,6 @@ data class CredentialIdentifierInfo(
     val credentialIdentifier: String,
     val supportedCredentialFormat: SupportedCredentialFormat,
 )
-
-private suspend inline fun <R> IntermediateResult<R>.onSuccessCredential(
-    block: String.(httpResponse: HttpResponse) -> R,
-) = onSuccess<String, R>(block)
 
 private val JsonWebKey.jwkThumbprintPlain: String
     get() = jwkThumbprint.removePrefix("urn:ietf:params:oauth:jwk-thumbprint:sha256:")

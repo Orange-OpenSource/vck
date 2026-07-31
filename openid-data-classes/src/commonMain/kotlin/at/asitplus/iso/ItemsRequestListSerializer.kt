@@ -11,7 +11,6 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.encoding.encodeStructure
-import kotlin.collections.plusAssign
 
 /**
  * Serializes [ItemsRequestList.entries] as an "inline map",

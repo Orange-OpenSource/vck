@@ -37,7 +37,7 @@ For a contributor-oriented guide to module boundaries, implementation entry poin
 VC-K implements multiple credential formats to ensure maximum interoperability:
 
 - **W3C Verifiable Credentials Data Model**: Rudimentary implementation of the  [W3C VC Data Model](https://w3c.github.io/vc-data-model/) (skipping everything around DIDs)
-- **SD-JWT (Selective Disclosure JWT)**: Privacy-preserving credential format with selective disclosure capabilities, see [SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) (including key binding JWT, JWT VC issuer metadata). We're also following [Selective Disclosure for JSON Web Tokens](https://www.rfc-editor.org/rfc/rfc9901.html), including features like key binding JWT and nested structures.
+- **SD-JWT (Selective Disclosure JWT)**: Privacy-preserving credential format with selective disclosure capabilities, see [SD-JWT VC](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/) (including key binding JWT, JWT VC issuer metadata). We're also following [Selective Disclosure for JSON Web Tokens](https://datatracker.ietf.org/doc/html/rfc9901), including features like key binding JWT and nested structures.
 - **ISO 18013-5 and 18013-7**: ISO standard defining Mobile Driving Licence and its generalization mDoc credentials as a CBOR-based credential format
 
 When using the plain JWT representation, the W3C VC `credentialSubject` is handled as `JsonElement`. For ISO mDoc claims see `IssuerSignedItems` and related classes like `Document` and `MobileSecurityObject`. For SD-JWT claims see `SelectiveDisclosureItem` and `SdJwtSigned`.
@@ -109,12 +109,241 @@ implementation("at.asitplus.wallet:vck:$version")
 implementation("at.asitplus.wallet:vck-openid:$version")
 ```
 
+```kotlin
+implementation("at.asitplus.wallet:vck-openid-ktor:$version")
+```
+
 Everything else (serialization, crypto through Signum, …) will be taken care of.
 Therefore, **do not** manually add serialization dependencies! In case you are using this project in a codebase with dependencies on `kotlinx-serialization`, please use the `vck-versionCatalog` artefact to keep versions in sync.
 As discovered in [#226](https://github.com/a-sit-plus/vck/issues/226), using the deprecated `io.spring.dependency-management` will cause issues.
 
 The actual credentials are provided as discrete artefacts and are maintained separately [over here](https://github.com/a-sit-plus/credentials-collection).
 It is fine to add credentials **and** VC-K to as project dependencies, e. g., to use a version of VC-K that is more recent than the one a certain credentials depends on.
+
+### OpenID4VP presentation
+
+Use `OpenId4VpVerifier` in the verifier/relying party and `OpenId4VpHolder` in the wallet. The verifier creates the
+authorization request, sends the resulting URL to the wallet as a QR code or deep link, then validates the URL or POST
+body returned by the wallet.
+
+```kotlin
+val verifier = OpenId4VpVerifier(
+    keyMaterial = verifierKeyMaterial,
+    clientIdScheme = ClientIdScheme.RedirectUri("https://rp.example/callback"),
+    verifier = VerifierAgent(identifier = "https://rp.example/callback"),
+)
+
+val request = verifier.createAuthnRequest(
+    requestOptions = OpenId4VpRequestOptions(
+        presentationRequest = CredentialPresentationRequestBuilder(
+            credentials = setOf(
+                RequestOptionsCredential(
+                    credentialScheme = EuPidSdJwtScheme,
+                    representation = SD_JWT,
+                    attributePaths = setOf(
+                        DCQLClaimsPathPointer("given_name"),
+                        DCQLClaimsPathPointer("family_name"),
+                    ),
+                )
+            )
+        ).toDCQLRequest(),
+    ),
+    creationOptions = OpenId4VpVerifier.CreationOptions.Query("openid4vp://authorize"),
+).getOrThrow()
+
+// Show request.url as QR code or open it as a wallet deep link.
+// For RequestByReference/SignedRequestByReference also serve request.loadRequestObject from your request_uri.
+
+val response = verifier.validateAuthnResponse(walletRedirectUrlOrDirectPostBody).getOrThrow()
+val vpValidation = response.vpTokenValidationResult?.getOrThrow()
+```
+
+On the wallet side, use the two-step API when the user must review and choose credentials. `OpenId4VpWallet` from
+`vck-openid-ktor` wraps the same holder flow and also performs the HTTP POST/redirect response handling. For signed
+request objects from pre-registered clients, provide a real `requestObjectJwsVerifier`.
+
+```kotlin
+val holder = OpenId4VpHolder(
+    keyMaterial = holderKeyMaterial,
+    holder = holderAgent,
+    remoteResourceRetriever = { request -> httpClient.get(request.url).bodyAsText() },
+)
+
+val preparation = holder.startAuthorizationResponsePreparation(requestUrlFromQrOrDeepLink).getOrThrow()
+val matches = holder.getMatchingCredentials(preparation).getOrThrow()
+
+// Show preparation.verifierInfo and matches to the user, then continue after consent.
+val authnResponse = holder.finalizeAuthorizationResponse(preparation).getOrThrow()
+
+when (authnResponse) {
+    is AuthenticationResponseResult.Redirect -> openBrowser(authnResponse.url)
+    is AuthenticationResponseResult.Post -> postForm(authnResponse.url, authnResponse.params)
+    is AuthenticationResponseResult.DcApi -> returnToBrowserDcApi(authnResponse)
+}
+```
+
+### OpenID4VCI credential issuance
+
+Use `CredentialIssuer` on the issuer service. Your HTTP framework only needs to expose the metadata, nonce, and
+credential endpoints and forward request data into the protocol object.
+
+```kotlin
+val credentialIssuer = CredentialIssuer(
+    publicContext = "https://issuer.example",
+    credentialSchemes = setOf(EuPidSdJwtScheme),
+    authorizationService = authorizationServer,
+    issuer = issuerAgent,
+    keyMaterial = setOf(issuerKeyMaterial),
+    credentialEndpointPath = "/credential",
+    nonceEndpointPath = "/nonce",
+)
+
+// GET /.well-known/openid-credential-issuer
+fun issuerMetadata() = credentialIssuer.metadata
+
+// POST /nonce
+suspend fun nonce() = credentialIssuer.nonceWithDpopNonce().getOrThrow()
+
+// POST /credential
+suspend fun credential(authorizationHeader: String, requestBody: String, requestInfo: RequestInfo) =
+    credentialIssuer.credential(
+        authorizationHeader = authorizationHeader,
+        params = WalletService.CredentialRequest.parse(requestBody).getOrThrow(),
+        request = requestInfo,
+        credentialDataProvider = credentialDataProvider,
+    ).getOrThrow()
+
+// Serialize CredentialResponse.Plain as JSON and CredentialResponse.Encrypted as application/jwt.
+```
+
+On the wallet side, `WalletService` builds credential requests and parses responses. For a Ktor-based wallet, prefer
+`OpenId4VciClient`; it handles issuer metadata, OAuth2, DPoP, credential requests, and response parsing. Without a
+credential offer, load metadata with `loadCredentialMetadata(issuerUrl)`, let the user pick a credential, and call
+`startProvisioningWithAuthRequestReturningResult`.
+
+```kotlin
+val walletService = WalletService(
+    clientId = walletClientId,
+    keyMaterial = holderKeyMaterial,
+    remoteResourceRetriever = { request -> httpClient.get(request.url).bodyAsText() },
+)
+
+val client = OpenId4VciClient(
+    engine = httpEngine,
+    cookiesStorage = cookiesStorage,
+    oid4vciService = walletService,
+)
+
+val offer = walletService.parseCredentialOffer(credentialOfferUrl).getOrThrow()
+val credentials = client.loadCredentialMetadata(offer.credentialIssuer).getOrThrow()
+val selectedCredential = credentials.first { it.credentialIdentifier in offer.configurationIds }
+
+when (val result = client.loadCredentialWithOfferReturningResult(offer, selectedCredential).getOrThrow()) {
+    is CredentialIssuanceResult.OpenUrlForAuthnRequest -> {
+        storeProvisioningContext(result.context)
+        openBrowser(result.url)
+    }
+
+    is CredentialIssuanceResult.Success -> {
+        result.credentials.forEach { holderAgent.storeCredential(it, result.refreshToken) }
+    }
+}
+
+// After the browser redirects back to the wallet app in the authorization-code flow:
+val success = client.resumeWithAuthCode(redirectUrl, loadProvisioningContext()).getOrThrow()
+success.credentials.forEach { holderAgent.storeCredential(it, success.refreshToken) }
+```
+
+### Registering credential schemes
+
+Credential schemes are derived from [SD-JWT Type Metadata](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/)
+documents and resolved through `AttributeIndex`. Register one or more `CredentialMetadataRegistry` instances once at
+startup; on a lookup miss `AttributeIndex` consults them, builds the scheme, and caches it. Two registries coexist:
+a `StaticCredentialMetadataRegistry` for documents **bundled in code** (offline, authoritative; preloaded so they win
+on lookup), and a `RemoteCredentialMetadataRegistry` that **fetches documents over HTTP** for everything else. The
+documents are hosted in [credentials-collection](https://github.com/a-sit-plus/credentials-collection).
+
+```kotlin
+val base = "https://raw.githubusercontent.com/a-sit-plus/credentials-collection/main"
+
+// Bundled in code: EU PID (ISO), EU PID SD-JWT, mDL. The URL is the document's hosted copy (becomes schemaUri).
+LibraryInitializer.registerCredentialMetadataRegistry(
+    StaticCredentialMetadataRegistry(
+        documentRegistry = SdJwtTypeMetadataDocumentRegistry(
+            EuPidSdJwtMetadataDocument, EuPidMetadataDocument, MobileDrivingLicenceMetadataDocument,
+        ),
+        documentUrls = mapOf(
+            EuPidSdJwtMetadataDocument.first to EU_PID_SD_JWT_METADATA_URL,
+            EuPidMetadataDocument.first to EU_PID_METADATA_URL,
+            MobileDrivingLicenceMetadataDocument.first to MDL_METADATA_URL,
+        ),
+    )
+)
+
+// Fetched on demand: add one `vct -> URL` entry per published document. SD-JWT resolves directly (identifier == vct);
+// ISO mDoc has no direct vct fallback, so its docType must be aliased to the document's vct.
+LibraryInitializer.registerCredentialMetadataRegistry(
+    RemoteCredentialMetadataRegistry(
+        httpClient = httpClient, // your app's Ktor HttpClient
+        clock = Clock.System,
+        documentUrls = mutableMapOf(
+            SdJwtVcType("urn:eudi:ehic:1") to "$base/ehic.json",
+            SdJwtVcType("eu.europa.ec.av.1") to "$base/age-verification.json",
+        ),
+        aliases = mapOf(
+            CredentialMetadataLookup(ISO_MDOC, "eu.europa.ec.av.1") to SdJwtVcType("eu.europa.ec.av.1"),
+        ),
+    )
+)
+```
+
+ISO mDoc credentials with non-primitive values additionally need their CBOR/JSON value serializers registered from
+code (e.g. `LibraryInitializer.registerCredentialSerializers(EuPidJsonValueEncoder, EuPidItemValueSerializerMap)`);
+schemes whose values are all primitive (such as the all-boolean age verification) need none.
+
+### Digital Credentials API (DC API)
+
+#### DC API Wallet integration
+
+The browser's Digital Credentials API can carry either OpenID4VP or ISO/IEC 18013-7 Annex C. Use `DcApiHolder` for
+both. It returns a `DcApiPreparationState` that preserves the selected protocol across matching, consent, and
+finalization, and a platform-independent `DigitalCredentialInterface` response.
+
+The platform integration must first convert the selected request into `RequestParametersFrom.DcApiRequest`. For
+serialized `DigitalCredentialRequestOptions`, use `decodeDigitalCredentialRequestOptions()` followed by
+`toRequestParametersFrom(...)`, supplying the protocol and trusted metadata returned by the platform matcher.
+Platform object conversion, including Android `Bundle` conversion, remains in the wallet application.
+
+```kotlin
+val options = requestOptionsJson.decodeDigitalCredentialRequestOptions()
+val request = options.toRequestParametersFrom(
+    selectedProtocol = platformSelection.protocol,
+    credentialIds = platformSelection.credentialIds,
+    callingOrigin = platformSelection.callingOrigin,
+    callingPackageName = platformSelection.callingPackageName,
+)
+
+val dcApiHolder = DcApiHolder(
+    keyMaterial = holderKeyMaterial,
+    holder = holderAgent,
+)
+val preparation = dcApiHolder.startAuthorizationResponsePreparation(request).getOrThrow()
+val matches = dcApiHolder.getMatchingCredentials(preparation).getOrThrow()
+
+// Render preparation.presentationRequest and matches, then build the selected CredentialPresentation after consent.
+val response = dcApiHolder.finalizeAuthorizationResponse(preparation, selectedPresentation).getOrThrow()
+
+val androidResponseJson = response.toAndroidDcApiResponseJson()
+// Annex C only:
+val iosResponseBytes = response.toIosIsoMdocResponseBytes()
+```
+
+On iOS, `IosDcApiMdocPreRequestSummary` represents the system's pre-request disclosure summary without depending on
+Apple frameworks. It can be converted for early matching with `toDifInputDescriptors()`. Once the full Annex C
+request arrives, require `summary.isConsistentWith(request.parameters.isoMdocRequest)` before continuing so that the
+final request cannot ask for different data than the system showed. The iOS response encoder accepts Annex C
+responses only; OpenID4VP responses use a different platform return path.
+
 
 ## Limitations
 

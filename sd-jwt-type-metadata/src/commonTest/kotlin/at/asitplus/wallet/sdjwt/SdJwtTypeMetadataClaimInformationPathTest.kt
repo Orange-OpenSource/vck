@@ -8,7 +8,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 
-@Suppress("unused")
 val SdJwtTypeMetadataClaimInformationPathTest by matrixSuite {
     test("manual examples") {
         val jsonElement = Json.decodeFromString<JsonElement>(

@@ -2,6 +2,7 @@ package at.asitplus.wallet.lib
 
 import at.asitplus.openid.RequestObjectParameters
 import io.ktor.http.*
+import kotlin.jvm.JvmOverloads
 
 /**
  * Implementations need to fetch the url passed in, and return either the body, if there is one,
@@ -36,7 +37,7 @@ typealias RemoteResourceRetrieverFunction = suspend (RemoteResourceRetrieverInpu
  * }.bodyAsText()
  * ```
  */
-data class RemoteResourceRetrieverInput(
+data class RemoteResourceRetrieverInput @JvmOverloads constructor(
     val url: String,
     val method: HttpMethod = HttpMethod.Get,
     val headers: Map<String, String> = emptyMap<String, String>(),

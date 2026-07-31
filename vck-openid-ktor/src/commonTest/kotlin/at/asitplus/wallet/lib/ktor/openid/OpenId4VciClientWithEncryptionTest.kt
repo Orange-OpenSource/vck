@@ -8,20 +8,24 @@ import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.wallet.eupid.EuPidScheme
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
+import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
+import at.asitplus.wallet.eupid.EuPidDataElements
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
+import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
 import at.asitplus.wallet.lib.agent.CredentialRenewalInfo
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
-import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
-import at.asitplus.wallet.lib.jws.JwsHeaderNone
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.credentialDataProviderFun
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.dummyUser
@@ -35,7 +39,6 @@ import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
 import at.asitplus.wallet.lib.oauth2.TokenService
 import at.asitplus.wallet.lib.oidvci.BuildClientAttestationJwt
-import at.asitplus.wallet.lib.oidvci.BuildClientAttestationPoPJwt
 import at.asitplus.wallet.lib.oidvci.CredentialAuthorizationServiceStrategy
 import at.asitplus.wallet.lib.oidvci.CredentialIssuer
 import at.asitplus.wallet.lib.oidvci.IssuerEncryptionService
@@ -43,7 +46,6 @@ import at.asitplus.wallet.lib.oidvci.WalletService
 import at.asitplus.wallet.lib.oidvci.decodeFromPostBody
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.github.aakira.napier.Napier
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -52,7 +54,6 @@ import io.ktor.client.engine.mock.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.util.*
-import kotlin.time.Duration.Companion.minutes
 
 /**
  * Tests [OpenId4VciClient] against [CredentialIssuer] with our own internal [SimpleAuthorizationService].
@@ -69,8 +70,8 @@ val OpenId4VciClientWithEncryptionTest by matrixSuite {
     )
 
     fun setup(
-        scheme: ConstantIndex.CredentialScheme,
-        representation: ConstantIndex.CredentialRepresentation,
+        scheme: CredentialScheme,
+        representation: CredentialRepresentation,
         attributes: Map<String, String>,
     ): Context {
         val credentialKeyMaterial = EphemeralKeyWithoutCert()
@@ -214,8 +215,9 @@ val OpenId4VciClientWithEncryptionTest by matrixSuite {
 
     test("loadEuPidCredentialSdJwt") {
         val expectedFamilyName = uuid4().toString()
-        val expectedAttributeName = EuPidSdJwtScheme.SdJwtAttributes.FAMILY_NAME
-        with(setup(EuPidSdJwtScheme, SD_JWT, mapOf(expectedAttributeName to expectedFamilyName))) {
+        val expectedAttributeName = EuPidSdJwtDataElements.FAMILY_NAME
+        val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
+        with(setup(euPidSdJwtScheme, SD_JWT, mapOf(expectedAttributeName to expectedFamilyName))) {
             var refreshTokenStore: CredentialRenewalInfo? = null
 
             // Load credential identifier infos from Issuing service
@@ -246,8 +248,9 @@ val OpenId4VciClientWithEncryptionTest by matrixSuite {
 
     test("loadEuPidCredentialIsoWithOffer") {
         val expectedAttributeValue = uuid4().toString()
-        val expectedAttributeName = EuPidScheme.Attributes.GIVEN_NAME
-        with(setup(EuPidScheme, ISO_MDOC, mapOf(expectedAttributeName to expectedAttributeValue))) {
+        val expectedAttributeName = EuPidDataElements.GIVEN_NAME
+        val euPidScheme = AttributeIndex.resolveIdentifier(EU_PID_DOCTYPE, ISO_MDOC)
+        with(setup(euPidScheme, ISO_MDOC, mapOf(expectedAttributeName to expectedAttributeValue))) {
             var refreshTokenStore: CredentialRenewalInfo? = null
 
             // Load credential identifier infos from Issuing service
@@ -259,7 +262,7 @@ val OpenId4VciClientWithEncryptionTest by matrixSuite {
             val offer = authorizationService.offerWithPreAuthnForUserForSchemes(
                 user = dummyUser(),
                 credentialIssuer = credentialIssuer.metadata.credentialIssuer,
-                schemes = setOf(EuPidScheme to ISO_MDOC),
+                schemes = setOf(euPidScheme to ISO_MDOC),
             )
             client.loadCredentialWithOfferReturningResult(offer, selectedCredential, null).getOrThrow().also {
                 it.shouldBeInstanceOf<CredentialIssuanceResult.Success>().also {

@@ -3,7 +3,6 @@ package at.asitplus.iso
 import at.asitplus.catchingUnwrapped
 import at.asitplus.signum.indispensable.io.TransformingSerializerTemplate
 import io.github.aakira.napier.Napier
-import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ByteArraySerializer
@@ -12,7 +11,13 @@ import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.mapSerialDescriptor
-import kotlinx.serialization.encoding.*
+import kotlinx.serialization.encoding.CompositeDecoder
+import kotlinx.serialization.encoding.CompositeEncoder
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.encoding.decodeStructure
+import kotlinx.serialization.encoding.encodeStructure
+import kotlin.time.Instant
 
 /**
  * Serializes [DeviceSignedItemList.entries] as an "inline map",

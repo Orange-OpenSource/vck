@@ -17,9 +17,9 @@ import at.asitplus.signum.indispensable.cosef.CoseMac
 import at.asitplus.signum.indispensable.cosef.CoseSigned
 import at.asitplus.signum.indispensable.cosef.io.Base16Strict
 import at.asitplus.signum.indispensable.cosef.toCoseKey
-import at.asitplus.testballoon.matrix.*
-import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
+import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain

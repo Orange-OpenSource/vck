@@ -12,13 +12,13 @@ import at.asitplus.openid.dcql.DCQLJsonClaimsQuery
 import at.asitplus.openid.dcql.DCQLQuery
 import at.asitplus.openid.dcql.DCQLSdJwtCredentialMetadataAndValidityConstraints
 import at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.DCQLRequest
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.serialization.json.jsonObject
@@ -37,8 +37,10 @@ val AgentComplexSdJwtDcqlTest by matrixSuite {
             val holderKeyMaterial = EphemeralKeyWithSelfSignedCert()
             val holder = HolderAgent(holderKeyMaterial)
             val verifierId = "urn:${uuid4()}"
-            val verifier = VerifierAgent(identifier = verifierId)
-            val challenge = uuid4().toString()
+            val verifier = NonceChallengeVerifier(
+                verifierId = verifierId,
+                verifier = VerifierAgent(identifier = verifierId),
+            )
         }
     } - {
 
@@ -62,10 +64,10 @@ val AgentComplexSdJwtDcqlTest by matrixSuite {
                 ),
             )
 
-            val vp = createPresentation(it.holder, it.challenge, dcqlQuery, it.verifierId)
+            val vp = createPresentation(it.holder, it.verifier.createPresentationRequest(), dcqlQuery)
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 1 // for address only
                     reconstructedJsonObject[CLAIM_ADDRESS]?.jsonObject?.get(CLAIM_ADDRESS_REGION)
@@ -95,10 +97,10 @@ val AgentComplexSdJwtDcqlTest by matrixSuite {
                 ),
             )
 
-            val vp = createPresentation(it.holder, it.challenge, dcqlQuery, it.verifierId)
+            val vp = createPresentation(it.holder, it.verifier.createPresentationRequest(), dcqlQuery)
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 2 // for region, country
 
@@ -130,10 +132,10 @@ val AgentComplexSdJwtDcqlTest by matrixSuite {
                 ),
             )
 
-            val vp = createPresentation(it.holder, it.challenge, dcqlQuery, it.verifierId)
+            val vp = createPresentation(it.holder, it.verifier.createPresentationRequest(), dcqlQuery)
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 3 // for address, region, country
                     reconstructedJsonObject[CLAIM_ADDRESS]?.jsonObject?.get(CLAIM_ADDRESS_REGION)
@@ -157,10 +159,10 @@ val AgentComplexSdJwtDcqlTest by matrixSuite {
 
             val dcqlQuery = buildDCQLQuery(DCQLJsonClaimsQuery(path = DCQLClaimsPathPointer(CLAIM_ADDRESS)))
 
-            val vp = createPresentation(it.holder, it.challenge, dcqlQuery, it.verifierId)
+            val vp = createPresentation(it.holder, it.verifier.createPresentationRequest(), dcqlQuery)
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 3 // for address, region, country
                     reconstructedJsonObject[CLAIM_ADDRESS]?.jsonObject?.get(CLAIM_ADDRESS_REGION)
@@ -181,10 +183,10 @@ val AgentComplexSdJwtDcqlTest by matrixSuite {
                 DCQLJsonClaimsQuery(path = DCQLClaimsPathPointer(dotClaimName)),
             )
 
-            val vp = createPresentation(it.holder, it.challenge, dcqlQuery, it.verifierId)
+            val vp = createPresentation(it.holder, it.verifier.createPresentationRequest(), dcqlQuery)
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 1
                     reconstructedJsonObject[CLAIM_ADDRESS] shouldBe null
@@ -206,10 +208,10 @@ val AgentComplexSdJwtDcqlTest by matrixSuite {
                 DCQLJsonClaimsQuery(path = DCQLClaimsPathPointer(CLAIM_ALWAYS_VISIBLE)),
             )
 
-            val vp = createPresentation(it.holder, it.challenge, dcqlQuery, it.verifierId)
+            val vp = createPresentation(it.holder, it.verifier.createPresentationRequest(), dcqlQuery)
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     disclosures.size shouldBe 2 // claim_given_name, claim_family_name
                     reconstructedJsonObject[AtomicAttribute2023.CLAIM_GIVEN_NAME]
@@ -258,11 +260,10 @@ private fun buildDCQLQuery(vararg claimsQueries: DCQLJsonClaimsQuery) = DCQLQuer
 
 private suspend fun createPresentation(
     holder: Holder,
-    challenge: String,
+    request: PresentationRequestParameters,
     dcqlQuery: DCQLQuery,
-    verifierId: String,
 ) = holder.createDefaultPresentation(
-    request = PresentationRequestParameters(nonce = challenge, audience = verifierId),
+    request = request,
     credentialPresentationRequest = DCQLRequest(dcqlQuery),
 ).getOrThrow().let {
     it as PresentationResponseParameters.DCQLParameters

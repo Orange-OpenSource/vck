@@ -9,9 +9,11 @@ import at.asitplus.jsonpath.core.NodeList
 import at.asitplus.jsonpath.core.NormalizedJsonPath
 import at.asitplus.openid.dcql.DCQLQuery
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
-import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.CredentialPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 
@@ -31,18 +33,18 @@ interface Holder {
         data class Vc(
             val signedVcJws: JwsCompactTyped<VerifiableCredentialJws>,
             val vcJws: String,
-            val scheme: ConstantIndex.CredentialScheme,
+            val scheme: VcJwtCredentialScheme,
         ) : StoreCredentialInput()
 
         data class SdJwt(
             val signedSdJwtVc: SdJwtSigned,
             val vcSdJwt: String,
-            val scheme: ConstantIndex.CredentialScheme,
+            val scheme: SdJwtCredentialScheme,
         ) : StoreCredentialInput()
 
         data class Iso(
             val issuerSigned: IssuerSigned,
-            val scheme: ConstantIndex.CredentialScheme,
+            val scheme: IsoMdocCredentialScheme,
         ) : StoreCredentialInput()
     }
 

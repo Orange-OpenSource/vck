@@ -9,8 +9,8 @@ import at.asitplus.iso.MobileSecurityObject
 import at.asitplus.iso.ValueDigestList
 import at.asitplus.signum.indispensable.cosef.CoseSigned
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.mdl.MDL_NAMESPACE
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.matthewnelson.encoding.base16.Base16
@@ -27,7 +27,7 @@ val Iso18013SpecTest by matrixSuite {
             "issue_date" to LocalDate.serializer(),
             "expiry_date" to LocalDate.serializer(),
         ),
-        isoNamespace = "org.iso.18013.5.1"
+        isoNamespace = MDL_NAMESPACE
     )
 
     // From ISO/IEC 18013-5:2021(E), D4.1.1, page 115

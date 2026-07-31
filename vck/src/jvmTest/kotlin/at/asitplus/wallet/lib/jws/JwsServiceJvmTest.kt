@@ -12,7 +12,7 @@ import at.asitplus.signum.indispensable.nativeDigest
 import at.asitplus.signum.indispensable.toJcaPublicKey
 import at.asitplus.signum.supreme.hazmat.jcaPrivateKey
 import at.asitplus.signum.supreme.sign.EphemeralKey
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import com.benasher44.uuid.uuid4
 import com.nimbusds.jose.JOSEObjectType
@@ -25,7 +25,6 @@ import com.nimbusds.jose.crypto.ECDSAVerifier
 import com.nimbusds.jose.crypto.RSASSASigner
 import com.nimbusds.jose.crypto.RSASSAVerifier
 import com.nimbusds.jose.jwk.JWK
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe

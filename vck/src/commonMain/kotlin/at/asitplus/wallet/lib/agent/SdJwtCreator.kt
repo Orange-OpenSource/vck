@@ -16,11 +16,10 @@ import kotlinx.serialization.json.addAll
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.putJsonArray
-import kotlin.collections.plus
 
 
 /**
- * See [Selective Disclosure for JSON Web Tokens](https://www.rfc-editor.org/rfc/rfc9901.html)
+ * See [Selective Disclosure for JSON Web Tokens](https://datatracker.ietf.org/doc/html/rfc9901)
  */
 object SdJwtCreator {
 
@@ -124,14 +123,14 @@ object SdJwtCreator {
         val simpleValues: Collection<ClaimToBeIssued>,
     )
 
-    /** See [registered JWT claims](https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/). */
+    /** See [SD-JWT VC draft 17](https://www.ietf.org/archive/id/draft-ietf-oauth-sd-jwt-vc-17.html). */
     private val notDisclosableClaims = listOf(
-        "iss", "nbf", "exp", "cnf", "vct", "status"
+        "iss", "nbf", "exp", "cnf", "vct", "vct#integrity", "status"
     )
 
-    /** See [RFC 9901](https://www.rfc-editor.org/rfc/rfc9901.html#name-issuer-signed-jwt). */
+    /** See [RFC 9901](https://datatracker.ietf.org/doc/html/rfc9901). */
     private val disallowedNames = listOf(
-        SD_ALG, "..."
+        NAME_SD, SD_ALG, "..."
     )
 
     /**

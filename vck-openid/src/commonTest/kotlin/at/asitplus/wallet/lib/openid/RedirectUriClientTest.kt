@@ -15,7 +15,8 @@ package at.asitplus.wallet.lib.openid
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.RequestParametersFrom
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
@@ -28,14 +29,13 @@ import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
 import at.asitplus.wallet.lib.oidvci.encodeToParameters
 import at.asitplus.wallet.lib.oidvci.formUrlEncode
-import at.asitplus.wallet.lib.openid.OpenId4VpVerifier.CreationOptions
 import at.asitplus.wallet.lib.utils.MapStore
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeSingleton
@@ -50,41 +50,42 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.ktor.http.*
 import kotlinx.serialization.json.JsonElement
 
-@Suppress("unused")
 val RedirectUriClientTest by matrixSuite {
 
-    fixture({ kotlinx.coroutines.runBlocking {
-        val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
-        val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
-            agent.storeCredential(
-                IssuerAgent(
-                    identifier = "https://issuer.example.com/".toUri(),
-                    randomSource = RandomSource.Default
-                ).issueCredential(
-                    DummyCredentialDataProvider.getCredential(
-                        holderKeyMaterial.publicKey,
-                        ConstantIndex.AtomicAttribute2023,
-                        ConstantIndex.CredentialRepresentation.PLAIN_JWT,
-                    ).getOrThrow()
-                ).getOrThrow().toStoreCredentialInput()
-            )
-        }
-        object {
+    fixture({
+        kotlinx.coroutines.runBlocking {
+            val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
+            val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
+                agent.storeCredential(
+                    IssuerAgent(
+                        identifier = "https://issuer.example.com/".toUri(),
+                        randomSource = RandomSource.Default
+                    ).issueCredential(
+                        DummyCredentialDataProvider.getCredential(
+                            holderKeyMaterial.publicKey,
+                            ConstantIndex.AtomicAttribute2023,
+                            PLAIN_JWT,
+                        ).getOrThrow()
+                    ).getOrThrow().toStoreCredentialInput()
+                )
+            }
+            object {
 
-            val verifierKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
-            val clientId: String = "https://example.com/rp/${uuid4()}"
-            val walletUrl: String = "https://example.com/wallet/${uuid4()}"
+                val verifierKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
+                val clientId: String = "https://example.com/rp/${uuid4()}"
+                val walletUrl: String = "https://example.com/wallet/${uuid4()}"
 
-            val holderOid4vp: OpenId4VpHolder = OpenId4VpHolder(
-                holder = holderAgent,
-                randomSource = RandomSource.Default,
-            )
-            val verifierOid4vp: OpenId4VpVerifier = OpenId4VpVerifier(
-                keyMaterial = verifierKeyMaterial,
-                clientIdScheme = ClientIdScheme.RedirectUri(clientId),
-            )
+                val holderOid4vp: OpenId4VpHolder = OpenId4VpHolder(
+                    holder = holderAgent,
+                    randomSource = RandomSource.Default,
+                )
+                val verifierOid4vp: OpenId4VpVerifier = OpenId4VpVerifier(
+                    keyMaterial = verifierKeyMaterial,
+                    clientIdScheme = ClientIdScheme.RedirectUri(clientId),
+                )
+            }
         }
-    } }) - {
+    }) - {
 
         "test with Fragment" {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
@@ -111,9 +112,10 @@ val RedirectUriClientTest by matrixSuite {
         }
 
         "wrong client nonce in id_token should lead to error" {
+            val clientIdScheme = ClientIdScheme.RedirectUri(it.clientId)
             val verifierOid4vp = OpenId4VpVerifier(
                 keyMaterial = it.verifierKeyMaterial,
-                clientIdScheme = ClientIdScheme.RedirectUri(it.clientId),
+                clientIdScheme = clientIdScheme,
                 nonceService = object : NonceService {
                     override suspend fun provideNonce() = uuid4().toString()
                     override suspend fun verifyNonce(it: String) = false
@@ -122,7 +124,7 @@ val RedirectUriClientTest by matrixSuite {
             )
             val requestOptions = OpenId4VpRequestOptions(
                 presentationRequest = CredentialPresentationRequestBuilder(
-                    credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                    RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
                 ).toPresentationExchangeRequest(),
                 responseType = OpenIdConstants.ID_TOKEN
             )
@@ -178,7 +180,7 @@ val RedirectUriClientTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
                     ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
                     responseUrl = it.clientId,
@@ -204,7 +206,7 @@ val RedirectUriClientTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
                     ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
                     responseUrl = it.clientId,
@@ -233,7 +235,7 @@ val RedirectUriClientTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
                     ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPostJwt,
                     responseUrl = it.clientId,
@@ -262,7 +264,7 @@ val RedirectUriClientTest by matrixSuite {
             val authnRequest = it.verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)),
+                        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
                     ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.Query,
                     state = expectedState
@@ -289,7 +291,7 @@ val RedirectUriClientTest by matrixSuite {
         }
 
         "test with deserializing" {
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(defaultRequestOptions)
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(defaultRequestOptions)
             val authnRequestUrlParams = authnRequest.encodeToParameters().formUrlEncode()
 
             val parsedAuthnRequest: AuthenticationRequestParameters =
@@ -344,9 +346,7 @@ val RedirectUriClientTest by matrixSuite {
 
 private fun requestOptionsAtomicAttribute() = OpenId4VpRequestOptions(
     presentationRequest = CredentialPresentationRequestBuilder(
-        credentials = setOf(
-            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
-        ),
+        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
     ).toPresentationExchangeRequest(),
 )
 
@@ -359,7 +359,8 @@ private suspend fun verifySecondProtocolRun(
         defaultRequestOptions, CreationOptions.Query(walletUrl)
     ).getOrThrow().url
     val authnResponse = holderOid4vp.createAuthnResponse(authnRequestUrl)
-    verifierOid4vp.validateAuthnResponse((authnResponse.getOrThrow() as AuthenticationResponseResult.Redirect).url).getOrThrow()
+    verifierOid4vp.validateAuthnResponse((authnResponse.getOrThrow() as AuthenticationResponseResult.Redirect).url)
+        .getOrThrow()
         .vpTokenValidationResult.shouldNotBeNull().getOrThrow()
         .shouldBeInstanceOf<VpTokenValidationResultPresentationExchange>()
         .inputDescriptorResponseValidations.values.map {
@@ -370,8 +371,6 @@ private suspend fun verifySecondProtocolRun(
 
 private val defaultRequestOptions = OpenId4VpRequestOptions(
     presentationRequest = CredentialPresentationRequestBuilder(
-        credentials = setOf(
-            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
-        )
+        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
     ).toPresentationExchangeRequest(),
 )

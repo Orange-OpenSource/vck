@@ -12,7 +12,11 @@ import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.SerialKind
 import kotlinx.serialization.descriptors.StructureKind
-import kotlinx.serialization.encoding.*
+import kotlinx.serialization.encoding.CompositeDecoder
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.encoding.decodeStructure
+import kotlinx.serialization.encoding.encodeCollection
 import net.orandja.obor.codec.Cbor
 import net.orandja.obor.data.CborMap
 import net.orandja.obor.data.CborObject

@@ -1,7 +1,9 @@
 package at.asitplus.wallet.lib.agent
 
+import at.asitplus.openid.OpenId4VciClaimsPathPointer
+import at.asitplus.openid.OpenId4VciClaimsPathPointerSegmentIndex
 import at.asitplus.signum.indispensable.Digest
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.SdJwtCreator.toSdJsonObject
 import at.asitplus.wallet.lib.data.CredentialToJsonConverter.toJsonElement
 import at.asitplus.wallet.lib.data.SdJwtConstants
@@ -10,7 +12,6 @@ import at.asitplus.wallet.lib.jws.JwsHeaderNone
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.SignJwt
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldHaveSize
@@ -53,20 +54,21 @@ val SdJwtCreatorTest by matrixSuite {
         }
     }
 
-    "nbf, exp, cnf, vct, status MUST be included in SD-JWT, i.e. can not be selectively disclosed" {
-        listOfClaims("nbf", "exp", "cnf", "vct", "status").toSdJsonObject(RandomSource.Default).apply {
+    "SD-JWT VC claims that must not be selectively disclosed are included in clear" {
+        listOfClaims("nbf", "exp", "cnf", "vct", "vct#integrity", "status").toSdJsonObject(RandomSource.Default).apply {
             second.shouldHaveSize(0)
             first["_sd"] shouldBe null
             first["nbf"] shouldNotBe null
             first["exp"] shouldNotBe null
             first["cnf"] shouldNotBe null
             first["vct"] shouldNotBe null
+            first["vct#integrity"] shouldNotBe null
             first["status"] shouldNotBe null
         }
     }
 
-    "several names are disallowed" {
-        listOfClaims("_sd_alg", "...").toSdJsonObject(RandomSource.Default).apply {
+    "reserved SD-JWT claim names are disallowed" {
+        listOfClaims("_sd", "_sd_alg", "...").toSdJsonObject(RandomSource.Default).apply {
             second.shouldHaveSize(0)
             first["_sd"] shouldBe null
             first["..."] shouldBe null
@@ -178,6 +180,48 @@ val SdJwtCreatorTest by matrixSuite {
                 this["foo"] shouldBe null
                 this["foo.bar"].shouldBeInstanceOf<JsonPrimitive>().content shouldBe "value"
             }
+        }
+    }
+
+    "OpenID4VCI claim path creates nested claims" {
+        listOf(ClaimToBeIssued(OpenId4VciClaimsPathPointer("address", "region"), "Vienna"))
+            .toSdJsonObject(RandomSource.Default).signDecodeReconstruct().apply {
+                this["address"].shouldBeInstanceOf<JsonObject>()["region"]
+                    .shouldBeInstanceOf<JsonPrimitive>().content shouldBe "Vienna"
+            }
+    }
+
+    "OpenID4VCI claim path preserves literal dots and disclosure setting" {
+        ClaimToBeIssued(
+            OpenId4VciClaimsPathPointer("person", "address", "region"),
+            "Vienna",
+            selectivelyDisclosable = false,
+        ) shouldBe ClaimToBeIssued(
+            "person",
+            listOf(
+                ClaimToBeIssued(
+                    "address",
+                    listOf(ClaimToBeIssued("region", "Vienna", selectivelyDisclosable = false)),
+                    selectivelyDisclosable = false,
+                )
+            ),
+            selectivelyDisclosable = false,
+        )
+        ClaimToBeIssued(OpenId4VciClaimsPathPointer("address.region"), "Vienna") shouldBe
+                ClaimToBeIssued("address.region", "Vienna")
+    }
+
+    "OpenID4VCI claim path rejects array selectors" {
+        listOf(
+            OpenId4VciClaimsPathPointer(OpenId4VciClaimsPathPointerSegmentIndex(0u)),
+            OpenId4VciClaimsPathPointer(segment = null),
+        ).forEach {
+            shouldThrow<IllegalArgumentException> {
+                ClaimToBeIssued(it, "value")
+            }
+        }
+        shouldThrow<IllegalArgumentException> {
+            ClaimToBeIssued.fromPath(emptyList(), "value")
         }
     }
 

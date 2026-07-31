@@ -21,7 +21,7 @@ import kotlinx.serialization.json.JsonObject
 interface AuthorizationService {
 
     /**
-     * Pushed authorization request endpoint as defined in [RFC 9126](https://www.rfc-editor.org/rfc/rfc9126.html).
+     * Pushed authorization request endpoint as defined in [RFC 9126](https://datatracker.ietf.org/doc/html/rfc9126).
      * Clients send their authorization request as HTTP `POST` with `application/x-www-form-urlencoded` to the AS.
      *
      * Responses have to be sent with HTTP status code `201`.
@@ -37,7 +37,7 @@ interface AuthorizationService {
 
 
     /**
-     * Pushed authorization request endpoint as defined in [RFC 9126](https://www.rfc-editor.org/rfc/rfc9126.html).
+     * Pushed authorization request endpoint as defined in [RFC 9126](https://datatracker.ietf.org/doc/html/rfc9126).
      * Clients send their authorization request as HTTP `POST` with `application/x-www-form-urlencoded` to the AS.
      *
      * Responses have to be sent with HTTP status code `201`.

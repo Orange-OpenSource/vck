@@ -1,8 +1,10 @@
 package at.asitplus.wallet.lib.openid
 
 import at.asitplus.openid.AuthenticationRequestParameters
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
@@ -14,15 +16,14 @@ import at.asitplus.wallet.lib.agent.PresentationExchangeCredentialDisclosure
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.agent.SubjectCredentialStore
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
-import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.CredentialPresentation.PresentationExchangePresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.PresentationExchangeRequest
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldHaveSize
@@ -55,12 +56,10 @@ val OpenId4VpCombinedProtocolTwoStepTest by matrixSuite {
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, AtomicAttribute2023)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
-                        )
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
+                        RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
                 )
             )
@@ -90,12 +89,10 @@ val OpenId4VpCombinedProtocolTwoStepTest by matrixSuite {
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, AtomicAttribute2023)
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, AtomicAttribute2023)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
-                        )
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
+                        RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
                 )
             )
@@ -145,17 +142,15 @@ val OpenId4VpCombinedProtocolTwoStepTest by matrixSuite {
         test("submission requirements need to match: not all optional claims need to be presented") {
             it.holderAgent.storeIsoCredential(it.holderKeyMaterial, AtomicAttribute2023)
 
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(
-                                credentialScheme = AtomicAttribute2023,
-                                representation = ISO_MDOC,
-                                requestedOptionalAttributes = setOf(
-                                    AtomicAttribute2023.CLAIM_FAMILY_NAME,
-                                    AtomicAttribute2023.CLAIM_GIVEN_NAME
-                                )
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
+                        RequestOptionsCredential(
+                            credentialScheme = AtomicAttribute2023,
+                            representation = ISO_MDOC,
+                            optionalAttributePaths = setOf(
+                                DCQLClaimsPathPointer(AtomicAttribute2023.CLAIM_FAMILY_NAME),
+                                DCQLClaimsPathPointer(AtomicAttribute2023.CLAIM_GIVEN_NAME)
                             ),
                         )
                     ).toPresentationExchangeRequest(),
@@ -209,12 +204,10 @@ val OpenId4VpCombinedProtocolTwoStepTest by matrixSuite {
             it.holderAgent.storeSdJwtCredential(it.holderKeyMaterial, AtomicAttribute2023)
 
             val sdJwtMatches = run {
-                val authnRequestSdJwt = it.verifierOid4vp.createAuthnRequest(
-                    requestOptions = OpenId4VpRequestOptions(
-                        presentationRequest = CredentialPresentationRequestBuilder(
-                            credentials = setOf(
-                                RequestOptionsCredential(AtomicAttribute2023, SD_JWT)
-                            )
+                val authnRequestSdJwt = it.verifierOid4vp.createPlainAuthnRequest(
+                    OpenId4VpRequestOptions(
+                        CredentialPresentationRequestBuilder(
+                            RequestOptionsCredential(AtomicAttribute2023, SD_JWT)
                         ).toPresentationExchangeRequest(),
                     )
                 )
@@ -243,13 +236,10 @@ val OpenId4VpCombinedProtocolTwoStepTest by matrixSuite {
                 }
             }
 
-
-            val authnRequest = it.verifierOid4vp.createAuthnRequest(
-                requestOptions = OpenId4VpRequestOptions(
-                    presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
-                        )
+            val authnRequest = it.verifierOid4vp.createPlainAuthnRequest(
+                OpenId4VpRequestOptions(
+                    CredentialPresentationRequestBuilder(
+                        RequestOptionsCredential(AtomicAttribute2023, ISO_MDOC)
                     ).toPresentationExchangeRequest(),
                 )
             )
@@ -301,7 +291,7 @@ val OpenId4VpCombinedProtocolTwoStepTest by matrixSuite {
 
 private suspend fun Holder.storeSdJwtCredential(
     holderKeyMaterial: KeyMaterial,
-    credentialScheme: ConstantIndex.CredentialScheme,
+    credentialScheme: CredentialScheme,
 ) = storeCredential(
     IssuerAgent(
         identifier = "https://issuer.example.com/".toUri(),
@@ -317,7 +307,7 @@ private suspend fun Holder.storeSdJwtCredential(
 
 private suspend fun Holder.storeIsoCredential(
     holderKeyMaterial: KeyMaterial,
-    credentialScheme: ConstantIndex.CredentialScheme,
+    credentialScheme: CredentialScheme,
 ) = storeCredential(
     IssuerAgent(
         keyMaterial = EphemeralKeyWithSelfSignedCert(),

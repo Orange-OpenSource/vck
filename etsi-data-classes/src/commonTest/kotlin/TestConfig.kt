@@ -2,11 +2,8 @@
 import at.asitplus.testballoon.matrix.ExecutionMode
 import at.asitplus.testballoon.matrix.MatrixTestDefaults
 import de.infix.testBalloon.framework.core.TestSession
-import de.infix.testBalloon.framework.core.invocation
-import de.infix.testBalloon.framework.core.testScope
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
-import kotlin.time.Duration.Companion.minutes
 
 class TestConfig : TestSession(
     testConfig = DefaultConfiguration.apply { MatrixTestDefaults { execution= ExecutionMode.Concurrent(8) } }

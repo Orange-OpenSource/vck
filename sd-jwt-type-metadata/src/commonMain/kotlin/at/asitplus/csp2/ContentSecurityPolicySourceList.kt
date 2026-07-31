@@ -1,5 +1,6 @@
 package at.asitplus.csp2
 
+import at.asitplus.catchingUnwrapped
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -85,9 +86,7 @@ data class ContentSecurityPolicySourceList(
             listOf()
         } else {
             it.split(*asciiWhitespaces).mapNotNull {
-                runCatching {
-                    ContentSecurityPolicySourceExpression.Companion(it)
-                }.getOrNull()
+                catchingUnwrapped { ContentSecurityPolicySourceExpression(it) }.getOrNull()
             }
         }
     }

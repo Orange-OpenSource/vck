@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlin.jvm.JvmInline
 
 /**
- * https://www.rfc-editor.org/rfc/rfc5646.html
+ * [RFC5646](https://datatracker.ietf.org/doc/html/rfc5646)
  */
 @Serializable
 @JvmInline

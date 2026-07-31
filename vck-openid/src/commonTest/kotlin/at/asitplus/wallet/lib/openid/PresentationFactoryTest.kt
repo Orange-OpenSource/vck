@@ -8,14 +8,14 @@ import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.JsonWebKey
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
-import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.cbor.CoseHeaderNone
 import at.asitplus.wallet.lib.cbor.SignCoseDetached
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
-import at.asitplus.testballoon.matrix.matrixSuite
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import kotlinx.serialization.encodeToHexString
 
@@ -27,8 +27,7 @@ val PresentationFactoryTest by matrixSuite {
             val presentationFactory = PresentationFactory(
                 supportedAlgorithms = setOf(SignatureAlgorithm.ECDSAwithSHA256),
                 signDeviceAuthDetached = SignCoseDetached(keyMaterial, CoseHeaderNone(), CoseHeaderNone()),
-                signIdToken = SignJwt(keyMaterial, JwsHeaderCertOrJwk()),
-                randomSource = RandomSource.Default
+                signIdToken = SignJwt(keyMaterial, JwsHeaderCertOrJwk())
             )
         }
     } - {
@@ -193,8 +192,7 @@ val PresentationFactoryTest by matrixSuite {
                 clientId = "x509_san_dns:example.com",
                 responseUrl = "https://example.com/response",
                 nonce = "exc7gBkxjx1rdc9udRrveKvSsJIq80avlXeLHhGwqtA",
-                jsonWebKeys = listOf(jsonWebKey),
-                responseWillBeEncrypted = true,
+                recipientKey = jsonWebKey,
             ).apply {
                 coseCompliantSerializer.encodeToHexString(this) shouldBe """
                     83f6f682714f70656e494434565048616e646f7665725820048bc053c00442af9b8e
@@ -222,8 +220,43 @@ val PresentationFactoryTest by matrixSuite {
             it.presentationFactory.calcSessionTranscript(
                 nonce = "exc7gBkxjx1rdc9udRrveKvSsJIq80avlXeLHhGwqtA",
                 dcApiRequestCallingOrigin = "https://example.com",
-                jsonWebKeys = listOf(jsonWebKey),
-                responseWillBeEncrypted = true,
+                recipientKey = jsonWebKey
+            ).apply {
+                coseCompliantSerializer.encodeToHexString(this) shouldBe """
+                    83f6f682764f70656e4944345650444341504948616e646f7665725820fbece366f4
+                    212f9762c74cfdbf83b8c69e371d5d68cea09cb4c48ca6daab761a
+                """.trimIndent().replace("\n", "")
+            }
+        }
+
+        "ISO mdoc rejects an opaque DC API origin" {
+            shouldThrow<IllegalArgumentException> {
+                it.presentationFactory.calcSessionTranscript(
+                    nonce = "nonce",
+                    dcApiRequestCallingOrigin = "android:apk-key-hash:AbCdEf",
+                )
+            }
+        }
+
+        "OpenID4VP DCAPI SessionTranscript serializes origin before hashing" { it ->
+            val jsonWebKey = """
+                {
+                  "kty": "EC",
+                  "crv": "P-256",
+                  "x": "DxiH5Q4Yx3UrukE2lWCErq8N8bqC9CHLLrAwLz5BmE0",
+                  "y": "XtLM4-3h5o3HUH0MHVJV0kyq0iBlrBwlh8qEDMZ4-Pc",
+                  "use": "enc",
+                  "alg": "ECDH-ES",
+                  "kid": "1"
+                }
+            """.trimIndent().let {
+                joseCompliantSerializer.decodeFromString<JsonWebKey>(it)
+            }
+
+            it.presentationFactory.calcSessionTranscript(
+                nonce = "exc7gBkxjx1rdc9udRrveKvSsJIq80avlXeLHhGwqtA",
+                dcApiRequestCallingOrigin = "https://example.com/",
+                recipientKey = jsonWebKey
             ).apply {
                 coseCompliantSerializer.encodeToHexString(this) shouldBe """
                     83f6f682764f70656e4944345650444341504948616e646f7665725820fbece366f4

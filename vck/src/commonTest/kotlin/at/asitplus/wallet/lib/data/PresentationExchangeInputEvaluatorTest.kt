@@ -2,11 +2,11 @@ package at.asitplus.wallet.lib.data
 
 import at.asitplus.dif.ConstraintField
 import at.asitplus.dif.ConstraintFilter
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.dif.PresentationExchangeInputEvaluator
 import com.benasher44.uuid.bytes
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.matthewnelson.encoding.base16.Base16
@@ -77,9 +77,25 @@ val PresentationExchangeInputEvaluatorTest by matrixSuite {
             }
         }
 
-        test("array credential does not match constraint field with string filter and const") {
+        test("array-valued VC type matches a scalar const filter when an element matches") {
+            // VC-JWT credentials commonly carry `type` as an array; a scalar const filter on `$.type` matches when any
+            // element matches. The relaxation is scoped to the VC `type` field (see LegacyVcTypeConstraintTest for the
+            // negative case on other fields).
+            val typeArrayCredential = buildJsonObject {
+                put("type", buildJsonArray { add(JsonPrimitive(it.elementValue)) })
+            }
             PresentationExchangeInputEvaluator.matchConstraintFieldPaths(
-                constraintField = stringConstFilter(it.elementIdentifier, it.elementValue),
+                constraintField = stringConstFilter("type", it.elementValue),
+                credential = typeArrayCredential,
+                pathAuthorizationValidator = { true }
+            ).apply {
+                shouldHaveSize(1)
+            }
+        }
+
+        test("array credential does not match constraint field with string filter and non-matching const") {
+            PresentationExchangeInputEvaluator.matchConstraintFieldPaths(
+                constraintField = stringConstFilter(it.elementIdentifier, "value-not-present-in-array"),
                credential = it.arrayCredential,
                 pathAuthorizationValidator = { true }
             ).apply {

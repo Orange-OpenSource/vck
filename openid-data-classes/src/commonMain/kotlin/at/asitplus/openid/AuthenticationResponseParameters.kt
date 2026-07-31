@@ -2,10 +2,10 @@ package at.asitplus.openid
 
 import at.asitplus.dif.PresentationSubmission
 import at.asitplus.signum.indispensable.io.InstantLongSerializer
-import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlin.time.Instant
 
 /**
  * Contents of an OIDC Authentication Response.

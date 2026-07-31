@@ -2,6 +2,7 @@ package at.asitplus.wallet.lib.openid
 
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.OpenIdConstants
+import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.signum.indispensable.asn1.Asn1EncapsulatingOctetString
 import at.asitplus.signum.indispensable.asn1.Asn1Primitive
 import at.asitplus.signum.indispensable.asn1.Asn1String
@@ -14,8 +15,9 @@ import at.asitplus.signum.indispensable.josef.JwsAlgorithm
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.pki.SubjectAltNameImplicitTags
 import at.asitplus.signum.indispensable.pki.X509CertificateExtension
-import at.asitplus.testballoon.matrix.*
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
@@ -24,16 +26,17 @@ import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.oidvci.formUrlEncode
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldHaveSingleElement
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -58,8 +61,8 @@ val OpenId4VpEuRefInteropTest by matrixSuite {
                 issuerAgent.issueCredential(
                     DummyCredentialDataProvider.getCredential(
                         holderKeyMaterial.publicKey,
-                        EuPidSdJwtScheme,
-                        ConstantIndex.CredentialRepresentation.SD_JWT,
+                        AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT),
+                        SD_JWT,
                     ).getOrThrow()
                 ).getOrThrow().toStoreCredentialInput()
             )
@@ -68,7 +71,7 @@ val OpenId4VpEuRefInteropTest by matrixSuite {
                     DummyCredentialDataProvider.getCredential(
                         holderKeyMaterial.publicKey,
                         ConstantIndex.AtomicAttribute2023,
-                        ConstantIndex.CredentialRepresentation.SD_JWT,
+                        SD_JWT,
                     ).getOrThrow()
                 ).getOrThrow().toStoreCredentialInput()
             )
@@ -280,7 +283,7 @@ val OpenId4VpEuRefInteropTest by matrixSuite {
             fields.filter { it.path.contains("$.mdoc.namespace") }.shouldBeSingleton()
             fields.filter { it.path.contains("$.mdoc.given_name") }.shouldBeSingleton()
             parsed.state shouldBe "xgagB1vsIrWhMLixoJTCVZZvOHsZ8QrulEFxc0bjJdMRyzqO6j2-UB00gmOZraocfoknlxXY-kaoLlX8kygqxw"
-            parsed.issuedAt shouldBe Instant.Companion.fromEpochSeconds(1710313534)
+            parsed.issuedAt shouldBe Instant.fromEpochSeconds(1710313534)
             val cm = parsed.clientMetadata
             cm.shouldNotBeNull()
             cm.subjectSyntaxTypesSupported.shouldNotBeNull() shouldHaveSingleElement "urn:ietf:params:oauth:jwk-thumbprint"
@@ -350,18 +353,19 @@ val OpenId4VpEuRefInteropTest by matrixSuite {
             val (walletUrl, jar) = verifierOid4vp.createAuthnRequest(
                 OpenId4VpRequestOptions(
                     presentationRequest = CredentialPresentationRequestBuilder(
-                        credentials = setOf(
-                            RequestOptionsCredential(
-                                ConstantIndex.AtomicAttribute2023,
-                                ConstantIndex.CredentialRepresentation.SD_JWT,
-                                setOf(CLAIM_FAMILY_NAME, CLAIM_GIVEN_NAME)
+                        RequestOptionsCredential(
+                            credentialScheme = ConstantIndex.AtomicAttribute2023,
+                            representation = SD_JWT,
+                            attributePaths = setOf(
+                                DCQLClaimsPathPointer(CLAIM_FAMILY_NAME),
+                                DCQLClaimsPathPointer(CLAIM_GIVEN_NAME)
                             )
                         )
                     ).toPresentationExchangeRequest(),
                     responseMode = OpenIdConstants.ResponseMode.DirectPost,
                     responseUrl = "https://example.com/response",
                 ),
-                OpenId4VpVerifier.CreationOptions.SignedRequestByReference("https://wallet.a-sit.at/mobile", requestUrl)
+                CreationOptions.SignedRequestByReference("https://wallet.a-sit.at/mobile", requestUrl)
             ).getOrThrow()
             jar.shouldNotBeNull()
 

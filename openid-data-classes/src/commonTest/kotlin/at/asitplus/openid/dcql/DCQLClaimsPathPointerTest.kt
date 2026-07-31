@@ -2,18 +2,18 @@ package at.asitplus.openid.dcql
 
 import at.asitplus.data.NonEmptyList.Companion.nonEmptyListOf
 import at.asitplus.data.NonEmptyList.Companion.toNonEmptyList
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.openid.dcql.DCQLClaimsPathPointerSegment.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import io.ktor.util.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlin.io.encoding.Base64
 import kotlin.random.Random
 import kotlin.random.nextUInt
 
@@ -29,16 +29,16 @@ val DCQLClaimsPathPointerTest by matrixSuite {
                 segments.first().run {
                     when (it) {
                         null -> {
-                            shouldBeInstanceOf<DCQLClaimsPathPointerSegment.NullSegment>()
+                            shouldBeInstanceOf<NullSegment>()
                         }
 
                         is String -> {
-                            shouldBeInstanceOf<DCQLClaimsPathPointerSegment.NameSegment>()
+                            shouldBeInstanceOf<NameSegment>()
                             name shouldBe it
                         }
 
                         else -> {
-                            shouldBeInstanceOf<DCQLClaimsPathPointerSegment.IndexSegment>()
+                            shouldBeInstanceOf<IndexSegment>()
                             index shouldBe it
                         }
                     }
@@ -49,7 +49,7 @@ val DCQLClaimsPathPointerTest by matrixSuite {
             DCQLClaimsPathPointer(it).run {
                 segments shouldHaveSize 1
                 segments.first().run {
-                    shouldBeInstanceOf<DCQLClaimsPathPointerSegment.IndexSegment>()
+                    shouldBeInstanceOf<IndexSegment>()
                     index shouldBe it
                 }
             }
@@ -59,12 +59,9 @@ val DCQLClaimsPathPointerTest by matrixSuite {
         "base" {
             val segments = List(1 + Random.nextInt(10)) {
                 when (Random.nextInt(3)) {
-                    0 -> DCQLClaimsPathPointerSegment.NameSegment(
-                        Random.nextBytes(32).encodeBase64()
-                    )
-
-                    1 -> DCQLClaimsPathPointerSegment.IndexSegment(Random.nextUInt())
-                    else -> DCQLClaimsPathPointerSegment.NullSegment
+                    0 -> NameSegment(Base64.encode(Random.nextBytes(32)))
+                    1 -> IndexSegment(Random.nextUInt())
+                    else -> NullSegment
                 }
             }
             DCQLClaimsPathPointer(segments.toNonEmptyList()) shouldBe segments.map {
@@ -74,7 +71,7 @@ val DCQLClaimsPathPointerTest by matrixSuite {
         "values" {
             val segments = List(1 + Random.nextInt(10)) {
                 when (Random.nextInt(3)) {
-                    0 -> Random.nextBytes(32).encodeBase64()
+                    0 -> Base64.encode(Random.nextBytes(32))
                     1 -> Random.nextUInt()
                     else -> null
                 }
@@ -82,9 +79,9 @@ val DCQLClaimsPathPointerTest by matrixSuite {
 
             DCQLClaimsPathPointer(segments.map {
                 when (it) {
-                    is String -> DCQLClaimsPathPointerSegment.NameSegment(it)
-                    is UInt -> DCQLClaimsPathPointerSegment.IndexSegment(it)
-                    else -> DCQLClaimsPathPointerSegment.NullSegment
+                    is String -> NameSegment(it)
+                    is UInt -> IndexSegment(it)
+                    else -> NullSegment
                 }
             }.toNonEmptyList()) shouldBe segments.map {
                 when (it) {
@@ -98,12 +95,9 @@ val DCQLClaimsPathPointerTest by matrixSuite {
     "serialization conformance" {
         val segments = List(1 + Random.nextInt(10)) {
             when (Random.nextInt(3)) {
-                0 -> DCQLClaimsPathPointerSegment.NameSegment(
-                    Random.nextBytes(32).encodeBase64()
-                )
-
-                1 -> DCQLClaimsPathPointerSegment.IndexSegment(Random.nextUInt())
-                else -> DCQLClaimsPathPointerSegment.NullSegment
+                0 -> NameSegment(Base64.encode(Random.nextBytes(32)))
+                1 -> IndexSegment(Random.nextUInt())
+                else -> NullSegment
             }
         }
         val pointer = DCQLClaimsPathPointer(segments.toNonEmptyList())
@@ -111,15 +105,9 @@ val DCQLClaimsPathPointerTest by matrixSuite {
             segments.forEach {
                 add(
                     when (it) {
-                        is DCQLClaimsPathPointerSegment.IndexSegment -> {
-                            JsonPrimitive(it.index.toLong())
-                        }
-
-                        is DCQLClaimsPathPointerSegment.NameSegment -> {
-                            JsonPrimitive(it.name)
-                        }
-
-                        is DCQLClaimsPathPointerSegment.NullSegment -> JsonNull
+                        is IndexSegment -> JsonPrimitive(it.index.toLong())
+                        is NameSegment -> JsonPrimitive(it.name)
+                        is NullSegment -> JsonNull
                     }
                 )
             }

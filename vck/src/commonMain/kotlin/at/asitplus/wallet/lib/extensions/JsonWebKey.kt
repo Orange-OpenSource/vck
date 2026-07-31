@@ -17,9 +17,6 @@ fun Collection<JsonWebKey>.getEncryptionTargetKey(): JsonWebKey? =
             ?: ecKeys.firstOrNull()
     }
 
-fun Collection<JsonWebKey>.firstSessionTranscriptThumbprint(): ByteArray? =
-    getEncryptionTargetKey()?.sessionTranscriptThumbprint()
-
 fun JsonWebKey.sessionTranscriptThumbprint(): ByteArray =
     jwkThumbprint.removePrefix("urn:ietf:params:oauth:jwk-thumbprint:sha256:")
         .decodeToByteArray(Base64UrlStrict)

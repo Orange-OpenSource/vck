@@ -2,22 +2,15 @@ package at.asitplus.wallet.lib.openid
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
-import at.asitplus.dcapi.DCAPIHandover
-import at.asitplus.dcapi.OpenID4VPDCAPIHandoverInfo
 import at.asitplus.dif.ClaimFormat
 import at.asitplus.iso.DeviceAuthentication
 import at.asitplus.iso.DeviceNameSpaces
-import at.asitplus.iso.OpenId4VpHandover
-import at.asitplus.iso.OpenId4VpHandoverInfo
 import at.asitplus.iso.SessionTranscript
-import at.asitplus.iso.sha256
 import at.asitplus.iso.wrapInCborTag
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.IdToken
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.OpenIdConstants.VP_TOKEN
-import at.asitplus.openid.RelyingPartyMetadata
 import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.openid.VpFormatsSupported
 import at.asitplus.openid.truncateToSeconds
@@ -30,6 +23,7 @@ import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.cosef.toCoseAlgorithm
 import at.asitplus.signum.indispensable.josef.JsonWebKey
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.toJsonWebKey
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
 import at.asitplus.wallet.lib.agent.CreatePresentationResult
@@ -39,10 +33,9 @@ import at.asitplus.wallet.lib.agent.PresentationRequestParameters
 import at.asitplus.wallet.lib.agent.PresentationResponseParameters
 import at.asitplus.wallet.lib.agent.PresentationResponseParameters.DCQLParameters
 import at.asitplus.wallet.lib.agent.PresentationResponseParameters.PresentationExchangeParameters
-import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.cbor.SignCoseDetachedFun
 import at.asitplus.wallet.lib.data.CredentialPresentation
-import at.asitplus.wallet.lib.extensions.firstSessionTranscriptThumbprint
+import at.asitplus.wallet.lib.extensions.getEncryptionTargetKey
 import at.asitplus.wallet.lib.jws.SignJwtFun
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.*
@@ -59,39 +52,40 @@ internal class PresentationFactory(
     private val supportedAlgorithms: Set<SignatureAlgorithm>,
     private val signDeviceAuthDetached: SignCoseDetachedFun<ByteArray>,
     private val signIdToken: SignJwtFun<IdToken>,
-    private val randomSource: RandomSource = RandomSource.Secure,
 ) {
+
+    private val dcApiSessionTranscript = DcApiSessionTranscriptCalculator()
+    private val urlSessionTranscript = UrlSessionTranscriptCalculator()
     private val supportedJwsAlgorithms = supportedAlgorithms
         .mapNotNull { it.toJwsAlgorithm().getOrNull() }
     private val supportedCoseAlgorithms = supportedAlgorithms
         .mapNotNull { it.toCoseAlgorithm().getOrNull() }
 
     suspend fun createPresentation(
+        state: AuthorizationResponsePreparationState,
         holder: Holder,
-        request: AuthenticationRequestParameters,
-        nonce: String,
-        audience: String,
-        clientMetadata: RelyingPartyMetadata?,
-        jsonWebKeys: Collection<JsonWebKey>?,
         credentialPresentation: CredentialPresentation,
-        dcApiRequestCallingOrigin: String?,
     ): KmmResult<PresentationResponseParameters> = catching {
-        request.verifyResponseType()
-        val responseWillBeEncrypted = jsonWebKeys != null
-                && (clientMetadata?.requestsEncryption() == true || request.responseMode?.requiresEncryption == true)
+        state.request.parameters.verifyResponseType()
+        val nonce = requireNotNull(state.request.parameters.nonce) {
+            "nonce parameter is missing in ${state.request.parameters}"
+        }
         val vpRequestParams = PresentationRequestParameters(
             nonce = nonce,
-            audience = audience,
-            transactionData = request.transactionData,
+            audience = state.audience,
+            transactionData = state.request.parameters.transactionData,
             calcIsoDeviceSignaturePlain = {
                 calcDeviceSignature(
-                    clientId = request.clientId,
-                    responseUrl = request.responseUrl ?: request.redirectUrlExtracted,
+                    clientId = state.request.parameters.clientId,
+                    responseUrl = state.request.parameters.responseUrl ?: state.request.parameters.redirectUrlExtracted,
                     nonce = nonce,
                     docType = it.docType,
-                    dcApiRequestCallingOrigin = dcApiRequestCallingOrigin,
-                    jsonWebKeys = jsonWebKeys,
-                    responseWillBeEncrypted = responseWillBeEncrypted
+                    dcApiRequestCallingOrigin = state.dcApiCallingOrigin,
+                    recipientKey = if (state.responseRequiresEncryption)
+                        requireNotNull(state.jsonWebKeys?.getEncryptionTargetKey()) {
+                            "Could not load recipient key but response requires encryption"
+                        }
+                    else null
                 )
             }
         )
@@ -102,7 +96,7 @@ internal class PresentationFactory(
         ).getOrElse {
             throw AccessDenied("Could not create presentation", it)
         }.also { presentation ->
-            clientMetadata?.vpFormatsSupported?.verifyFormatSupport(presentation)
+            state.clientMetadata?.vpFormatsSupported?.verifyFormatSupport(presentation)
         }
     }
 
@@ -115,7 +109,6 @@ internal class PresentationFactory(
         }
     }
 
-
     /**
      * Performs calculation of the [SessionTranscript] and [DeviceAuthentication], according to OpenID4VP 1.0
      */
@@ -126,8 +119,7 @@ internal class PresentationFactory(
         nonce: String,
         docType: String,
         dcApiRequestCallingOrigin: String?,
-        jsonWebKeys: Collection<JsonWebKey>?,
-        responseWillBeEncrypted: Boolean,
+        recipientKey: JsonWebKey?,
     ): CoseSigned<ByteArray> = signDeviceAuthDetached(
         protectedHeader = null,
         unprotectedHeader = null,
@@ -138,8 +130,7 @@ internal class PresentationFactory(
                 responseUrl = responseUrl,
                 nonce = nonce,
                 dcApiRequestCallingOrigin = dcApiRequestCallingOrigin,
-                jsonWebKeys = jsonWebKeys,
-                responseWillBeEncrypted = responseWillBeEncrypted
+                recipientKey = recipientKey
             ),
             docType = docType,
             namespaces = ByteStringWrapper(DeviceNameSpaces(mapOf()))
@@ -154,41 +145,27 @@ internal class PresentationFactory(
         responseUrl: String? = null,
         nonce: String,
         dcApiRequestCallingOrigin: String? = null,
-        jsonWebKeys: Collection<JsonWebKey>?,
-        responseWillBeEncrypted: Boolean
+        recipientKey: JsonWebKey? = null
     ) = if (dcApiRequestCallingOrigin != null) {
-        SessionTranscript.forDcApi(
-            DCAPIHandover(
-                type = DCAPIHandover.TYPE_OPENID4VP,
-                hash = coseCompliantSerializer.encodeToByteArray<OpenID4VPDCAPIHandoverInfo>(
-                    OpenID4VPDCAPIHandoverInfo(
-                        origin = dcApiRequestCallingOrigin,
-                        nonce = nonce,
-                        jwkThumbprint = if (responseWillBeEncrypted && !jsonWebKeys.isNullOrEmpty()) {
-                            jsonWebKeys.firstSessionTranscriptThumbprint()
-                        } else null
-                    )
-                ).sha256()
-            )
+        dcApiSessionTranscript(
+            clientId = clientId,
+            nonce = nonce,
+            responseUrl = responseUrl,
+            clientIdRequired = clientId != null,
+            origin = dcApiRequestCallingOrigin,
+            recipientKey = recipientKey,
         )
     } else if (clientId != null && responseUrl != null) {
-        SessionTranscript.forOpenId(
-            OpenId4VpHandover(
-                type = OpenId4VpHandover.TYPE_OPENID4VP,
-                hash = coseCompliantSerializer.encodeToByteArray<OpenId4VpHandoverInfo>(
-                    OpenId4VpHandoverInfo(
-                        clientId = clientId,
-                        nonce = nonce,
-                        jwkThumbprint = if (responseWillBeEncrypted && !jsonWebKeys.isNullOrEmpty()) {
-                            jsonWebKeys.firstSessionTranscriptThumbprint()
-                        } else null,
-                        responseUrl = responseUrl,
-                    )
-                ).sha256(),
-            ),
+        urlSessionTranscript(
+            clientId = clientId,
+            nonce = nonce,
+            responseUrl = responseUrl,
+            clientIdRequired = true,
+            origin = dcApiRequestCallingOrigin,
+            recipientKey = recipientKey,
         )
     } else {
-        throw IllegalStateException("Neither dcApiRequest nor clientId is set")
+        throw PresentationException("Neither dcApiRequest nor clientId is set")
     }
 
     private fun DeviceAuthentication.wrap(): ByteArray = coseCompliantSerializer

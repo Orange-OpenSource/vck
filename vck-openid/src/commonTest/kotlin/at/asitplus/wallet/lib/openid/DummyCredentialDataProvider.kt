@@ -16,22 +16,35 @@ import at.asitplus.KmmResult
 import at.asitplus.catching
 import at.asitplus.iso.IssuerSignedItem
 import at.asitplus.signum.indispensable.CryptoPublicKey
+import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
 import at.asitplus.wallet.eupid.EuPidCredential
-import at.asitplus.wallet.eupid.EuPidScheme
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
 import at.asitplus.wallet.lib.data.LocalDateOrInstant
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.toJsonElement
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import at.asitplus.wallet.mdl.DrivingPrivilege
 import at.asitplus.wallet.mdl.DrivingPrivilegeCode
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements
-import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
+import at.asitplus.wallet.eupid.EuPidDataElements
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
+import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtDataElements
+import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_DATE_OF_BIRTH
+import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME
+import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_PORTRAIT
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
+import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
 import kotlin.random.Random
@@ -44,30 +57,24 @@ object DummyCredentialDataProvider {
 
     fun getCredential(
         subjectPublicKey: CryptoPublicKey,
-        credentialScheme: ConstantIndex.CredentialScheme,
-        representation: ConstantIndex.CredentialRepresentation,
+        credentialScheme: CredentialScheme,
+        representation: CredentialRepresentation,
     ): KmmResult<CredentialToBeIssued> = catching {
         val issuance = Clock.System.now()
         val expiration = issuance + defaultLifetime
         if (credentialScheme == ConstantIndex.AtomicAttribute2023) {
             val subjectId = subjectPublicKey.didEncoded
             val claims = listOfNotNull(
-                ClaimToBeIssued(ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME, "Susanne"),
-                ClaimToBeIssued(ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME, "Meier"),
-                ClaimToBeIssued(
-                    ConstantIndex.AtomicAttribute2023.CLAIM_DATE_OF_BIRTH,
-                    LocalDate.parse("1990-01-01")
-                ),
-                ClaimToBeIssued(
-                    ConstantIndex.AtomicAttribute2023.CLAIM_PORTRAIT,
-                    Random.Default.nextBytes(32)
-                ),
+                ClaimToBeIssued(CLAIM_GIVEN_NAME, "Susanne"),
+                ClaimToBeIssued(CLAIM_FAMILY_NAME, "Meier"),
+                ClaimToBeIssued(CLAIM_DATE_OF_BIRTH, LocalDate.parse("1990-01-01")),
+                ClaimToBeIssued(CLAIM_PORTRAIT, Random.nextBytes(32)),
             )
             when (representation) {
                 SD_JWT -> CredentialToBeIssued.VcSd(
                     claims = claims,
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as SdJwtCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                     sdAlgorithm = supportedSdAlgorithms.random()
@@ -76,7 +83,7 @@ object DummyCredentialDataProvider {
                 PLAIN_JWT -> CredentialToBeIssued.VcJwt(
                     subject = AtomicAttribute2023(subjectId, CLAIM_GIVEN_NAME, "Susanne").toJsonElement(),
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as VcJwtCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                 )
@@ -86,12 +93,12 @@ object DummyCredentialDataProvider {
                         issuerSignedItem(claim.name, claim.value, index.toUInt())
                     },
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as IsoMdocCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                 )
             }
-        } else if (credentialScheme == MobileDrivingLicenceScheme) {
+        } else if (credentialScheme.isoDocType == MDL_DOCTYPE) {
             val drivingPrivilege = DrivingPrivilege(
                 vehicleCategoryCode = "B",
                 issueDate = LocalDate.parse("2023-01-01"),
@@ -109,7 +116,7 @@ object DummyCredentialDataProvider {
                     issuerSignedItem(EXPIRY_DATE, LocalDate.parse("2033-01-01"), digestId++),
                     issuerSignedItem(ISSUING_COUNTRY, "AT", digestId++),
                     issuerSignedItem(ISSUING_AUTHORITY, "AT", digestId++),
-                    issuerSignedItem(PORTRAIT, Random.Default.nextBytes(32), digestId++),
+                    issuerSignedItem(PORTRAIT, Random.nextBytes(32), digestId++),
                     issuerSignedItem(UN_DISTINGUISHING_SIGN, "AT", digestId++),
                     issuerSignedItem(DRIVING_PRIVILEGES, arrayOf(drivingPrivilege), digestId++),
                     issuerSignedItem(AGE_OVER_18, true, digestId++),
@@ -119,11 +126,11 @@ object DummyCredentialDataProvider {
             CredentialToBeIssued.Iso(
                 issuerSignedItems = issuerSignedItems,
                 expiration = expiration,
-                scheme = credentialScheme,
+                scheme = credentialScheme as IsoMdocCredentialScheme,
                 subjectPublicKey = subjectPublicKey,
                 userInfo = DummyUserProvider.user,
             )
-        } else if (credentialScheme == EuPidScheme) {
+        } else if (credentialScheme.isoDocType == EU_PID_DOCTYPE || credentialScheme.vcType == "EuPid2023") {
             val subjectId = subjectPublicKey.didEncoded
             val familyName = "Musterfrau"
             val givenName = "Maria"
@@ -147,13 +154,13 @@ object DummyCredentialDataProvider {
                         )
                     ),
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as VcJwtCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                 )
 
                 ISO_MDOC -> CredentialToBeIssued.Iso(
-                    issuerSignedItems = with(EuPidScheme.Attributes) {
+                    issuerSignedItems = with(EuPidDataElements) {
                         listOfNotNull(
                             ClaimToBeIssued(FAMILY_NAME, familyName),
                             ClaimToBeIssued(FAMILY_NAME_BIRTH, familyName),
@@ -170,14 +177,14 @@ object DummyCredentialDataProvider {
                         issuerSignedItem(claim.name, claim.value, index.toUInt())
                     },
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as IsoMdocCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                 )
 
                 else -> throw NotImplementedError()
             }
-        } else if (credentialScheme == EuPidSdJwtScheme) {
+        } else if (credentialScheme.sdJwtType == EU_PID_SD_JWT_VCT) {
             val subjectId = subjectPublicKey.didEncoded
             val familyName = "Musterfrau"
             val givenName = "Maria"
@@ -188,7 +195,7 @@ object DummyCredentialDataProvider {
             val expirationDate = LocalDateOrInstant.LocalDate(LocalDate.parse("2027-01-01"))
             when (representation) {
                 SD_JWT -> CredentialToBeIssued.VcSd(
-                    claims = with(EuPidSdJwtScheme.SdJwtAttributes) {
+                    claims = with(EuPidSdJwtDataElements) {
                         listOfNotNull(
                             ClaimToBeIssued(FAMILY_NAME, familyName),
                             ClaimToBeIssued(FAMILY_NAME_BIRTH, familyName),
@@ -203,7 +210,7 @@ object DummyCredentialDataProvider {
                         )
                     },
                     expiration = expiration,
-                    scheme = credentialScheme,
+                    scheme = credentialScheme as SdJwtCredentialScheme,
                     subjectPublicKey = subjectPublicKey,
                     userInfo = DummyUserProvider.user,
                     sdAlgorithm = supportedSdAlgorithms.random()

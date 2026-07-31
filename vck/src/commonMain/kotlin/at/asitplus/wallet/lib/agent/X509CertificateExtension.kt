@@ -15,9 +15,9 @@ import at.asitplus.signum.indispensable.pki.TbsCertificate
 import at.asitplus.signum.indispensable.pki.X509Certificate
 import at.asitplus.signum.indispensable.pki.X509CertificateExtension
 import io.github.aakira.napier.Napier
-import kotlin.time.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.plus
+import kotlin.time.Clock
 
 suspend fun X509Certificate.Companion.generateSelfSignedCertificate(
     publicKey: CryptoPublicKey,

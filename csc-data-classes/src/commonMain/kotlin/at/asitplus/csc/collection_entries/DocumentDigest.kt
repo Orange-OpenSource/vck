@@ -1,9 +1,14 @@
 package at.asitplus.csc.collection_entries
 
-import at.asitplus.csc.*
+import at.asitplus.csc.Hashes
+import at.asitplus.csc.SignDocRequestParameters
+import at.asitplus.csc.contentEquals
+import at.asitplus.csc.contentHashCode
 import at.asitplus.csc.enums.ConformanceLevel
 import at.asitplus.csc.enums.SignatureFormat
 import at.asitplus.csc.enums.SignedEnvelopeProperty
+import at.asitplus.csc.getHashAlgorithm
+import at.asitplus.csc.getSignAlgorithm
 import at.asitplus.csc.serializers.Asn1EncodableBase64Serializer
 import at.asitplus.signum.indispensable.Digest
 import at.asitplus.signum.indispensable.SignatureAlgorithm

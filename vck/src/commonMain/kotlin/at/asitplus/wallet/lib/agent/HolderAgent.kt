@@ -15,11 +15,13 @@ import at.asitplus.openid.dcql.DCQLQuery
 import at.asitplus.signum.indispensable.cosef.CoseKey
 import at.asitplus.signum.indispensable.cosef.toCoseKey
 import at.asitplus.signum.indispensable.pki.X509Certificate
+import at.asitplus.signum.indispensable.pki.leaf
 import at.asitplus.wallet.lib.agent.SubjectCredentialStore.StoreEntry
 import at.asitplus.wallet.lib.data.CredentialPresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
 import at.asitplus.wallet.lib.data.CredentialToJsonConverter
 import at.asitplus.wallet.lib.data.KeyBindingJws
+import at.asitplus.wallet.lib.data.VcDataModelConstants.VERIFIABLE_CREDENTIAL
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.data.dif.PresentationExchangeInputEvaluator
 import at.asitplus.wallet.lib.data.dif.PresentationSubmissionValidator
@@ -33,12 +35,13 @@ import io.github.aakira.napier.Napier
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.joinAll
+import kotlin.jvm.JvmOverloads
 
 /**
  * An agent that only implements [Holder], i.e. it can receive credentials from other agents
  * and present credentials to other agents.
  */
-class HolderAgent(
+class HolderAgent @JvmOverloads constructor(
     override val keyMaterial: KeyMaterial,
     private val subjectCredentialStore: SubjectCredentialStore = InMemorySubjectCredentialStore(),
     private val validator: Validator = Validator(),
@@ -68,7 +71,8 @@ class HolderAgent(
                     vc = validated.jws,
                     vcSerialized = credential.vcJws,
                     scheme = credential.scheme,
-                    renewalInfo = renewalInfo
+                    renewalInfo = renewalInfo,
+                    issuer = credential.signedVcJws.jws.jwsHeader.certificateChain?.leaf
                 )
             }
 
@@ -82,7 +86,8 @@ class HolderAgent(
                     vcSerialized = credential.vcSdJwt,
                     disclosures = validated.disclosures,
                     scheme = credential.scheme,
-                    renewalInfo = renewalInfo
+                    renewalInfo = renewalInfo,
+                    issuer = credential.signedSdJwtVc.jws.jwsHeader.certificateChain?.leaf
                 )
             }
 
@@ -92,7 +97,12 @@ class HolderAgent(
                 subjectCredentialStore.storeCredential(
                     issuerSigned = validated.issuerSigned,
                     scheme = credential.scheme,
-                    renewalInfo = renewalInfo
+                    renewalInfo = renewalInfo,
+                    issuer = credential.issuerSigned.issuerAuth.unprotectedHeader?.certificateChain?.getOrNull(0)?.let {
+                        X509Certificate.decodeFromDer(
+                            it
+                        )
+                    }
                 )
             }
         }
@@ -101,8 +111,7 @@ class HolderAgent(
     private fun Holder.StoreCredentialInput.Iso.extractIssuerKey(): CoseKey? =
         issuerSigned.issuerAuth.unprotectedHeader?.certificateChain?.firstOrNull()?.let {
             catchingUnwrapped { X509Certificate.decodeFromDer(it) }.getOrNull()?.decodedPublicKey?.getOrNull()
-                ?.toCoseKey()
-                ?.getOrNull()
+                ?.toCoseKey()?.getOrNull()
         }
 
 
@@ -291,10 +300,7 @@ class HolderAgent(
                             pathAuthorizationValidator?.invoke(credential, it) ?: true
                         },
                     ).onFailure {
-                        Napier.d(
-                            "findInputDescriptorMatches failed for credential with schemaUri ${credential.schemaUri}",
-                            it
-                        )
+                        Napier.d("findInputDescriptorMatches failed for credential ${credential}", it)
                     }
                 }
             }.mapKeys {
@@ -313,15 +319,22 @@ class HolderAgent(
         fallbackFormatHolder = fallbackFormatHolder,
         credentialClaimStructure = CredentialToJsonConverter.toJsonElement(credential),
         credentialFormat = credential.credentialFormat,
-        credentialScheme = credential.schemeIdentifier(),
+        credentialScheme = credential.schemeIdentifierForMatching,
         pathAuthorizationValidator = pathAuthorizationValidator,
     )
 
-    private fun StoreEntry.schemeIdentifier(): String? = when (this) {
-        is StoreEntry.Vc -> scheme?.vcType
-        is StoreEntry.SdJwt -> scheme?.sdJwtType
-        is StoreEntry.Iso -> scheme?.isoDocType
-    }
+    /**
+     * Scheme identifier used to match input descriptors. Store entries serialized before [StoreEntry.schemeIdentifier]
+     * was introduced keep it `null`, so fall back to the identifier carried by the credential itself (the mdoc
+     * docType, the SD-JWT `vct`, or the W3C VC type). Otherwise `MSO_MDOC` input descriptors keyed by docType would
+     * never match legacy entries.
+     */
+    private val StoreEntry.schemeIdentifierForMatching: String?
+        get() = schemeIdentifier ?: when (this) {
+            is StoreEntry.Iso -> issuerSigned.issuerAuth.payload?.docType
+            is StoreEntry.SdJwt -> sdJwt.verifiableCredentialType
+            is StoreEntry.Vc -> vc.vc.type.firstOrNull { it != VERIFIABLE_CREDENTIAL }
+        }
 
     override suspend fun matchDCQLQueryAgainstCredentialStoreV2(
         dcqlQuery: DCQLQuery,

@@ -2,8 +2,8 @@ package at.asitplus.wallet.lib.oauth2
 
 import at.asitplus.openid.AuthorizationDetails
 import at.asitplus.openid.OpenIdAuthorizationDetails
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialScheme
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
 
 /**

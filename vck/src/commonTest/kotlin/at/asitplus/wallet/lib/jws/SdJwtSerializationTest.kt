@@ -2,11 +2,10 @@ package at.asitplus.wallet.lib.jws
 
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.SelectiveDisclosureItem
 import at.asitplus.wallet.lib.data.SelectiveDisclosureItem.Companion.hashDisclosure
 import at.asitplus.wallet.lib.data.fromAnyValue
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain

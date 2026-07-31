@@ -5,12 +5,11 @@ import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.openid.OpenIdAuthorizationDetails
 import at.asitplus.openid.RequestParameters
 import at.asitplus.signum.indispensable.Digest
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
 import at.asitplus.wallet.lib.rqes.helper.DummyValueProvider
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrow
 import io.ktor.http.*
 

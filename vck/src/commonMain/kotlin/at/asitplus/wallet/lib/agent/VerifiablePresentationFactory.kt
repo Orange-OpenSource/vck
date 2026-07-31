@@ -29,6 +29,7 @@ import at.asitplus.jsonpath.core.NormalizedJsonPathSegment
 import at.asitplus.openid.dcql.DCQLClaimsQueryResult
 import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult
 import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult.AllClaimsMatchingResult
+import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult.AllMandatoryClaimsMatchingResult
 import at.asitplus.openid.dcql.DCQLCredentialQueryMatchingResult.ClaimsQueryResults
 import at.asitplus.openid.truncateToSeconds
 import at.asitplus.signum.indispensable.Digest
@@ -127,6 +128,8 @@ class VerifiablePresentationFactory(
     private fun DCQLCredentialQueryMatchingResult.toRequestedSdJwtClaims(
         credential: StoreEntry.SdJwt
     ): List<NormalizedJsonPath> = when (this) {
+        AllMandatoryClaimsMatchingResult -> emptyList()
+
         AllClaimsMatchingResult -> credential.disclosures.entries.map {
             NormalizedJsonPath() + it.value!!.claimName!!
         }
@@ -143,6 +146,8 @@ class VerifiablePresentationFactory(
     private fun DCQLCredentialQueryMatchingResult.toRequestedIsoClaims(
         credential: StoreEntry.Iso,
     ) = when (this) {
+        AllMandatoryClaimsMatchingResult -> emptyList()
+
         AllClaimsMatchingResult -> credential.issuerSigned.namespaces!!.entries.flatMap { namespace ->
             namespace.value.entries.map {
                 NormalizedJsonPath() + namespace.key + it.value.elementIdentifier
@@ -185,8 +190,9 @@ class VerifiablePresentationFactory(
             }
         }
 
-        val docType = scheme?.isoDocType
+        val docType = schemeIdentifier
             ?: issuerSigned.issuerAuth.payload?.docType
+            ?: resolveScheme().isoDocType
             ?: throw PresentationException("Scheme not known or not registered")
         val deviceNameSpaceBytes = ByteStringWrapper(DeviceNameSpaces(mapOf()))
         val input = IsoDeviceSignatureInput(docType, deviceNameSpaceBytes)
@@ -248,6 +254,7 @@ class VerifiablePresentationFactory(
     private fun StoreEntry.SdJwt.loadDisclosures(
         disclosedAttributes: DCQLCredentialQueryMatchingResult
     ): Set<String> = when (disclosedAttributes) {
+        AllMandatoryClaimsMatchingResult -> emptySet()
         AllClaimsMatchingResult -> disclosures.keys
         is ClaimsQueryResults -> loadDisclosures(disclosedAttributes.toRequestedSdJwtClaims(this))
     }
@@ -256,9 +263,10 @@ class VerifiablePresentationFactory(
         requestedClaims: Collection<NormalizedJsonPath>
     ): Set<String> {
         val digest = sdJwt.selectiveDisclosureAlgorithm?.toDigest() ?: Digest.SHA256
-        val disclosuresByDigest = disclosures.entries.mapNotNull { disclosure ->
-            disclosure.asHashedDisclosure(digest)?.let { it to disclosure }
-        }.toMap()
+        // Hash the original serialized disclosure (the map key): re-serializing the parsed item may
+        // produce different bytes than the issuer signed, e.g. for foreign issuers serializing with
+        // whitespace, and digests are computed over the exact bytes (RFC 9901, section 4.2.3)
+        val disclosuresByDigest = disclosures.entries.associateBy { it.key.hashDisclosure(digest) }
         val issuerSignedJwsSerialized = vcSerialized.substringBefore("~")
         val payload = JwsCompact(issuerSignedJwsSerialized).getPayload<JsonObject>()
             .getOrElse { throw PresentationException(it) }
@@ -355,9 +363,6 @@ class VerifiablePresentationFactory(
 
     private fun JsonElement.asArrayDisclosureDigest(): String? =
         (this as? JsonObject)?.get("...")?.let { it as? JsonPrimitive }?.content
-
-    private fun Map.Entry<String, SelectiveDisclosureItem?>.asHashedDisclosure(digest: Digest): String? =
-        value?.toDisclosure()?.hashDisclosure(digest)
 
     private fun JsonObject.sdElements(): JsonArray? = (get(NAME_SD) as? JsonArray?)
 

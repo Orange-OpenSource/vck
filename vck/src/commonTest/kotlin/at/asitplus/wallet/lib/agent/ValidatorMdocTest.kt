@@ -6,10 +6,10 @@ import at.asitplus.iso.DeviceNameSpaces
 import at.asitplus.iso.DeviceSigned
 import at.asitplus.iso.Document
 import at.asitplus.signum.indispensable.cosef.CoseKey
-import at.asitplus.signum.indispensable.cosef.toCoseKey
 import at.asitplus.signum.indispensable.cosef.io.ByteStringWrapper
+import at.asitplus.signum.indispensable.cosef.toCoseKey
 import at.asitplus.signum.indispensable.pki.X509Certificate
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListInfo
@@ -17,7 +17,6 @@ import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatusValidationResult
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.randomCwtOrJwtResolver
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.comparables.shouldNotBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull

@@ -1,6 +1,5 @@
 package at.asitplus.openid.dcql
 
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.collections.shouldHaveSize

@@ -6,7 +6,6 @@ import at.asitplus.dif.DifInputDescriptor
 import at.asitplus.dif.PresentationDefinition
 import at.asitplus.iso.sha256
 import at.asitplus.openid.CredentialFormatEnum
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.openid.dcql.DCQLClaimsQueryList
 import at.asitplus.openid.dcql.DCQLCredentialQueryIdentifier
@@ -16,7 +15,9 @@ import at.asitplus.openid.dcql.DCQLQuery
 import at.asitplus.openid.dcql.DCQLSdJwtCredentialMetadataAndValidityConstraints
 import at.asitplus.openid.dcql.DCQLSdJwtCredentialQuery
 import at.asitplus.signum.indispensable.josef.JwsCompact
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.validation.StatusListTokenResolver
 import at.asitplus.wallet.lib.agent.validation.TokenStatusResolverImpl
 import at.asitplus.wallet.lib.data.ConstantIndex
@@ -26,8 +27,8 @@ import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.CredentialPresentation.PresentationExchangePresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest
 import at.asitplus.wallet.lib.data.KeyBindingJws
-import at.asitplus.wallet.lib.data.rfc.tokenStatusList.agents.communication.primitives.StatusListTokenMediaType
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListInfo
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.agents.communication.primitives.StatusListTokenMediaType
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatusValidationResult
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.extensions.sdHashInput
@@ -39,13 +40,11 @@ import at.asitplus.wallet.lib.jws.SignJwtFun
 import at.asitplus.wallet.lib.jws.VerifyStatusListTokenHAIP
 import at.asitplus.wallet.lib.randomCwtOrJwtResolver
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldNotBeInstanceOf
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Clock
 
@@ -87,27 +86,30 @@ val AgentSdJwtTest by matrixSuite {
             val holderKeyMaterial = holderKeyMaterial
             val statusListIssuer = statusListIssuer
             val verifierId = "urn:${uuid4()}"
-            val verifier = VerifierAgent(
-                identifier = verifierId,
-                validatorSdJwt = validator,
+            val verifier = NonceChallengeVerifier(
+                verifierId = verifierId,
+                verifier = VerifierAgent(
+                    identifier = verifierId,
+                    validatorSdJwt = validator,
+                ),
             )
-            val challenge = uuid4().toString()
         }
     } }) - {
 
         "keyBindingJws contains more JWK attributes, still verifies" {
+            val request = it.verifier.createPresentationRequest()
             val credential = it.holderCredentialStore.getCredentials().getOrThrow()
                 .filterIsInstance<SubjectCredentialStore.StoreEntry.SdJwt>().first()
             val sdJwt = createSdJwtPresentation(
                 signKeyBindingJws = SignJwt(it.holderKeyMaterial, { header, _ ->
                     header.copy(keyId = "definitely not matching")
                 }),
-                audienceId = it.verifierId,
-                challenge = it.challenge,
+                audienceId = request.audience,
+                challenge = request.nonce,
                 validSdJwtCredential = credential,
                 claimName = CLAIM_GIVEN_NAME
             )
-            it.verifier.verifyPresentationSdJwt(sdJwt.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(sdJwt.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     reconstructedJsonObject.keys shouldContain CLAIM_GIVEN_NAME
                     freshnessSummary.tokenStatusValidationResult
@@ -116,15 +118,16 @@ val AgentSdJwtTest by matrixSuite {
         }
 
         "presex: simple walk-through success" {
+            val request = it.verifier.createPresentationRequest()
             val presentationParameters = it.holder.createPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = request,
                 credentialPresentation = buildPresentationDefinition(CLAIM_GIVEN_NAME, CLAIM_DATE_OF_BIRTH)
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
 
             val vp = presentationParameters.presentationResults.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     reconstructedJsonObject[CLAIM_GIVEN_NAME]?.jsonPrimitive?.content shouldBe "Susanne"
                     reconstructedJsonObject[CLAIM_DATE_OF_BIRTH]?.jsonPrimitive?.content shouldBe "1990-01-01"
@@ -134,27 +137,28 @@ val AgentSdJwtTest by matrixSuite {
         }
 
         "presex: wrong key binding jwt" {
+            val request = it.verifier.createPresentationRequest()
             val presentationParameters = it.holder.createPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = request,
                 credentialPresentation = buildPresentationDefinition(CLAIM_GIVEN_NAME)
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
 
             val vp = presentationParameters.presentationResults.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
             // replace key binding of original vp.sdJwt (i.e. the part after the last `~`)
-            val freshKbJwt = createFreshSdJwtKeyBinding(it.challenge, it.verifierId)
+            val freshKbJwt = createFreshSdJwtKeyBinding(request.nonce, request.audience)
             val malformedVpSdJwt = vp.serialized.replaceAfterLast("~", freshKbJwt.substringAfterLast("~"))
 
             shouldThrowAny {
                 it.verifier.verifyPresentationSdJwt(
                     SdJwtSigned.parseCatching(malformedVpSdJwt).getOrThrow(),
-                    it.challenge
                 ).getOrThrow()
             }
         }
 
         "presex: wrong challenge in key binding jwt" {
-            val malformedChallenge = it.challenge.reversed()
+            val request = it.verifier.createPresentationRequest()
+            val malformedChallenge = request.nonce.reversed()
             val presentationParameters = it.holder.createPresentation(
                 request = PresentationRequestParameters(malformedChallenge, it.verifierId),
                 credentialPresentation = buildPresentationDefinition(CLAIM_GIVEN_NAME)
@@ -164,13 +168,14 @@ val AgentSdJwtTest by matrixSuite {
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
             shouldThrowAny {
-                it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+                it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
             }
         }
 
         "presex: revoked sd jwt" {
+            val request = it.verifier.createPresentationRequest()
             val presentationParameters = it.holder.createPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = request,
                 credentialPresentation = buildPresentationDefinition(CLAIM_GIVEN_NAME)
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.PresentationExchangeParameters>()
 
@@ -184,15 +189,16 @@ val AgentSdJwtTest by matrixSuite {
                         storeEntry.sdJwt.statusElement.shouldBeInstanceOf<StatusListInfo>().index
                     ) shouldBe true
                 }
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .freshnessSummary.tokenStatusValidationResult
                 .shouldBeInstanceOf<TokenStatusValidationResult.Invalid>()
         }
 
         "dcql: simple walk-through success" {
+            val request = it.verifier.createPresentationRequest()
             val presentationParameters = it.holder.createDefaultPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = request,
                 credentialPresentationRequest = CredentialPresentationRequest.DCQLRequest(
                     buildDCQLQuery(
                         DCQLJsonClaimsQuery(
@@ -208,7 +214,7 @@ val AgentSdJwtTest by matrixSuite {
             val vp = presentationParameters.verifiablePresentations.values.flatten().firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     reconstructedJsonObject[CLAIM_GIVEN_NAME]?.jsonPrimitive?.content shouldBe "Susanne"
                     reconstructedJsonObject[CLAIM_DATE_OF_BIRTH]?.jsonPrimitive?.content shouldBe "1990-01-01"
@@ -218,8 +224,9 @@ val AgentSdJwtTest by matrixSuite {
         }
 
         "dcql: wrong key binding jwt" {
+            val request = it.verifier.createPresentationRequest()
             val presentationParameters = it.holder.createDefaultPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = request,
                 credentialPresentationRequest = CredentialPresentationRequest.DCQLRequest(
                     buildDCQLQuery(
                         DCQLJsonClaimsQuery(
@@ -232,19 +239,19 @@ val AgentSdJwtTest by matrixSuite {
             val vp = presentationParameters.verifiablePresentations.values.flatten().firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
             // replace key binding of original vp.sdJwt (i.e. the part after the last `~`)
-            val freshKbJwt = createFreshSdJwtKeyBinding(it.challenge, it.verifierId)
+            val freshKbJwt = createFreshSdJwtKeyBinding(request.nonce, request.audience)
             val malformedVpSdJwt = vp.serialized.replaceAfterLast("~", freshKbJwt.substringAfterLast("~"))
 
             shouldThrowAny {
                 it.verifier.verifyPresentationSdJwt(
                     SdJwtSigned.parseCatching(malformedVpSdJwt).getOrThrow(),
-                    it.challenge
                 ).getOrThrow()
             }
         }
 
         "dcql: wrong challenge in key binding jwt" {
-            val malformedChallenge = it.challenge.reversed()
+            val request = it.verifier.createPresentationRequest()
+            val malformedChallenge = request.nonce.reversed()
             val presentationParameters = it.holder.createDefaultPresentation(
                 request = PresentationRequestParameters(
                     nonce = malformedChallenge,
@@ -263,13 +270,14 @@ val AgentSdJwtTest by matrixSuite {
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
             shouldThrowAny {
-                it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+                it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
             }
         }
 
         "dcql: revoked sd jwt" {
+            val request = it.verifier.createPresentationRequest()
             val presentationParameters = it.holder.createDefaultPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = request,
                 credentialPresentationRequest = CredentialPresentationRequest.DCQLRequest(
                     buildDCQLQuery(
                         DCQLJsonClaimsQuery(
@@ -290,7 +298,7 @@ val AgentSdJwtTest by matrixSuite {
                         storeEntry.sdJwt.statusElement.shouldBeInstanceOf<StatusListInfo>().index,
                     ) shouldBe true
                 }
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .freshnessSummary.tokenStatusValidationResult
                 .shouldBeInstanceOf<TokenStatusValidationResult.Invalid>()
@@ -307,15 +315,19 @@ val AgentSdJwtTest by matrixSuite {
                 verifyJwsObjectIntegrity = VerifyStatusListTokenHAIP(),
             )
 
-            val haipVerifier = VerifierAgent(
-                identifier = it.verifierId,
-                validatorSdJwt = ValidatorSdJwt(
-                    validator = Validator(tokenStatusResolver = haipTokenStatusResolver),
+            val haipVerifier = NonceChallengeVerifier(
+                verifierId = it.verifierId,
+                verifier = VerifierAgent(
+                    identifier = it.verifierId,
+                    validatorSdJwt = ValidatorSdJwt(
+                        validator = Validator(tokenStatusResolver = haipTokenStatusResolver),
+                    ),
                 ),
             )
+            val request = haipVerifier.createPresentationRequest()
 
             val presentationParameters = it.holder.createDefaultPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = request,
                 credentialPresentationRequest = CredentialPresentationRequest.DCQLRequest(
                     buildDCQLQuery(
                         DCQLJsonClaimsQuery(
@@ -328,7 +340,7 @@ val AgentSdJwtTest by matrixSuite {
             val vp = presentationParameters.verifiablePresentations.values.first().first()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            haipVerifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            haipVerifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .freshnessSummary.tokenStatusValidationResult
                 .shouldBeInstanceOf<TokenStatusValidationResult.Valid>()
@@ -353,15 +365,19 @@ val AgentSdJwtTest by matrixSuite {
                 verifyJwsObjectIntegrity = VerifyStatusListTokenHAIP(),
             )
 
-            val haipVerifier = VerifierAgent(
-                identifier = it.verifierId,
-                validatorSdJwt = ValidatorSdJwt(
-                    validator = Validator(tokenStatusResolver = haipTokenStatusResolver),
+            val haipVerifier = NonceChallengeVerifier(
+                verifierId = it.verifierId,
+                verifier = VerifierAgent(
+                    identifier = it.verifierId,
+                    validatorSdJwt = ValidatorSdJwt(
+                        validator = Validator(tokenStatusResolver = haipTokenStatusResolver),
+                    ),
                 ),
             )
+            val request = haipVerifier.createPresentationRequest()
 
             val presentationParameters = it.holder.createDefaultPresentation(
-                request = PresentationRequestParameters(nonce = it.challenge, audience = it.verifierId),
+                request = request,
                 credentialPresentationRequest = CredentialPresentationRequest.DCQLRequest(
                     buildDCQLQuery(
                         DCQLJsonClaimsQuery(
@@ -374,7 +390,7 @@ val AgentSdJwtTest by matrixSuite {
             val vp = presentationParameters.verifiablePresentations.values.first().first()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            val test = haipVerifier.verifyPresentationSdJwt(vp.sdJwt, it.challenge).getOrThrow()
+            val test = haipVerifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
 
             test.shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .freshnessSummary.tokenStatusValidationResult

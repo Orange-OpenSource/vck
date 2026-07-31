@@ -8,20 +8,26 @@ import at.asitplus.iso.Document
 import at.asitplus.iso.MobileSecurityObject
 import at.asitplus.jsonpath.core.NormalizedJsonPath
 import at.asitplus.jsonpath.core.NormalizedJsonPathSegment.NameSegment
+import at.asitplus.openid.ClaimDescription
+import at.asitplus.openid.OpenId4VciClaimsPathPointer
 import at.asitplus.signum.indispensable.cosef.CoseSigned
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.cbor.SignCose
-import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.data.CredentialPresentation.PresentationExchangePresentation
 import at.asitplus.wallet.lib.data.CredentialPresentationRequest.PresentationExchangeRequest
+import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatusValidationResult
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.randomCwtOrJwtResolver
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.engine.runBlocking
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldHaveSize
@@ -57,7 +63,7 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
                             DummyCredentialDataProvider.getCredentialForClaim(
                                 holderKeyMaterial.publicKey,
                                 AtomicAttribute2023,
-                                ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                                ISO_MDOC,
                                 ClaimToBeIssued(CLAIM_GIVEN_NAME, "Susanne"),
                             ).getOrThrow()
                         ).getOrThrow().toStoreCredentialInput()
@@ -67,7 +73,7 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
                             DummyCredentialDataProvider.getCredentialForClaim(
                                 holderKeyMaterial.publicKey,
                                 AtomicAttribute2025,
-                                ConstantIndex.CredentialRepresentation.ISO_MDOC,
+                                ISO_MDOC,
                                 ClaimToBeIssued(CLAIM_FAMILY_NAME, "Meier"),
                             ).getOrThrow()
                         ).getOrThrow().toStoreCredentialInput()
@@ -75,23 +81,24 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
                 }
             }
             val verifierId = "urn:${uuid4()}"
-            val verifier = VerifierAgent(
-                identifier = verifierId,
-                validatorMdoc = validator,
+            val verifier = NonceChallengeVerifier(
+                verifierId = verifierId,
+                verifier = VerifierAgent(
+                    identifier = verifierId,
+                    validatorMdoc = validator,
+                ),
             )
-            val challenge = uuid4().toString()
             val signer = SignCose<ByteArray>(keyMaterial = holderKeyMaterial)
         }
     } - {
 
         test("presex: multiple credentials should be multiple device responses for remote presentation") {
+            val request = it.verifier.createPresentationRequest(
+                calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
+                returnOneDeviceResponse = false,
+            )
             val presentationParameters = it.holder.createPresentation(
-                request = PresentationRequestParameters(
-                    nonce = it.challenge,
-                    audience = it.verifierId,
-                    calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
-                    returnOneDeviceResponse = false
-                ),
+                request = request,
                 credentialPresentation = PresentationExchangePresentation(
                     PresentationExchangeRequest(
                         PresentationDefinition(
@@ -116,7 +123,9 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
             }
             val validItems = presentationParameters.presentationResults
                 .filterIsInstance<CreatePresentationResult.DeviceResponse>()
-                .map { resp -> it.verifier.verifyPresentationIsoMdoc(resp.deviceResponse, documentVerifier()).getOrThrow() }
+                .map { resp ->
+                    it.verifier.verifyPresentationIsoMdoc(resp.deviceResponse, documentVerifier()).getOrThrow()
+                }
                 .flatMap { it.shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>().documents }
                 .flatMap { it.validItems }
             validItems.firstOrNull { item -> item.elementIdentifier == CLAIM_GIVEN_NAME }
@@ -126,13 +135,12 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
         }
 
         test("presex: multiple credentials should be one device response for local presentation") {
+            val request = it.verifier.createPresentationRequest(
+                calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
+                returnOneDeviceResponse = true,
+            )
             val presentationParameters = it.holder.createPresentation(
-                request = PresentationRequestParameters(
-                    nonce = it.challenge,
-                    audience = it.verifierId,
-                    calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
-                    returnOneDeviceResponse = true
-                ),
+                request = request,
                 credentialPresentation = PresentationExchangePresentation(
                     PresentationExchangeRequest(
                         PresentationDefinition(
@@ -159,7 +167,9 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
 
             val validItems = presentationParameters.presentationResults
                 .filterIsInstance<CreatePresentationResult.DeviceResponse>()
-                .map { resp -> it.verifier.verifyPresentationIsoMdoc(resp.deviceResponse, documentVerifier()).getOrThrow() }
+                .map { resp ->
+                    it.verifier.verifyPresentationIsoMdoc(resp.deviceResponse, documentVerifier()).getOrThrow()
+                }
                 .flatMap { it.shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>().documents }
                 .flatMap { it.validItems }
             validItems.firstOrNull { item -> item.elementIdentifier == CLAIM_GIVEN_NAME }
@@ -171,7 +181,7 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
 }
 
 private fun inputDescriptor(
-    scheme: ConstantIndex.CredentialScheme,
+    scheme: CredentialScheme,
     claim: String
 ) = DifInputDescriptor(
     id = scheme.isoDocType!!,
@@ -184,7 +194,7 @@ private fun inputDescriptor(
     )
 )
 
-private fun path(scheme: ConstantIndex.CredentialScheme, claimName: String): List<String> = listOf(
+private fun path(scheme: CredentialScheme, claimName: String): List<String> = listOf(
     NormalizedJsonPath(
         NameSegment(scheme.isoNamespace!!),
         NameSegment(claimName),
@@ -206,7 +216,7 @@ private fun simpleSigner(
 private fun documentVerifier(): suspend (MobileSecurityObject, Document) -> Boolean = { _, _ -> true }
 
 
-object AtomicAttribute2025 : ConstantIndex.CredentialScheme {
+object AtomicAttribute2025 : CredentialScheme, IsoMdocCredentialScheme, SdJwtCredentialScheme, VcJwtCredentialScheme {
     const val CLAIM_GIVEN_NAME = "given_name"
     const val CLAIM_FAMILY_NAME = "family_name"
     const val CLAIM_DATE_OF_BIRTH = "date_of_birth"
@@ -216,10 +226,13 @@ object AtomicAttribute2025 : ConstantIndex.CredentialScheme {
     override val sdJwtType: String = "AtomicAttribute2025"
     override val isoNamespace: String = "at.a-sit.wallet.atomic-attribute-2025"
     override val isoDocType: String = "at.a-sit.wallet.atomic-attribute-2025.iso"
-    override val claimNames: Collection<String> = listOf(
-        CLAIM_GIVEN_NAME,
-        CLAIM_FAMILY_NAME,
-        CLAIM_DATE_OF_BIRTH,
-        CLAIM_PORTRAIT
-    )
+    override val claimDescriptions: Set<ClaimDescription>
+        get() = setOf(
+            ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_GIVEN_NAME)),
+            ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_FAMILY_NAME)),
+            ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_DATE_OF_BIRTH)),
+            ClaimDescription(OpenId4VciClaimsPathPointer(CLAIM_PORTRAIT)),
+        )
+    override val supportedRepresentations: Collection<at.asitplus.wallet.lib.data.CredentialRepresentation>
+        get() = listOf(ISO_MDOC, PLAIN_JWT, SD_JWT)
 }

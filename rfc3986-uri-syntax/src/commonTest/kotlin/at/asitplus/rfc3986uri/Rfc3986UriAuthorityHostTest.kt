@@ -1,12 +1,10 @@
 package at.asitplus.rfc3986uri
 
-import at.asitplus.testballoon.matrix.*
 import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 
-@Suppress("unused")
 val Rfc3986AuthorityHostTest by matrixSuite {
     testSuite("case insensitivity") {
         mapOf(
@@ -70,7 +68,11 @@ val Rfc3986AuthorityHostTest by matrixSuite {
     }
 
     testSuite("IPvFuture round-trips through URI") {
-        listOf("http://[v1.foo]/path", "http://[vff.test:data]/").asData() test { uri ->
+        listOf(
+            "http://[v1.foo]/path",
+            "http://[vff.test:data]/",
+            "http://[v123456789abcdef0123456789.data]/",
+        ).asData() test { uri ->
             Rfc3986UniformResourceIdentifier(uri).string shouldBe uri
         }
     }

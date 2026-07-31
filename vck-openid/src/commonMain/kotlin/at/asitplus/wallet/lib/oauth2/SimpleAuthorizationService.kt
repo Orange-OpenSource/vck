@@ -2,6 +2,7 @@ package at.asitplus.wallet.lib.oauth2
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
+import at.asitplus.catchingUnwrapped
 import at.asitplus.iso.sha256
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.AuthenticationResponseParameters
@@ -31,8 +32,8 @@ import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.JsonWebKey
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialScheme
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
@@ -56,6 +57,7 @@ import io.github.aakira.napier.Napier
 import io.ktor.http.*
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlinx.serialization.json.JsonObject
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
@@ -78,7 +80,7 @@ import kotlin.time.Duration.Companion.minutes
  * [OAuth 2.0 Token Introspection](https://datatracker.ietf.org/doc/html/rfc7662)
  * [OAuth 2.0 Token Exchange](https://datatracker.ietf.org/doc/html/rfc8693)
  */
-class SimpleAuthorizationService(
+class SimpleAuthorizationService @JvmOverloads constructor(
     /** Used to filter authorization details and scopes. */
     private val strategy: AuthorizationServiceStrategy,
     /** Used to load the actual user data during [authorize]. */
@@ -151,7 +153,7 @@ class SimpleAuthorizationService(
     private val requestObjectSigningAlgorithms: Set<JwsAlgorithm.Signature>? = setOf(JwsAlgorithm.Signature.ES256),
     /** Used for [OAuth2AuthorizationServerMetadata.clientAttestationSigningAlgValuesSupportedStrings] */
     private val supportedSigningAlgorithms: Set<JwsAlgorithm.Signature> = DEFAULT_WALLET_ATTESTATION_ALGORITHMS,
-    /** Used for [OAuth2AuthorizationServerMetadata.preferredClientStatusPeriod]. */
+    @Deprecated("Has been moved to [CredentialIssuer]")
     private val preferredClientStatusPeriod: Duration? = 31.days,
     /** Used to sign JWT introspection responses (RFC 9701). */
     private val signIntrospectionJwt: SignJwtFun<TokenIntrospectionResponse> =
@@ -181,7 +183,6 @@ class SimpleAuthorizationService(
                 .map { it.identifier }.toSet(),
             clientAttestationPopSigningAlgValuesSupportedStrings = supportedSigningAlgorithms
                 .map { it.identifier }.toSet(),
-            preferredClientStatusPeriod = preferredClientStatusPeriod,
             dpopSigningAlgValuesSupportedStrings = tokenService.dpopSigningAlgValuesSupportedStrings,
             requestObjectSigningAlgorithmsSupportedStrings = requestObjectSigningAlgorithms
                 ?.map { it.identifier }?.toSet(),
@@ -275,7 +276,7 @@ class SimpleAuthorizationService(
     )
 
     /**
-     * Pushed authorization request endpoint as defined in [RFC 9126](https://www.rfc-editor.org/rfc/rfc9126.html).
+     * Pushed authorization request endpoint as defined in [RFC 9126](https://datatracker.ietf.org/doc/html/rfc9126).
      * Clients send their authorization request as HTTP `POST` with `application/x-www-form-urlencoded` to the AS.
      *
      * Responses have to be sent with HTTP status code `201`.
@@ -293,7 +294,7 @@ class SimpleAuthorizationService(
     )
 
     /**
-     * Pushed authorization request endpoint as defined in [RFC 9126](https://www.rfc-editor.org/rfc/rfc9126.html).
+     * Pushed authorization request endpoint as defined in [RFC 9126](https://datatracker.ietf.org/doc/html/rfc9126).
      * Clients send their authorization request as HTTP `POST` with `application/x-www-form-urlencoded` to the AS.
      *
      * Responses have to be sent with HTTP status code `201`.
@@ -660,7 +661,7 @@ class SimpleAuthorizationService(
     ): KmmResult<TokenIntrospectionResult> = catching {
         // TODO Which client_id to pass?
         clientAuthenticationService.authenticateClient(httpRequest, null)
-        val response = runCatching {
+        val response = catchingUnwrapped {
             tokenService.verification.getTokenInfo(request.token)
         }.fold(
             onSuccess = {

@@ -1,6 +1,5 @@
 package at.asitplus.openid
 
-import at.asitplus.dif.FormatContainerJwt
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 

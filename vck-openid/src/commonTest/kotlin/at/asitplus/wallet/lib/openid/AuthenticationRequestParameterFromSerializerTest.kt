@@ -7,15 +7,15 @@ import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.signum.indispensable.josef.JwsTyped
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.toJwsFlattened
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.HolderAgent
 import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
@@ -36,23 +36,19 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
     val verifierOid4vp = OpenId4VpVerifier(
         clientIdScheme = ClientIdScheme.PreRegistered(clientId, redirectUrl),
     )
-    val representations = listOf(
-        ConstantIndex.CredentialRepresentation.PLAIN_JWT,
-        ConstantIndex.CredentialRepresentation.SD_JWT,
-        ConstantIndex.CredentialRepresentation.ISO_MDOC
-    )
+    val representations = listOf(PLAIN_JWT, SD_JWT, ISO_MDOC)
 
     representations.forEach { representation ->
         val reqOptions = OpenId4VpRequestOptions(
             presentationRequest = CredentialPresentationRequestBuilder(
-                credentials = setOf(RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, representation))
+                RequestOptionsCredential(ConstantIndex.AtomicAttribute2023, representation)
             ).toPresentationExchangeRequest(),
         )
 
         "URL test $representation" {
             val authnRequest = verifierOid4vp.createAuthnRequest(
                 reqOptions,
-                OpenId4VpVerifier.CreationOptions.Query(walletUrl)
+                CreationOptions.Query(walletUrl)
             ).getOrThrow().url
 
             val params = holderOid4vp.startAuthorizationResponsePreparation(authnRequest).getOrThrow().request
@@ -66,7 +62,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
 
         "Json test $representation" {
             val authnRequest = joseCompliantSerializer.encodeToString(
-                verifierOid4vp.createAuthnRequest(requestOptions = reqOptions)
+                verifierOid4vp.createPlainAuthnRequest(reqOptions)
             )
             authnRequest.shouldNotContain(DifInputDescriptor::class.simpleName!!)
             val params = holderOid4vp.startAuthorizationResponsePreparation(authnRequest).getOrThrow().request
@@ -79,7 +75,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
         }
 
         "DcApiUnsigned test $representation" {
-            val parameters = verifierOid4vp.createAuthnRequest(requestOptions = reqOptions)
+            val parameters = verifierOid4vp.createPlainAuthnRequest(reqOptions)
             val authnRequest = RequestParametersFrom.OpenId4VpDcApiUnsigned(
                 parameters = parameters,
                 jsonString = joseCompliantSerializer.encodeToString(parameters),
@@ -99,7 +95,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
 
         "JwsSigned test $representation" {
             val authnRequestUrl = verifierOid4vp.createAuthnRequest(
-                reqOptions, OpenId4VpVerifier.CreationOptions.SignedRequestByValue(walletUrl)
+                reqOptions, CreationOptions.SignedRequestByValue(walletUrl)
             ).getOrThrow().url
 
             val jarRequest: JarRequestParameters = Url(authnRequestUrl).encodedQuery.decodeFromUrlQuery()
@@ -116,7 +112,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
 
         "DcApiSigned test $representation" {
             val authnRequestUrl = verifierOid4vp.createAuthnRequest(
-                reqOptions, OpenId4VpVerifier.CreationOptions.SignedRequestByValue(walletUrl)
+                reqOptions, CreationOptions.SignedRequestByValue(walletUrl)
             ).getOrThrow().url
 
             val jarRequest: JarRequestParameters = Url(authnRequestUrl).encodedQuery.decodeFromUrlQuery()
@@ -141,7 +137,7 @@ val AuthenticationRequestParameterFromSerializerTest by matrixSuite {
 
         "DcApiMultiSigned test $representation" {
             val authnRequestUrl = verifierOid4vp.createAuthnRequest(
-                reqOptions, OpenId4VpVerifier.CreationOptions.SignedRequestByValue(walletUrl)
+                reqOptions, CreationOptions.SignedRequestByValue(walletUrl)
             ).getOrThrow().url
 
             val jarRequest: JarRequestParameters = Url(authnRequestUrl).encodedQuery.decodeFromUrlQuery()

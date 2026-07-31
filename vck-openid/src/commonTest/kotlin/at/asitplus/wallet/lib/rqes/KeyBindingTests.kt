@@ -8,8 +8,9 @@ import at.asitplus.openid.QCertCreationAcceptance
 import at.asitplus.openid.TransactionDataBase64Url
 import at.asitplus.signum.indispensable.Digest
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.eupidsdjwt.EU_PID_SD_JWT_VCT
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.Holder
 import at.asitplus.wallet.lib.agent.HolderAgent
@@ -20,6 +21,8 @@ import at.asitplus.wallet.lib.agent.ValidatorSdJwt
 import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
+import at.asitplus.wallet.lib.NonceService
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.data.SdJwtConstants
 import at.asitplus.wallet.lib.data.digest
@@ -36,7 +39,6 @@ import at.asitplus.wallet.lib.rqes.helper.DummyCredentialDataProvider
 import at.asitplus.wallet.lib.utils.DefaultMapStore
 import com.benasher44.uuid.bytes
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
@@ -47,6 +49,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.ktor.http.*
 import io.ktor.utils.io.charsets.*
 import io.ktor.utils.io.core.*
+import kotlinx.coroutines.runBlocking
 
 private fun malignTransactionData(): List<TransactionDataBase64Url> = listOf(
     QCertCreationAcceptance(
@@ -59,135 +62,138 @@ private fun malignTransactionData(): List<TransactionDataBase64Url> = listOf(
 
 val KeyBindingTests by matrixSuite {
 
-    fixture({ kotlinx.coroutines.runBlocking {
-        val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
-        val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
-            agent.storeCredential(
-                IssuerAgent(
-                    identifier = "https://issuer.example.com/".toUri(),
+    fixture({
+        runBlocking {
+            val euPidSdJwtScheme = AttributeIndex.resolveIdentifier(EU_PID_SD_JWT_VCT, SD_JWT)
+            val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
+            val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
+                agent.storeCredential(
+                    IssuerAgent(
+                        identifier = "https://issuer.example.com/".toUri(),
+                        randomSource = RandomSource.Default
+                    ).issueCredential(
+                        DummyCredentialDataProvider.getCredential(holderKeyMaterial.publicKey, euPidSdJwtScheme, SD_JWT)
+                            .getOrThrow()
+                    ).getOrThrow().toStoreCredentialInput()
+                )
+            }
+
+            object {
+                val holderOid4vp = OpenId4VpHolder(
+                    holder = holderAgent,
                     randomSource = RandomSource.Default
-                ).issueCredential(
-                    DummyCredentialDataProvider.getCredential(holderKeyMaterial.publicKey, EuPidSdJwtScheme, SD_JWT)
-                        .getOrThrow()
-                ).getOrThrow().toStoreCredentialInput()
-            )
-        }
+                )
+                val externalMapStore = DefaultMapStore<String, AuthenticationRequestParameters>()
 
-        object {
-            val holderOid4vp = OpenId4VpHolder(
-                holder = holderAgent,
-                randomSource = RandomSource.Default
-            )
-            val externalMapStore = DefaultMapStore<String, AuthenticationRequestParameters>()
+                val walletUrl = "https://example.com/wallet/${uuid4()}"
+                val clientId = "https://example.com/rp/${uuid4()}"
+                val cibaWalletTransactionData = """
+                eyJ0eXBlIjoicWNlcnRfY3JlYXRpb25fYWNjZXB0YW5jZSIsImNyZWRlbnRpYWxfaWRzIjpbIjYwNzUxMGE5LWM5NTctNDA5NS05MDZkLWY5
+                OWZkMDA2YzRhZSJdLCJRQ190ZXJtc19jb25kaXRpb25zX3VyaSI6Imh0dHBzOi8vd3d3LmQtdHJ1c3QubmV0L2RlL2FnYiIsIlFDX2hhc2gi
+                OiI3UXptNUVqdXpYS1NIRmxjME9IOVBQOXFVYUgtVkJsMmFHTmJ3WWoxb09BIiwiUUNfaGFzaEFsZ29yaXRobU9JRCI6IjIuMTYuODQwLjEu
+                MTAxLjMuNC4yLjEiLCJ0cmFuc2FjdGlvbl9kYXRhX2hhc2hlc19hbGciOlsic2hhLTI1NiJdfQ
+            """.trimIndent().replace("\n", "")
 
-            val walletUrl = "https://example.com/wallet/${uuid4()}"
-            val clientId = "https://example.com/rp/${uuid4()}"
-            val cibaWalletTransactionData = """
-            eyJ0eXBlIjoicWNlcnRfY3JlYXRpb25fYWNjZXB0YW5jZSIsImNyZWRlbnRpYWxfaWRzIjpbIjYwNzUxMGE5LWM5NTctNDA5NS05MDZkLWY5
-            OWZkMDA2YzRhZSJdLCJRQ190ZXJtc19jb25kaXRpb25zX3VyaSI6Imh0dHBzOi8vd3d3LmQtdHJ1c3QubmV0L2RlL2FnYiIsIlFDX2hhc2gi
-            OiI3UXptNUVqdXpYS1NIRmxjME9IOVBQOXFVYUgtVkJsMmFHTmJ3WWoxb09BIiwiUUNfaGFzaEFsZ29yaXRobU9JRCI6IjIuMTYuODQwLjEu
-            MTAxLjMuNC4yLjEiLCJ0cmFuc2FjdGlvbl9kYXRhX2hhc2hlc19hbGciOlsic2hhLTI1NiJdfQ
-        """.trimIndent().replace("\n", "")
-
-            val cibaWalletTestVector = """
-                {
-                    "response_type": "vp_token",
-                    "client_id": "redirect_uri:$clientId",
-                    "scope": "",
-                    "state": "iTGlKl-AJxmncWPbXHp2xy58bNy18wqZ4TR9EzhBl2R4ulxeTEO0VyWYR2qMDpCDV5JWeOxecTqcEJ61bFKrUg",
-                    "nonce": "f90d0982-52f4-4a1c-8525-bdf1d33c232b",
-                    "client_metadata": {
-                        "jwks_uri": "https://cibawallet.local-ip.medicmobile.org/wallet/jarm/iTGlKl-AJxmncWPbXHp2xy58bNy18wqZ4TR9EzhBl2R4ulxeTEO0VyWYR2qMDpCDV5JWeOxecTqcEJ61bFKrUg/jwks.json",
-                        "id_token_signed_response_alg": "RS256",
-                        "authorization_encrypted_response_alg": "ECDH-ES",
-                        "authorization_encrypted_response_enc": "A128CBC-HS256",
-                        "id_token_encrypted_response_alg": "RSA-OAEP-256",
-                        "id_token_encrypted_response_enc": "A128CBC-HS256",
-                        "subject_syntax_types_supported": [
-                            "urn:ietf:params:oauth:jwk-thumbprint"
-                        ],
-                        "vp_formats": {
-                            "dc+sd-jwt": {
-                                "sd-jwt_alg_values": [
-                                    "ES256"
-                                ],
-                                "kb-jwt_alg_values": [
-                                    "ES256"
-                                ]
-                            },
-                            "dc+sd-jwt": {
-                                "sd-jwt_alg_values": [
-                                    "ES256"
-                                ],
-                                "kb-jwt_alg_values": [
-                                    "ES256"
-                                ]
-                            },
-                            "mso_mdoc": {
-                                "alg": [
-                                    "ES256"
-                                ]
-                            }
-                        }
-                    },
-                    "presentation_definition": {
-                        "id": "4c7038cf-bd1e-47c0-8f70-eaf9d62c6fae",
-                        "name": "Cibazmaj",
-                        "purpose": "where su pare",
-                        "input_descriptors": [
-                            {
-                                "id": "607510a9-c957-4095-906d-f99fd006c4ae",
-                                "name": "niko kao",
-                                "purpose": "hajduk iz splita",
-                                "format": {
-                                    "dc+sd-jwt": {
-                                        "sd-jwt_alg_values": [
-                                            "ES256"
-                                        ],
-                                        "kb-jwt_alg_values": [
-                                            "ES256"
-                                        ]
-                                    }
+                val cibaWalletTestVector = """
+                    {
+                        "response_type": "vp_token",
+                        "client_id": "redirect_uri:$clientId",
+                        "scope": "",
+                        "state": "iTGlKl-AJxmncWPbXHp2xy58bNy18wqZ4TR9EzhBl2R4ulxeTEO0VyWYR2qMDpCDV5JWeOxecTqcEJ61bFKrUg",
+                        "nonce": "f90d0982-52f4-4a1c-8525-bdf1d33c232b",
+                        "client_metadata": {
+                            "jwks_uri": "https://cibawallet.local-ip.medicmobile.org/wallet/jarm/iTGlKl-AJxmncWPbXHp2xy58bNy18wqZ4TR9EzhBl2R4ulxeTEO0VyWYR2qMDpCDV5JWeOxecTqcEJ61bFKrUg/jwks.json",
+                            "id_token_signed_response_alg": "RS256",
+                            "authorization_encrypted_response_alg": "ECDH-ES",
+                            "authorization_encrypted_response_enc": "A128CBC-HS256",
+                            "id_token_encrypted_response_alg": "RSA-OAEP-256",
+                            "id_token_encrypted_response_enc": "A128CBC-HS256",
+                            "subject_syntax_types_supported": [
+                                "urn:ietf:params:oauth:jwk-thumbprint"
+                            ],
+                            "vp_formats": {
+                                "dc+sd-jwt": {
+                                    "sd-jwt_alg_values": [
+                                        "ES256"
+                                    ],
+                                    "kb-jwt_alg_values": [
+                                        "ES256"
+                                    ]
                                 },
-                                "constraints": {
-                                    "fields": [
-                                        {
-                                            "path": [
-                                                "${'$'}.family_name"
-                                            ]
-                                        },
-                                        {
-                                            "path": [
-                                                "${'$'}.given_name"
-                                            ]
-                                        },
-                                        {
-                                            "path": [
-                                                "${'$'}.vct"
-                                            ],
-                                            "filter": {
-                                                "type": "string",
-                                                "enum": [
-                                                    "urn:eudi:pid:1"
-                                                ]
-                                            }
-                                        }
+                                "dc+sd-jwt": {
+                                    "sd-jwt_alg_values": [
+                                        "ES256"
+                                    ],
+                                    "kb-jwt_alg_values": [
+                                        "ES256"
+                                    ]
+                                },
+                                "mso_mdoc": {
+                                    "alg": [
+                                        "ES256"
                                     ]
                                 }
                             }
+                        },
+                        "presentation_definition": {
+                            "id": "4c7038cf-bd1e-47c0-8f70-eaf9d62c6fae",
+                            "name": "Cibazmaj",
+                            "purpose": "where su pare",
+                            "input_descriptors": [
+                                {
+                                    "id": "607510a9-c957-4095-906d-f99fd006c4ae",
+                                    "name": "niko kao",
+                                    "purpose": "hajduk iz splita",
+                                    "format": {
+                                        "dc+sd-jwt": {
+                                            "sd-jwt_alg_values": [
+                                                "ES256"
+                                            ],
+                                            "kb-jwt_alg_values": [
+                                                "ES256"
+                                            ]
+                                        }
+                                    },
+                                    "constraints": {
+                                        "fields": [
+                                            {
+                                                "path": [
+                                                    "${'$'}.family_name"
+                                                ]
+                                            },
+                                            {
+                                                "path": [
+                                                    "${'$'}.given_name"
+                                                ]
+                                            },
+                                            {
+                                                "path": [
+                                                    "${'$'}.vct"
+                                                ],
+                                                "filter": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "urn:eudi:pid:1"
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        "response_mode": "direct_post",
+                        "response_uri": "https://cibawallet.local-ip.medicmobile.org/wallet/direct_post/iTGlKl-AJxmncWPbXHp2xy58bNy18wqZ4TR9EzhBl2R4ulxeTEO0VyWYR2qMDpCDV5JWeOxecTqcEJ61bFKrUg",
+                        "aud": "https://self-issued.me/v2",
+                        "iat": 1744198186,
+                        "transaction_data": [
+                            "eyJ0eXBlIjoicWNlcnRfY3JlYXRpb25fYWNjZXB0YW5jZSIsImNyZWRlbnRpYWxfaWRzIjpbIjYwNzUxMGE5LWM5NTctNDA5NS05MDZkLWY5OWZkMDA2YzRhZSJdLCJRQ190ZXJtc19jb25kaXRpb25zX3VyaSI6Imh0dHBzOi8vd3d3LmQtdHJ1c3QubmV0L2RlL2FnYiIsIlFDX2hhc2giOiI3UXptNUVqdXpYS1NIRmxjME9IOVBQOXFVYUgtVkJsMmFHTmJ3WWoxb09BIiwiUUNfaGFzaEFsZ29yaXRobU9JRCI6IjIuMTYuODQwLjEuMTAxLjMuNC4yLjEiLCJ0cmFuc2FjdGlvbl9kYXRhX2hhc2hlc19hbGciOlsic2hhLTI1NiJdfQ"
                         ]
-                    },
-                    "response_mode": "direct_post",
-                    "response_uri": "https://cibawallet.local-ip.medicmobile.org/wallet/direct_post/iTGlKl-AJxmncWPbXHp2xy58bNy18wqZ4TR9EzhBl2R4ulxeTEO0VyWYR2qMDpCDV5JWeOxecTqcEJ61bFKrUg",
-                    "aud": "https://self-issued.me/v2",
-                    "iat": 1744198186,
-                    "transaction_data": [
-                        "eyJ0eXBlIjoicWNlcnRfY3JlYXRpb25fYWNjZXB0YW5jZSIsImNyZWRlbnRpYWxfaWRzIjpbIjYwNzUxMGE5LWM5NTctNDA5NS05MDZkLWY5OWZkMDA2YzRhZSJdLCJRQ190ZXJtc19jb25kaXRpb25zX3VyaSI6Imh0dHBzOi8vd3d3LmQtdHJ1c3QubmV0L2RlL2FnYiIsIlFDX2hhc2giOiI3UXptNUVqdXpYS1NIRmxjME9IOVBQOXFVYUgtVkJsMmFHTmJ3WWoxb09BIiwiUUNfaGFzaEFsZ29yaXRobU9JRCI6IjIuMTYuODQwLjEuMTAxLjMuNC4yLjEiLCJ0cmFuc2FjdGlvbl9kYXRhX2hhc2hlc19hbGciOlsic2hhLTI1NiJdfQ"
-                    ]
-                }
-            """.trimIndent()
+                    }
+                """.trimIndent()
+            }
         }
-    } }) - {
+    }) - {
 
         "KB-JWT contains transaction data" {
             val verifierOid4Vp = OpenId4VpVerifier(
@@ -196,7 +202,7 @@ val KeyBindingTests by matrixSuite {
                 stateToAuthnRequestStore = it.externalMapStore
             )
             val requestOptions = buildRequestOptions(transactionDataHashAlgorithms = null)
-            val authnRequest = verifierOid4Vp.createAuthnRequest(requestOptions)
+            val authnRequest = verifierOid4Vp.createPlainAuthnRequest(requestOptions)
 
             val authnRequestUrl = URLBuilder(it.walletUrl).apply {
                 authnRequest.encodeToParameters()
@@ -231,7 +237,7 @@ val KeyBindingTests by matrixSuite {
                 stateToAuthnRequestStore = it.externalMapStore
             )
             val requestOptions = buildRequestOptions(transactionDataHashAlgorithms = setOf(SdJwtConstants.SHA_384))
-            val authnRequest = verifierOid4Vp.createAuthnRequest(requestOptions)
+            val authnRequest = verifierOid4Vp.createPlainAuthnRequest(requestOptions)
 
             val authnRequestUrl = URLBuilder(it.walletUrl).apply {
                 authnRequest.encodeToParameters()
@@ -266,7 +272,7 @@ val KeyBindingTests by matrixSuite {
             )
             val requestOptions =
                 buildRequestOptions(OpenIdConstants.ResponseMode.DirectPost, setOf(SdJwtConstants.SHA_256))
-            val authnRequest = verifierOid4Vp.createAuthnRequest(requestOptions)
+            val authnRequest = verifierOid4Vp.createPlainAuthnRequest(requestOptions)
 
             val malignResponse = it.holderOid4vp.createAuthnResponse(
                 joseCompliantSerializer.encodeToString(
@@ -296,7 +302,7 @@ val KeyBindingTests by matrixSuite {
             )
 
             val requestOptions = buildRequestOptions(OpenIdConstants.ResponseMode.DirectPost, null)
-            val authnRequest = lenientVerifier.createAuthnRequest(requestOptions)
+            val authnRequest = lenientVerifier.createPlainAuthnRequest(requestOptions)
 
             val malignResponse = it.holderOid4vp.createAuthnResponse(
                 joseCompliantSerializer.encodeToString(
@@ -318,11 +324,17 @@ val KeyBindingTests by matrixSuite {
 
         "Hash of transaction data is not changed during processing" {
             val referenceHash = it.cibaWalletTransactionData.toByteArray(Charsets.UTF_8).sha256()
+            val validNonces = mutableSetOf<String>()
 
             val verifierOid4Vp = OpenId4VpVerifier(
                 keyMaterial = EphemeralKeyWithoutCert(),
                 clientIdScheme = ClientIdScheme.RedirectUri(it.clientId),
-                stateToAuthnRequestStore = it.externalMapStore
+                stateToAuthnRequestStore = it.externalMapStore,
+                nonceService = object : NonceService {
+                    override suspend fun provideNonce() = uuid4().toString().also(validNonces::add)
+                    override suspend fun verifyNonce(it: String) = it in validNonces
+                    override suspend fun verifyAndRemoveNonce(it: String) = validNonces.remove(it)
+                },
             )
 
             val state = it.holderOid4vp.startAuthorizationResponsePreparation(it.cibaWalletTestVector)
@@ -330,9 +342,10 @@ val KeyBindingTests by matrixSuite {
                     request.parameters.transactionData.shouldNotBeEmpty().shouldNotBeNull()
                 }
 
+            validNonces += state.request.parameters.nonce.shouldNotBeNull()
             it.externalMapStore.put(
                 "iTGlKl-AJxmncWPbXHp2xy58bNy18wqZ4TR9EzhBl2R4ulxeTEO0VyWYR2qMDpCDV5JWeOxecTqcEJ61bFKrUg",
-                state.request.parameters
+                state.request.parameters,
             )
 
             val authnResponse = it.holderOid4vp.createAuthnResponse(state.request).getOrThrow()

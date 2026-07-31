@@ -2,6 +2,7 @@ package at.asitplus.openid
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.time.Duration
 
 /**
  * Metadata about the credential issuer in
@@ -109,5 +110,13 @@ data class IssuerMetadata(
     @SerialName("credential_configurations_supported")
     val supportedCredentialConfigurations: Map<String, SupportedCredentialFormat>? = null,
 
-
+    /**
+     * OPTIONAL. Duration specifying a PID or Attestation Provider's preference for the remaining status maintenance
+     * period (`client_status.exp` minus current time) of the WIA it receives during issuance.
+     * See
+     * [EUDI TS3](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md#24-life-cycle)
+     */
+    @SerialName("preferred_client_status_period")
+    @Serializable(with = DurationSecondsIntSerializer::class)
+    val preferredClientStatusPeriod: Duration? = null,
 )

@@ -12,13 +12,14 @@ package at.asitplus.wallet.lib.openid
  * see the "LICENSE" file for more details
  */
 
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.RequestParameters
 import at.asitplus.signum.indispensable.josef.ConfirmationClaim
 import at.asitplus.signum.indispensable.josef.JsonWebKey
 import at.asitplus.signum.indispensable.josef.JsonWebToken
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.typed
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.RequestOptionsCredential
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.Holder
@@ -30,6 +31,7 @@ import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.toStoreCredentialInput
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.jws.JwsHeaderNone
 import at.asitplus.wallet.lib.jws.SignJwt
@@ -37,7 +39,6 @@ import at.asitplus.wallet.lib.jws.VerifyJwsSignatureWithKey
 import at.asitplus.wallet.lib.oidc.RequestObjectJwsVerifier
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeSingleton
@@ -50,35 +51,37 @@ import kotlin.time.Duration.Companion.seconds
 
 val VerifierAttestationTest by matrixSuite {
 
-    fixture({ kotlinx.coroutines.runBlocking {
-        val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
-        val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
-            agent.storeCredential(
-                IssuerAgent(
-                    identifier = "https://issuer.example.com/".toUri(),
-                    randomSource = RandomSource.Default
-                ).issueCredential(
-                    DummyCredentialDataProvider.getCredential(
-                        holderKeyMaterial.publicKey,
-                        ConstantIndex.AtomicAttribute2023,
-                        ConstantIndex.CredentialRepresentation.PLAIN_JWT,
-                    ).getOrThrow()
-                ).getOrThrow().toStoreCredentialInput()
-            )
-        }
-        object {
-            val holderAgent = holderAgent
-            val verifierKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
-            val clientId: String = "${uuid4()}"
-            val redirectUrl: String = "https://example.com/rp/${uuid4()}"
-            val walletUrl: String = "https://example.com/wallet/${uuid4()}"
+    fixture({
+        kotlinx.coroutines.runBlocking {
+            val holderKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
+            val holderAgent: Holder = HolderAgent(holderKeyMaterial).also { agent ->
+                agent.storeCredential(
+                    IssuerAgent(
+                        identifier = "https://issuer.example.com/".toUri(),
+                        randomSource = RandomSource.Default
+                    ).issueCredential(
+                        DummyCredentialDataProvider.getCredential(
+                            holderKeyMaterial.publicKey,
+                            ConstantIndex.AtomicAttribute2023,
+                            PLAIN_JWT,
+                        ).getOrThrow()
+                    ).getOrThrow().toStoreCredentialInput()
+                )
+            }
+            object {
+                val holderAgent = holderAgent
+                val verifierKeyMaterial: KeyMaterial = EphemeralKeyWithoutCert()
+                val clientId: String = "${uuid4()}"
+                val redirectUrl: String = "https://example.com/rp/${uuid4()}"
+                val walletUrl: String = "https://example.com/wallet/${uuid4()}"
 
-            val holderOid4vp: OpenId4VpHolder = OpenId4VpHolder(
-                holder = holderAgent,
-                randomSource = RandomSource.Default,
-            )
+                val holderOid4vp: OpenId4VpHolder = OpenId4VpHolder(
+                    holder = holderAgent,
+                    randomSource = RandomSource.Default,
+                )
+            }
         }
-    } }) - {
+    }) - {
 
         "test with request object and Attestation JWT" {
             val sprsKeyMaterial = EphemeralKeyWithoutCert()
@@ -88,7 +91,7 @@ val VerifierAttestationTest by matrixSuite {
                 clientIdScheme = ClientIdScheme.VerifierAttestation(attestationJwt, it.redirectUrl),
             )
             val authnRequestWithRequestObject = verifierOid4vp.createAuthnRequest(
-                requestOptionsAtomicAttribute(), OpenId4VpVerifier.CreationOptions.SignedRequestByValue(it.walletUrl)
+                requestOptionsAtomicAttribute(), CreationOptions.SignedRequestByValue(it.walletUrl)
             ).getOrThrow().url
 
             val holderOid4vp = OpenId4VpHolder(
@@ -124,7 +127,7 @@ val VerifierAttestationTest by matrixSuite {
                 clientIdScheme = ClientIdScheme.VerifierAttestation(attestationJwt, it.redirectUrl)
             )
             val authnRequestWithRequestObject = verifierOid4vp.createAuthnRequest(
-                requestOptionsAtomicAttribute(), OpenId4VpVerifier.CreationOptions.SignedRequestByValue(it.walletUrl)
+                requestOptionsAtomicAttribute(), CreationOptions.SignedRequestByValue(it.walletUrl)
             ).getOrThrow().url
 
             val holderOid4vp = OpenId4VpHolder(
@@ -142,9 +145,7 @@ val VerifierAttestationTest by matrixSuite {
 
 private fun requestOptionsAtomicAttribute() = OpenId4VpRequestOptions(
     presentationRequest = CredentialPresentationRequestBuilder(
-        credentials = setOf(
-            RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
-        ),
+        RequestOptionsCredential(ConstantIndex.AtomicAttribute2023)
     ).toPresentationExchangeRequest(),
 )
 

@@ -18,8 +18,9 @@ import at.asitplus.iso.IssuerSignedItem
 import at.asitplus.openid.OidcUserInfo
 import at.asitplus.openid.OidcUserInfoExtended
 import at.asitplus.signum.indispensable.CryptoPublicKey
+import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
 import at.asitplus.wallet.eupid.EuPidCredential
-import at.asitplus.wallet.eupid.EuPidScheme
+import at.asitplus.wallet.eupid.EuPidDataElements
 import at.asitplus.wallet.lib.agent.ClaimToBeIssued
 import at.asitplus.wallet.lib.agent.CredentialToBeIssued
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
@@ -28,20 +29,23 @@ import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_DATE_
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_FAMILY_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_PORTRAIT
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
-import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
+import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.lib.data.CredentialRepresentation
+import at.asitplus.wallet.lib.data.CredentialScheme
+import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
 import at.asitplus.wallet.lib.data.LocalDateOrInstant
+import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
+import at.asitplus.wallet.lib.data.VcJwtCredentialScheme
 import at.asitplus.wallet.lib.data.toJsonElement
 import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import at.asitplus.wallet.lib.oidvci.CredentialDataProviderFun
 import at.asitplus.wallet.lib.oidvci.CredentialDataProviderInput
+import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements.DOCUMENT_NUMBER
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements.EXPIRY_DATE
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements.FAMILY_NAME
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements.GIVEN_NAME
 import at.asitplus.wallet.mdl.MobileDrivingLicenceDataElements.ISSUE_DATE
-import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
 import io.matthewnelson.encoding.base64.Base64
 import io.matthewnelson.encoding.core.Decoder.Companion.decodeToByteArray
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
@@ -60,25 +64,21 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
     override suspend fun invoke(
         input: CredentialDataProviderInput,
     ): KmmResult<CredentialToBeIssued> = catching {
-        when (input.credentialScheme) {
-            ConstantIndex.AtomicAttribute2023 -> getAtomic(
-                input.userInfo,
-                input.subjectPublicKey,
-                input.credentialRepresentation
-            )
-
-            MobileDrivingLicenceScheme -> getMdl(input.userInfo, input.subjectPublicKey)
-            EuPidScheme -> getEuPid(input.userInfo, input.subjectPublicKey, input.credentialRepresentation)
-
-            else -> throw NotImplementedError()
-        }
+        if (input.credentialScheme == ConstantIndex.AtomicAttribute2023)
+            getAtomic(input.userInfo, input.subjectPublicKey, input.credentialRepresentation, input.credentialScheme)
+        else if (input.credentialScheme.isoDocType == MDL_DOCTYPE)
+            getMdl(input.userInfo, input.subjectPublicKey, input.credentialScheme)
+        else if (input.credentialScheme.isoDocType == EU_PID_DOCTYPE || input.credentialScheme.vcType == "EuPid2023")
+            getEuPid(input.userInfo, input.subjectPublicKey, input.credentialRepresentation, input.credentialScheme)
+        else throw NotImplementedError()
     }
 
 
     private fun getAtomic(
         userInfo: OidcUserInfoExtended,
         subjectPublicKey: CryptoPublicKey,
-        representation: ConstantIndex.CredentialRepresentation,
+        representation: CredentialRepresentation,
+        credentialScheme: CredentialScheme,
     ): CredentialToBeIssued {
         val issuance = clock.now()
         val expiration = issuance + defaultLifetime
@@ -110,21 +110,21 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
             )
 
             PLAIN_JWT -> CredentialToBeIssued.VcJwt(
-                AtomicAttribute2023(subjectId, GIVEN_NAME, givenName ?: "no value").toJsonElement(),
-                expiration,
-                ConstantIndex.AtomicAttribute2023,
-                subjectPublicKey,
-                DummyUserProvider.user,
+                subject = AtomicAttribute2023(subjectId, GIVEN_NAME, givenName ?: "no value").toJsonElement(),
+                expiration = expiration,
+                scheme = ConstantIndex.AtomicAttribute2023,
+                subjectPublicKey = subjectPublicKey,
+                userInfo = DummyUserProvider.user,
             )
 
             ISO_MDOC -> CredentialToBeIssued.Iso(
-                claims.mapIndexed { index, claim ->
+                issuerSignedItems = claims.mapIndexed { index, claim ->
                     issuerSignedItem(claim.name, claim.value, index.toUInt())
                 },
-                expiration,
-                ConstantIndex.AtomicAttribute2023,
-                subjectPublicKey,
-                DummyUserProvider.user,
+                expiration = expiration,
+                scheme = ConstantIndex.AtomicAttribute2023,
+                subjectPublicKey = subjectPublicKey,
+                userInfo = DummyUserProvider.user,
             )
         }
     }
@@ -132,6 +132,7 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
     private fun getMdl(
         userInfo: OidcUserInfoExtended,
         subjectPublicKey: CryptoPublicKey,
+        credentialScheme: CredentialScheme,
     ): CredentialToBeIssued.Iso {
         val issuance = clock.now()
         val expiration = issuance + defaultLifetime
@@ -148,7 +149,7 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
         return CredentialToBeIssued.Iso(
             issuerSignedItems,
             expiration,
-            MobileDrivingLicenceScheme,
+            credentialScheme as IsoMdocCredentialScheme,
             subjectPublicKey,
             DummyUserProvider.user,
         )
@@ -157,7 +158,8 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
     private fun getEuPid(
         userInfo: OidcUserInfoExtended,
         subjectPublicKey: CryptoPublicKey,
-        representation: ConstantIndex.CredentialRepresentation,
+        representation: CredentialRepresentation,
+        credentialScheme: CredentialScheme,
     ): CredentialToBeIssued {
         val issuance = clock.now()
         val expiration = issuance + defaultLifetime
@@ -169,26 +171,26 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
         val issuanceDate = LocalDateOrInstant.LocalDate(LocalDate.parse("2023-01-01"))
         val expirationDate = LocalDateOrInstant.LocalDate(LocalDate.parse("2027-01-01"))
         val claims = listOfNotNull(
-            ClaimToBeIssued(EuPidScheme.Attributes.FAMILY_NAME, familyName),
-            ClaimToBeIssued(EuPidScheme.Attributes.GIVEN_NAME, givenName),
-            ClaimToBeIssued(EuPidScheme.Attributes.BIRTH_DATE, birthDate),
-            ClaimToBeIssued(EuPidScheme.Attributes.ISSUANCE_DATE, issuanceDate),
-            ClaimToBeIssued(EuPidScheme.Attributes.EXPIRY_DATE, expirationDate),
-            ClaimToBeIssued(EuPidScheme.Attributes.ISSUING_COUNTRY, issuingCountry),
-            ClaimToBeIssued(EuPidScheme.Attributes.ISSUING_AUTHORITY, issuingCountry),
+            ClaimToBeIssued(EuPidDataElements.FAMILY_NAME, familyName),
+            ClaimToBeIssued(EuPidDataElements.GIVEN_NAME, givenName),
+            ClaimToBeIssued(EuPidDataElements.BIRTH_DATE, birthDate),
+            ClaimToBeIssued(EuPidDataElements.ISSUANCE_DATE, issuanceDate),
+            ClaimToBeIssued(EuPidDataElements.EXPIRY_DATE, expirationDate),
+            ClaimToBeIssued(EuPidDataElements.ISSUING_COUNTRY, issuingCountry),
+            ClaimToBeIssued(EuPidDataElements.ISSUING_AUTHORITY, issuingCountry),
         )
         return when (representation) {
             SD_JWT -> CredentialToBeIssued.VcSd(
                 claims = claims,
                 expiration = expiration,
-                scheme = EuPidScheme,
+                scheme = credentialScheme as SdJwtCredentialScheme,
                 subjectPublicKey = subjectPublicKey,
                 userInfo = DummyUserProvider.user,
                 sdAlgorithm = supportedSdAlgorithms.random()
             )
 
             PLAIN_JWT -> CredentialToBeIssued.VcJwt(
-                Json.encodeToJsonElement(
+                subject = Json.encodeToJsonElement(
                     EuPidCredential.serializer(), EuPidCredential(
                         id = subjectId,
                         familyName = familyName,
@@ -200,20 +202,20 @@ object DummyOAuth2IssuerCredentialDataProvider : CredentialDataProviderFun {
                         issuingAuthority = issuingCountry,
                     )
                 ),
-                expiration,
-                EuPidScheme,
-                subjectPublicKey,
-                DummyUserProvider.user,
+                expiration = expiration,
+                scheme = credentialScheme as VcJwtCredentialScheme,
+                subjectPublicKey = subjectPublicKey,
+                userInfo = DummyUserProvider.user,
             )
 
             ISO_MDOC -> CredentialToBeIssued.Iso(
-                claims.mapIndexed { index, claim ->
+                issuerSignedItems = claims.mapIndexed { index, claim ->
                     issuerSignedItem(claim.name, claim.value, index.toUInt())
                 },
-                expiration,
-                EuPidScheme,
-                subjectPublicKey,
-                DummyUserProvider.user,
+                expiration = expiration,
+                scheme = credentialScheme as IsoMdocCredentialScheme,
+                subjectPublicKey = subjectPublicKey,
+                userInfo = DummyUserProvider.user,
             )
         }
     }

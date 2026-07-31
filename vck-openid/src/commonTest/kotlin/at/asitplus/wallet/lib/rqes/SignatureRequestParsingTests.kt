@@ -2,9 +2,8 @@ package at.asitplus.wallet.lib.rqes
 
 import at.asitplus.openid.RequestParametersFrom
 import at.asitplus.openid.SignatureRequestParameters
-import at.asitplus.testballoon.matrix.*
-import at.asitplus.wallet.lib.openid.RequestParser
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.lib.openid.RequestParser
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf

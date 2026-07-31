@@ -1,7 +1,7 @@
 package at.asitplus.wallet.lib
 
-import com.benasher44.uuid.uuid4
 import at.asitplus.testballoon.matrix.matrixSuite
+import com.benasher44.uuid.uuid4
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import kotlinx.coroutines.delay

@@ -4,12 +4,13 @@ import at.asitplus.iso.Document
 import at.asitplus.iso.IssuerSignedItem
 import at.asitplus.iso.MobileSecurityObject
 import at.asitplus.wallet.lib.agent.validation.CredentialFreshnessSummary
+import kotlin.jvm.JvmOverloads
 
 /**
  * Intermediate class used by [at.asitplus.wallet.lib.agent.ValidatorMdoc.verifyDocument] when parsing an ISO document,
  * and also in [at.asitplus.wallet.lib.agent.VerifierAgent.verifyPresentationIsoMdoc].
  */
-data class IsoDocumentParsed(
+data class IsoDocumentParsed @JvmOverloads constructor(
     /** Document as received. */
     val document: Document,
     /** MSO as received. */

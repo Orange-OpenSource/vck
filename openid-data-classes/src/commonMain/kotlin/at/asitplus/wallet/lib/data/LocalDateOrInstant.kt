@@ -1,6 +1,5 @@
 package at.asitplus.wallet.lib.data
 
-import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
@@ -14,6 +13,7 @@ import kotlinx.serialization.descriptors.SerialKind
 import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlin.time.Instant
 
 /**
  * Might be used for `expiry_date` or `issue_date` in EU PIDs, where issuers may put in a "tdate" or "full-date"

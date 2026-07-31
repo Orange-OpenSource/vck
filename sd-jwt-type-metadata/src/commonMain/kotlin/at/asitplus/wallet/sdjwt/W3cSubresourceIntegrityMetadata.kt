@@ -13,12 +13,14 @@ import kotlinx.serialization.encoding.Encoder
 import kotlin.jvm.JvmInline
 
 /**
- * The value MUST be an "integrity metadata" string as defined in Section 3 of [W3C.SRI]. If an integrity property is
- * present for a particular claim, the Consumer of the respective document MUST verify the integrity of the retrieved
- * document as defined in Section 3.3.5 of [W3C.SRI].
+ * The value MUST be an "integrity metadata" string as defined in Section 3 of
+ * [W3C.SRI](https://www.w3.org/TR/2016/REC-SRI-20160623/).
  *
- * This metadata MUST be encoded in the same format as the hash-source (without the single quotes) in section 4.2 of the Content Security Policy Level 2 specification.
- * https://www.w3.org/TR/2016/REC-SRI-20160623/#integrity-metadata
+ * If an integrity property is present for a particular claim, the Consumer of the respective document MUST verify the
+ * integrity of the retrieved document as defined in Section 3.3.5.
+ *
+ * This metadata MUST be encoded in the same format as the hash-source (without the single quotes) in section 4.2
+ * of the []Content Security Policy Level 2 specification](https://www.w3.org/TR/CSP2/#source-list-syntax).
  */
 @Serializable(with = W3cSubresourceIntegrityMetadata.InlineSerializer::class)
 @JvmInline
@@ -26,7 +28,7 @@ value class W3cSubresourceIntegrityMetadata(
     val expression: ContentSecurityPolicySourceExpressionHash
 ) {
     constructor(string: String): this(
-        ContentSecurityPolicySourceExpressionHash.Companion("'$string'")
+        ContentSecurityPolicySourceExpressionHash("'$string'")
     )
 
     constructor(

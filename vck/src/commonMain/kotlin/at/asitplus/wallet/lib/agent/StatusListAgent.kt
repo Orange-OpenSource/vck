@@ -1,10 +1,11 @@
 package at.asitplus.wallet.lib.agent
 
 import at.asitplus.catching
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.truncateToSeconds
 import at.asitplus.signum.indispensable.cosef.CoseHeader
+import at.asitplus.signum.indispensable.cosef.CoseSigned
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.DefaultZlibService
 import at.asitplus.wallet.lib.ZlibService
 import at.asitplus.wallet.lib.cbor.CoseHeaderCertificate
@@ -15,9 +16,14 @@ import at.asitplus.wallet.lib.data.StatusListCwt
 import at.asitplus.wallet.lib.data.StatusListJwt
 import at.asitplus.wallet.lib.data.StatusListToken
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.IdentifierList
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.IdentifierListInfo
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.MediaTypes
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList.Kind.IDENTIFIER_LIST
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList.Kind.STATUS_LIST
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationListInfo
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListAggregation
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListInfo
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListTokenPayload
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.agents.ReferencedTokenStore
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.agents.communication.primitives.StatusListTokenMediaType
@@ -31,15 +37,17 @@ import at.asitplus.wallet.lib.jws.SignJwtFun
 import io.github.aakira.napier.Napier
 import kotlinx.serialization.builtins.ByteArraySerializer
 import kotlinx.serialization.encodeToByteArray
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
 
 /**
- * An agent that implements [StatusListIssuer], i.e. it manages status of credentials and status lists.
+ * An agent that implements [StatusListIssuer] for a Status Issuer in the sense of
+ * [Token Status List (TSL)](https://www.ietf.org/archive/id/draft-ietf-oauth-status-list-21.html).
  */
-class StatusListAgent(
+class StatusListAgent @JvmOverloads constructor(
     /** Should either be [PublishedKeyMaterial] or contain a certificate, so clients can look up the key. */
     private val keyMaterial: KeyMaterial = EphemeralKeyWithSelfSignedCert(),
     private val issuerCredentialStore: ReferencedTokenStore = InMemoryIssuerCredentialStore(),
@@ -72,12 +80,18 @@ class StatusListAgent(
      * Wraps the revocation information from [issuerCredentialStore] into a Status List Token,
      * returns a CWS representation of that.
      */
-    override suspend fun issueStatusListCwt(time: Instant?, kind: RevocationList.Kind) =
+    override suspend fun issueStatusListCwt(
+        time: Instant?,
+        kind: RevocationList.Kind
+    ): CoseSigned<ByteArray> =
         issueStatusListCwt(time.toTimePeriod(), kind)
 
-    override suspend fun issueStatusListJwt(timePeriod: Int, kind: RevocationList.Kind): JwsCompactTyped<StatusListTokenPayload> =
+    override suspend fun issueStatusListJwt(
+        timePeriod: Int,
+        kind: RevocationList.Kind
+    ): JwsCompactTyped<StatusListTokenPayload> =
         catching {
-            require(kind == RevocationList.Kind.STATUS_LIST) { "JWT only supports revocation list kind StatusList" }
+            require(kind == STATUS_LIST) { "JWT only supports revocation list kind StatusList" }
         }.transform {
             signStatusListJwt(
                 type = MediaTypes.STATUSLIST_JWT,
@@ -99,51 +113,50 @@ class StatusListAgent(
                 throw IllegalStateException("Status token could not be created", it)
             }
         }
-    private fun RevocationList.Kind.mediaType(): String =
-        if (this == RevocationList.Kind.STATUS_LIST)
-            MediaTypes.Application.STATUSLIST_CWT
-        else
-            MediaTypes.Application.IDENTIFIERLIST_CWT
+
+    private fun RevocationList.Kind.mediaType(): String = when (this) {
+        STATUS_LIST -> MediaTypes.Application.STATUSLIST_CWT
+        IDENTIFIER_LIST -> MediaTypes.Application.IDENTIFIERLIST_CWT
+    }
 
     /**
      * Wraps the revocation information from [issuerCredentialStore] into a Token Payload
      */
-    private fun buildStatusListTokenPayload(timePeriod: Int?, kind: RevocationList.Kind): StatusListTokenPayload =
-        StatusListTokenPayload(
-            revocationList = buildRevocationList(timePeriod, kind),
-            issuedAt = clock.now().truncateToSeconds(),
-            timeToLive = PositiveDuration(revocationListLifetime),
-            subject = UniformResourceIdentifier(
-                when (kind) {
-                    RevocationList.Kind.STATUS_LIST -> getStatusListUrlFor(
-                        timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock)
-                    )
-
-                    RevocationList.Kind.IDENTIFIER_LIST -> getIdentifierListUrlFor(
-                        timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock)
-                    )
-                }
-            ),
-        ).also {
-            Napier.d("revocation status list: ${it.revocationList}")
-        }
+    private fun buildStatusListTokenPayload(
+        timePeriod: Int?,
+        kind: RevocationList.Kind
+    ): StatusListTokenPayload = StatusListTokenPayload(
+        revocationList = buildRevocationList(timePeriod, kind),
+        issuedAt = clock.now().truncateToSeconds(),
+        timeToLive = PositiveDuration(revocationListLifetime),
+        subject = UniformResourceIdentifier(
+            when (kind) {
+                STATUS_LIST -> getStatusListUrlFor(timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock))
+                IDENTIFIER_LIST -> getIdentifierListUrlFor(timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock))
+            }
+        ),
+    ).also {
+        Napier.d("revocation status list: ${it.revocationList}")
+    }
 
     /**
      * Returns a status list, where the entry at "revocationListIndex" (of the credential) is INVALID if it is revoked
      */
-    override fun buildRevocationList(timePeriod: Int?, kind: RevocationList.Kind): RevocationList =
-        when (kind) {
-            RevocationList.Kind.STATUS_LIST -> issuerCredentialStore
-                .getStatusListView(timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock))
-                .toStatusList(zlibService, statusListAggregationUrl)
+    override fun buildRevocationList(
+        timePeriod: Int?,
+        kind: RevocationList.Kind
+    ): RevocationList = when (kind) {
+        STATUS_LIST -> issuerCredentialStore
+            .getStatusListView(timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock))
+            .toStatusList(zlibService, statusListAggregationUrl)
 
-            RevocationList.Kind.IDENTIFIER_LIST -> IdentifierList(
-                identifiers = issuerCredentialStore.getRawIdentifierList(
-                    timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock)
-                ),
-                aggregationUri = identifierListAggregationUrl
-            )
-        }
+        IDENTIFIER_LIST -> IdentifierList(
+            identifiers = issuerCredentialStore.getRawIdentifierList(
+                timePeriod ?: timePeriodProvider.getCurrentTimePeriod(clock)
+            ),
+            aggregationUri = identifierListAggregationUrl
+        )
+    }
 
 
     /**
@@ -165,10 +178,10 @@ class StatusListAgent(
         time: Instant?,
         kind: RevocationList.Kind
     ): Pair<StatusListTokenMediaType, StatusListToken> {
-        val preferedType = acceptedContentTypes.firstOrNull()
+        val preferredType = acceptedContentTypes.firstOrNull()
             ?: throw IllegalArgumentException("Argument `acceptedContentTypes` must contain at least one item.")
 
-        return preferedType to when (preferedType) {
+        return preferredType to when (preferredType) {
             StatusListTokenMediaType.Jwt -> StatusListJwt(issueStatusListJwt(time, kind), resolvedAt = clock.now())
             StatusListTokenMediaType.Cwt -> StatusListCwt(issueStatusListCwt(time, kind), resolvedAt = clock.now())
         }
@@ -221,4 +234,38 @@ class StatusListAgent(
     fun Instant?.toTimePeriod() = this?.let {
         timePeriodProvider.getTimePeriodFor(it)
     } ?: timePeriodProvider.getCurrentTimePeriod(clock)
+
+    /** Provide a status reference to be included in a [Issuer.IssuedCredential]. */
+    suspend fun provideStatusReference(
+        credential: CredentialToBeIssued.Iso,
+        issuanceDate: Instant
+    ): RevocationListInfo {
+        val timePeriod = timePeriodProvider.getTimePeriodFor(issuanceDate)
+        val reference = issuerCredentialStore.storeReferencedToken(credential, timePeriod).getOrThrow()
+        return when (credential.revocationKind) {
+            STATUS_LIST -> StatusListInfo(
+                index = reference.statusListIndex,
+                uri = UniformResourceIdentifier(getStatusListUrlFor(timePeriod)),
+            )
+
+            IDENTIFIER_LIST -> IdentifierListInfo(
+                identifier = reference.id.encodeToByteArray(),
+                uri = UniformResourceIdentifier(getIdentifierListUrlFor(timePeriod)),
+                certificate = keyMaterial.getCertificate()?.encodeToDer()
+            )
+        }
+    }
+
+    /** Provide a status reference to be included in a [Issuer.IssuedCredential]. */
+    suspend fun provideStatusReference(
+        credential: CredentialToBeIssued,
+        issuanceDate: Instant
+    ): RevocationListInfo {
+        val timePeriod = timePeriodProvider.getTimePeriodFor(issuanceDate)
+        val reference = issuerCredentialStore.storeReferencedToken(credential, timePeriod).getOrThrow()
+        return StatusListInfo(
+            index = reference.statusListIndex,
+            uri = UniformResourceIdentifier(getStatusListUrlFor(timePeriod)),
+        )
+    }
 }

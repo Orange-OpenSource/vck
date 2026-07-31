@@ -17,7 +17,7 @@ import at.asitplus.signum.indispensable.symmetric.randomKey
 import at.asitplus.signum.indispensable.toJcaPublicKey
 import at.asitplus.signum.supreme.hazmat.jcaPrivateKey
 import at.asitplus.signum.supreme.sign.EphemeralKey
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import com.benasher44.uuid.uuid4
 import com.nimbusds.jose.EncryptionMethod
@@ -31,7 +31,6 @@ import com.nimbusds.jose.crypto.AESEncrypter
 import com.nimbusds.jose.crypto.ECDHDecrypter
 import com.nimbusds.jose.crypto.ECDHEncrypter
 import com.nimbusds.jose.jwk.JWK
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.engine.runBlocking
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe

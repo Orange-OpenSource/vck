@@ -1,10 +1,12 @@
 package at.asitplus.wallet.lib.agent
 
+import at.asitplus.KmmResult
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.ConfirmationClaim
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.signum.indispensable.josef.toJsonWebKey
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.SdJwtCreator.toSdJsonObject
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
@@ -16,6 +18,7 @@ import at.asitplus.wallet.lib.jws.JwsHeaderModifierFun
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
+import at.asitplus.wallet.lib.jws.VerifyJwsObjectFun
 import at.asitplus.wallet.sdjwt.SdJwtTypeMetadata
 import at.asitplus.wallet.sdjwt.SdJwtVcType
 import io.kotest.assertions.throwables.shouldThrowAny
@@ -72,7 +75,7 @@ val ValidatorSdJwtTest by matrixSuite {
                     issuer = "https://issuer.example.com/",
                     expiration = expirationDate,
                     issuedAt = issuanceDate,
-                    verifiableCredentialType = credential.scheme.sdJwtType ?: credential.scheme.schemaUri,
+                    verifiableCredentialType = credential.scheme.sdJwtType,
                     selectiveDisclosureAlgorithm = credential.sdAlgorithm.toIanaName(),
                     confirmationClaim = if (!buildCnf) null else
                         ConfirmationClaim(jsonWebKey = credential.subjectPublicKey.toJsonWebKey())
@@ -119,6 +122,18 @@ val ValidatorSdJwtTest by matrixSuite {
                 }
 
             it.validator.verifySdJwt(credential.signedSdJwtVc, it.holderKeyMaterial.publicKey).getOrThrow()
+        }
+
+        test("signature verification exception is preserved") {
+            val exception = IllegalStateException("Signature verification failed")
+            val validator = ValidatorSdJwt(
+                verifyJwsObject = VerifyJwsObjectFun { KmmResult.failure(exception) }
+            )
+            val credential = it.issuer.issueCredential(it.buildCredentialData()).getOrThrow()
+                .shouldBeInstanceOf<Issuer.IssuedCredential.VcSdJwt>()
+
+            validator.verifySdJwt(credential.signedSdJwtVc, it.holderKeyMaterial.publicKey)
+                .exceptionOrNull() shouldBe exception
         }
 
         test("credentials are not valid for some other key") {

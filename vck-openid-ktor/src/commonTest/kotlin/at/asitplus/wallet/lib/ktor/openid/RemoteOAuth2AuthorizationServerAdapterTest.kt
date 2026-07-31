@@ -8,6 +8,7 @@ import at.asitplus.openid.TokenIntrospectionJwtResponse
 import at.asitplus.openid.TokenIntrospectionResponse
 import at.asitplus.openid.TokenResponseParameters
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.jws.JwsContentTypeConstants
@@ -18,11 +19,9 @@ import at.asitplus.wallet.lib.oauth2.TokenVerificationService
 import at.asitplus.wallet.lib.oidvci.OAuth2Error
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidToken
 import at.asitplus.wallet.lib.oidvci.TokenInfo
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import io.ktor.client.engine.mock.*
 import io.ktor.http.*
 import kotlinx.serialization.json.JsonObject
@@ -101,6 +100,7 @@ val RemoteOAuth2AuthorizationServerAdapterTest by matrixSuite {
     }
 
     test("getTokenInfo handles invalid response") {
+        val expectedError = InvalidToken().toOAuth2Error()
         val mockEngine = MockEngine { request ->
             when {
                 request.url.rawSegments.drop(1) == WellKnownPaths.OauthAuthorizationServer -> respond(
@@ -112,7 +112,7 @@ val RemoteOAuth2AuthorizationServerAdapterTest by matrixSuite {
                 )
 
                 request.url.toString() == introspectionEndpoint -> respond(
-                    joseCompliantSerializer.encodeToString(InvalidToken().toOAuth2Error()),
+                    joseCompliantSerializer.encodeToString(expectedError),
                     status = HttpStatusCode.BadRequest,
                     headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
                 )
@@ -129,7 +129,8 @@ val RemoteOAuth2AuthorizationServerAdapterTest by matrixSuite {
 
         adapter.getTokenInfo("Bearer token", null)
             .exceptionOrNull().shouldNotBeNull()
-            .message.shouldContain("Error requesting https://issuer.example.com/introspect")
+            .let { it as HttpErrorResponseException }
+            .oauth2Error shouldBe expectedError
     }
 
     test("getTokenInfo handles inactive token") {

@@ -19,18 +19,20 @@ import at.asitplus.openid.CredentialFormatEnum
 import at.asitplus.openid.CredentialRequestParameters
 import at.asitplus.openid.CredentialRequestProofContainer
 import at.asitplus.openid.CredentialResponseSingleCredential
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.OpenIdAuthorizationDetails
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.SupportedCredentialFormat
 import at.asitplus.openid.TokenResponseParameters
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
-import at.asitplus.wallet.eupidsdjwt.EuPidSdJwtScheme
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
+import at.asitplus.testballoon.matrix.fixture
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.*
+import at.asitplus.wallet.lib.data.ExtractedSdJwtCredentialScheme
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.data.VerifiableCredentialSdJwt
 import at.asitplus.wallet.lib.data.rfc3986.toUri
@@ -42,9 +44,8 @@ import at.asitplus.wallet.lib.openid.AuthenticationResponseResult
 import at.asitplus.wallet.lib.openid.DummyOAuth2IssuerCredentialDataProvider
 import at.asitplus.wallet.lib.openid.DummyUserProvider
 import at.asitplus.wallet.lib.utils.MapStore
-import at.asitplus.wallet.mdl.MobileDrivingLicenceScheme
+import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import com.benasher44.uuid.uuid4
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeIn
@@ -69,7 +70,7 @@ val OidvciCodeFlowTest by matrixSuite {
         object {
             val mapper = DefaultCredentialSchemeMapper()
             val strategy = CredentialAuthorizationServiceStrategy(
-                credentialSchemes = setOf(AtomicAttribute2023, MobileDrivingLicenceScheme),
+                credentialSchemes = AttributeIndex.schemeSet,
                 mapper = mapper,
             )
             var authorizationService = SimpleAuthorizationService(
@@ -81,7 +82,7 @@ val OidvciCodeFlowTest by matrixSuite {
                     identifier = "https://issuer.example.com".toUri(),
                     randomSource = RandomSource.Default
                 ),
-                credentialSchemes = setOf(AtomicAttribute2023, MobileDrivingLicenceScheme),
+                credentialSchemes = AttributeIndex.schemeSet,
                 credentialSchemeMapper = mapper,
             )
             val client = WalletService()
@@ -429,7 +430,10 @@ val OidvciCodeFlowTest by matrixSuite {
                 authorizationServers = it.issuer.metadata.authorizationServers
             )
             val tokenAuthnDetails = it.client.buildAuthorizationDetails(
-                credentialConfigurationId = it.mapper.toCredentialIdentifier(AtomicAttribute2023, ISO_MDOC),
+                credentialConfigurationId = it.mapper.toCredentialIdentifier(
+                    AtomicAttribute2023,
+                    ISO_MDOC
+                ),
                 authorizationServers = it.issuer.metadata.authorizationServers
             )
             val authnRequest = it.oauth2Client.createAuthRequestJar(
@@ -458,7 +462,10 @@ val OidvciCodeFlowTest by matrixSuite {
                 authorizationServers = it.issuer.metadata.authorizationServers
             )
             val tokenAuthnDetails = it.client.buildAuthorizationDetails(
-                credentialConfigurationId = it.mapper.toCredentialIdentifier(AtomicAttribute2023, ISO_MDOC),
+                credentialConfigurationId = it.mapper.toCredentialIdentifier(
+                    AtomicAttribute2023,
+                    ISO_MDOC
+                ),
                 authorizationServers = it.issuer.metadata.authorizationServers
             )
             val authnRequest = it.oauth2Client.createAuthRequestJar(
@@ -482,8 +489,13 @@ val OidvciCodeFlowTest by matrixSuite {
         }
 
         "request credential with unknown configuration_id" { it ->
-            // that credential format (from which credential_configuration_id will be derived) is not known to our issuer
-            val scheme = EuPidSdJwtScheme
+            // that credential format (from which credential_configuration_id will be derived) is not known to our
+            // issuer: a typed SD-JWT scheme that is never registered with AttributeIndex (so not in the issuer's
+            // schemeSet), unlike the metadata-backed schemes pre-loaded via the TestConfig registry
+            val scheme = ExtractedSdJwtCredentialScheme(
+                sdJwtType = "urn:eudi:unknown:1",
+                claimDescriptions = emptySet(),
+            )
             val credentialFormat = with(
                 CredentialIssuer(
                     authorizationService = SimpleAuthorizationService(
@@ -568,7 +580,7 @@ val OidvciCodeFlowTest by matrixSuite {
 
 
         "request credential in ISO MDOC, using scope" { it ->
-            val requestOptions = RequestOptions(MobileDrivingLicenceScheme, ISO_MDOC)
+            val requestOptions = RequestOptions(AttributeIndex.resolveIdentifier(MDL_DOCTYPE, ISO_MDOC), ISO_MDOC)
             val credentialFormat = it.client.selectSupportedCredentialFormat(requestOptions, it.issuer.metadata)
                 .shouldNotBeNull()
             val scope = credentialFormat.scope.shouldNotBeNull()
@@ -598,7 +610,7 @@ val OidvciCodeFlowTest by matrixSuite {
             val namespaces = issuerSigned.namespaces
                 .shouldNotBeNull()
 
-            namespaces.keys.first() shouldBe MobileDrivingLicenceScheme.isoNamespace
+            namespaces.keys.first() shouldBe "org.iso.18013.5.1"
             val numberOfClaims = namespaces.values.firstOrNull()?.entries?.size.shouldNotBeNull()
             numberOfClaims shouldBeGreaterThan 1
         }

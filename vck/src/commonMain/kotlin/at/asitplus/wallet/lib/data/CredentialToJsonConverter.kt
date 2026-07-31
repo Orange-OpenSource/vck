@@ -17,6 +17,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
+import kotlin.time.Instant
 
 private const val SD_JWT_VC_TYPE = "vct"
 
@@ -28,7 +29,14 @@ object CredentialToJsonConverter {
 
     fun toJsonElement(credential: SubjectCredentialStore.StoreEntry): JsonElement = when (credential) {
         is SubjectCredentialStore.StoreEntry.Vc -> buildJsonObject {
-            put("type", JsonPrimitive(credential.scheme?.vcType))
+            if (credential.schemeIdentifier != null) {
+                put("type", JsonPrimitive(credential.schemeIdentifier))
+            } else {
+                // Legacy entries (serialized before schemeIdentifier existed) expose the full VC type array. A scalar
+                // `$.type` filter (see RequestOptions.toVcConstraint()) matches any element of it, so array-typed VC-JWT
+                // credentials still satisfy the type constraint.
+                put("type", credential.vc.vc.type.toJsonElement())
+            }
             val vcAsJsonElement = joseCompliantSerializer.encodeToJsonElement(credential.vc.vc.credentialSubject)
             vcAsJsonElement.jsonObject.entries.forEach {
                 put(it.key, it.value)
@@ -50,7 +58,7 @@ object CredentialToJsonConverter {
 
             buildJsonObject {
                 if (payloadVc?.get(SD_JWT_VC_TYPE) == null)
-                    put(SD_JWT_VC_TYPE, JsonPrimitive(credential.scheme?.sdJwtType))
+                    put(SD_JWT_VC_TYPE, JsonPrimitive(credential.sdJwt.verifiableCredentialType))
                 payloadVc?.forEach {
                     put(it.key, it.value)
                 }
@@ -94,7 +102,9 @@ object CredentialToJsonConverter {
         is Number -> JsonPrimitive(this)
         is String -> JsonPrimitive(this)
         is ByteArray -> JsonPrimitive(encodeToString(Base64UrlStrict))
-        is LocalDate -> JsonPrimitive(this.toString())
+        is LocalDate -> joseCompliantSerializer.encodeToJsonElement(this)
+        is Instant -> joseCompliantSerializer.encodeToJsonElement(this)
+        is LocalDateOrInstant -> joseCompliantSerializer.encodeToJsonElement(this)
         is UByte -> JsonPrimitive(this)
         is UShort -> JsonPrimitive(this)
         is UInt -> JsonPrimitive(this)

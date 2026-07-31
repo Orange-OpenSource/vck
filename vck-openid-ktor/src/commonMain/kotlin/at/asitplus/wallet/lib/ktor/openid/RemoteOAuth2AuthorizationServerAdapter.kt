@@ -7,7 +7,6 @@ import at.asitplus.openid.OpenIdConstants.WellKnownPaths
 import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenIntrospectionResponse
 import at.asitplus.openid.TokenResponseParameters
-import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.wallet.lib.DefaultNonceService
 import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.oauth2.OAuth2Client
@@ -20,13 +19,9 @@ import at.asitplus.wallet.lib.oidvci.TokenInfo
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.*
-import io.ktor.client.plugins.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.cookies.*
 import io.ktor.client.request.*
-import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +32,7 @@ import kotlinx.serialization.json.JsonObject
  * Uses an external OAuth 2.0 Authorization Server with a [at.asitplus.wallet.lib.oidvci.CredentialIssuer],
  * i.e., delegate authorization to the external AS, and load user info from there
  * (after performing token exchange with the Wallet's access token to get a fresh one).
- * Make sure to configure [oauth2Client] to use the correct [OAuth2KtorClient.loadClientAttestationJwt].
+ * Make sure to configure [oauth2Client] to use the correct [OAuth2KtorClient.loadInstanceAttestation].
  */
 class RemoteOAuth2AuthorizationServerAdapter(
     /** Base URL of the remote Authorization Server. */
@@ -66,28 +61,17 @@ class RemoteOAuth2AuthorizationServerAdapter(
     val dpopNonceService: NonceService = DefaultNonceService(),
 ) : OAuth2AuthorizationServerAdapter {
 
-    private val client: HttpClient = HttpClient(engine) {
-        followRedirects = false
-        install(ContentNegotiation) {
-            json(joseCompliantSerializer)
-        }
-        install(DefaultRequest.Plugin) {
-            header(HttpHeaders.ContentType, ContentType.Application.Json)
-        }
-        httpClientConfig?.let { apply(it) }
-    }
-
     private val _metadata: Deferred<OAuth2AuthorizationServerMetadata> by scope.lazyDeferred {
         catching { loadOauthASMetadata() }
             .getOrElse { loadOpenidConfiguration() }
     }
 
     private suspend fun loadOauthASMetadata() =
-        client.get(insertWellKnownPath(publicContext, WellKnownPaths.OauthAuthorizationServer))
+        oauth2Client.client.get(insertWellKnownPath(publicContext, WellKnownPaths.OauthAuthorizationServer))
             .body<OAuth2AuthorizationServerMetadata>()
 
     private suspend fun loadOpenidConfiguration() =
-        client.get(insertWellKnownPath(publicContext, WellKnownPaths.OpenidConfiguration))
+        oauth2Client.client.get(insertWellKnownPath(publicContext, WellKnownPaths.OpenidConfiguration))
             .body<OAuth2AuthorizationServerMetadata>()
 
     override suspend fun metadata(): OAuth2AuthorizationServerMetadata = _metadata.await()
@@ -136,17 +120,17 @@ class RemoteOAuth2AuthorizationServerAdapter(
         params: TokenResponseParameters,
         dpopNonce: String?,
         retryCount: Int = 0,
-    ): JsonObject = client.request {
-        url(userInfoEndpoint)
-        method = HttpMethod.Get
-        oauth2Client.applyToken(params, userInfoEndpoint, HttpMethod.Get, dpopNonce)()
-    }.onFailure { response ->
-        dpopNonce(response)
+    ): JsonObject = try {
+        oauth2Client.client.request {
+            url(userInfoEndpoint)
+            method = HttpMethod.Get
+            oauth2Client.applyToken(params, userInfoEndpoint, HttpMethod.Get, dpopNonce)()
+        }.body()
+    } catch (error: HttpErrorResponseException) {
+        error.dpopNonce()
             ?.takeIf { retryCount == 0 }
-            ?.let { dpopNonce -> fetchUserInfo(userInfoEndpoint, params, dpopNonce, retryCount + 1) }
-            ?: throw Exception("Error requesting UserInfo: ${this?.errorDescription ?: this?.error}")
-    }.onSuccessUserInfo {
-        this
+            ?.let { fetchUserInfo(userInfoEndpoint, params, it, retryCount + 1) }
+            ?: throw error
     }
 
     override suspend fun validateAccessToken(
@@ -168,8 +152,3 @@ private fun TokenIntrospectionResponse.toTokenInfo(token: String) = TokenInfo(
     scope = this.scope,
     authorizationDetails = this.authorizationDetails,
 )
-
-private suspend inline fun <R> IntermediateResult<R>.onSuccessUserInfo(
-    block: JsonObject.(httpResponse: HttpResponse) -> R,
-) = onSuccess<JsonObject, R>(block)
-

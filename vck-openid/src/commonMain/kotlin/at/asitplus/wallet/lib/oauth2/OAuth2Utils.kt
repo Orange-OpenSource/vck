@@ -1,6 +1,6 @@
 package at.asitplus.wallet.lib.oauth2
 
-import io.ktor.http.URLBuilder
+import io.ktor.http.*
 
 object OAuth2Utils {
 

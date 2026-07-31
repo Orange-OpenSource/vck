@@ -1,18 +1,21 @@
 package at.asitplus.wallet.sdjwt
 
+import at.asitplus.wallet.sdjwt.SdJwtTypeMetadataDefinition.SerialNames
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class SdJwtTypeMetadata(
-    @SerialName(SdJwtTypeMetadataDefinition.SerialNames.VCT)
+    @SerialName(SerialNames.VCT)
     val vct: SdJwtVcType,
-    @SerialName(SdJwtTypeMetadataDefinition.SerialNames.NAME)
+    @SerialName(SerialNames.NAME)
     val name: String? = null,
-    @SerialName(SdJwtTypeMetadataDefinition.SerialNames.DESCRIPTION)
+    @SerialName(SerialNames.DESCRIPTION)
     val description: String? = null,
-    @SerialName(SdJwtTypeMetadataDefinition.SerialNames.DISPLAY)
+    @SerialName(SerialNames.DISPLAY)
     val display: SdJwtTypeMetadataTypeDisplayInformationList? = null,
-    @SerialName(SdJwtTypeMetadataDefinition.SerialNames.CLAIMS)
+    @SerialName(SerialNames.CLAIMS)
     val claims: SdJwtTypeMetadataClaimInformationList? = null,
+    @SerialName(SerialNames.VCK)
+    val vckExtensions: SdJwtTypeMetadataVckExtensions? = null,
 )

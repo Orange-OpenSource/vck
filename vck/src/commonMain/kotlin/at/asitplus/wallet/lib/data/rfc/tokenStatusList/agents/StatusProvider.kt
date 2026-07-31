@@ -1,9 +1,9 @@
 package at.asitplus.wallet.lib.data.rfc.tokenStatusList.agents
 
 import at.asitplus.wallet.lib.data.StatusListToken
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.IdentifierList
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.RevocationList
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusList
-import at.asitplus.wallet.lib.data.rfc.tokenStatusList.IdentifierList
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListAggregation
 import at.asitplus.wallet.lib.data.rfc.tokenStatusList.agents.communication.primitives.StatusListTokenMediaType
 import kotlin.time.Instant

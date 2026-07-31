@@ -1,17 +1,20 @@
 package at.asitplus.wallet.lib.ktor.openid
 
 import at.asitplus.catching
+import at.asitplus.openid.OAuth2AuthorizationServerMetadata
 import at.asitplus.openid.RequestParameters
 import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenRequestParameters
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
-import at.asitplus.wallet.eupid.EuPidScheme
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
+import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.data.AttributeIndex
+import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
-import at.asitplus.wallet.lib.jws.JwsHeaderNone
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.dummyUser
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.respond
@@ -23,11 +26,10 @@ import at.asitplus.wallet.lib.oauth2.OAuth2Client
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
 import at.asitplus.wallet.lib.oauth2.TokenService
 import at.asitplus.wallet.lib.oidvci.BuildClientAttestationJwt
-import at.asitplus.wallet.lib.oidvci.BuildClientAttestationPoPJwt
 import at.asitplus.wallet.lib.oidvci.CredentialAuthorizationServiceStrategy
+import at.asitplus.wallet.lib.oidvci.CredentialIssuer
 import at.asitplus.wallet.lib.oidvci.decodeFromPostBody
 import at.asitplus.wallet.lib.oidvci.decodeFromUrlQuery
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.github.aakira.napier.Napier
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -38,7 +40,6 @@ import io.ktor.client.engine.mock.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.util.*
-import kotlin.time.Duration.Companion.minutes
 
 val OAuth2KtorClientTest by matrixSuite {
 
@@ -46,6 +47,7 @@ val OAuth2KtorClientTest by matrixSuite {
         val clientAuthKeyMaterial: KeyMaterial,
         val mockEngine: MockEngine,
         val authorizationService: SimpleAuthorizationService,
+        val credentialIssuer: CredentialIssuer,
         val client: OAuth2KtorClient,
     )
 
@@ -75,6 +77,14 @@ val OAuth2KtorClientTest by matrixSuite {
             ),
             requestObjectSigningAlgorithms = requestObjectSigningAlgorithms,
             requirePushedAuthorizationRequests = requirePAR,
+        )
+        val credentialIssuer = CredentialIssuer(
+            issuer = IssuerAgent(
+                identifier = "https://issuer.example.com/".toUri(),
+                randomSource = RandomSource.Default
+            ),
+            authorizationService = authorizationService,
+            credentialSchemes = AttributeIndex.schemeSet,
         )
         val mockEngine = MockEngine { request ->
             when {
@@ -128,6 +138,7 @@ val OAuth2KtorClientTest by matrixSuite {
             clientAuthKeyMaterial = clientAuthKeyMaterial,
             mockEngine = mockEngine,
             authorizationService = authorizationService,
+            credentialIssuer = credentialIssuer,
             client = OAuth2KtorClient(
                 engine = mockEngine,
                 loadInstanceAttestation = {
@@ -148,7 +159,7 @@ val OAuth2KtorClientTest by matrixSuite {
         )
     }
 
-    val strategy = CredentialAuthorizationServiceStrategy(setOf(EuPidScheme))
+    val strategy = CredentialAuthorizationServiceStrategy(AttributeIndex.schemeSet)
     val requestedScope = strategy.validScopes().split(" ").first()
 
     listOf<Pair<Boolean, Set<JwsAlgorithm.Signature>?>>(
@@ -214,36 +225,38 @@ val OAuth2KtorClientTest by matrixSuite {
     }
 
     test("applyAuthnForToken throws when keyMaterial does not match cnf key in instance attestation") {
-        val differentKey: KeyMaterial = EphemeralKeyWithoutCert()
-        val clientAuthKey: KeyMaterial = EphemeralKeyWithoutCert()
-        val mockEngine = MockEngine { respondOk() }
-        val clientId = "https://example.com/rp-mismatch"
+        with(setup(strategy, setOf(JwsAlgorithm.Signature.ES256), requirePAR = false)) {
+            val differentKey: KeyMaterial = EphemeralKeyWithoutCert()
+            val clientAuthKey: KeyMaterial = EphemeralKeyWithoutCert()
+            val mockEngine = MockEngine { respondOk() }
+            val clientId = "https://example.com/rp-mismatch"
 
-        val client = OAuth2KtorClient(
-            engine = mockEngine,
-            loadInstanceAttestation = {
-                catching {
-                    BuildClientAttestationJwt(
-                        SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
-                        clientId = clientId,
-                        clientKey = differentKey.jsonWebKey,  // WIA attests a different key
-                    )
-                }
-            },
-            keyMaterial = clientAuthKey,  // PoP signed with this key — does not match cnf
-            oAuth2Client = OAuth2Client(clientId = clientId),
-            randomSource = RandomSource.Default,
-        )
-
-        shouldThrow<Exception> {
-            client.applyAuthnForToken(
-                resourceUrl = "https://example.com/token",
-                httpMethod = HttpMethod.Post,
-                useDpop = false,
-                authorizationServer = "https://example.com",
-                preferredClientStatusPeriod = null,
+            val client = OAuth2KtorClient(
+                engine = mockEngine,
+                loadInstanceAttestation = {
+                    catching {
+                        BuildClientAttestationJwt(
+                            SignJwt(EphemeralKeyWithSelfSignedCert(), JwsHeaderCertOrJwk()),
+                            clientId = clientId,
+                            clientKey = differentKey.jsonWebKey,  // WIA attests a different key
+                        )
+                    }
+                },
+                keyMaterial = clientAuthKey,  // PoP signed with this key — does not match cnf
+                oAuth2Client = OAuth2Client(clientId = clientId),
+                randomSource = RandomSource.Default,
             )
-        }.message shouldContain "does not match"
+
+            shouldThrow<Exception> {
+                client.applyAuthnForToken(
+                    resourceUrl = "https://example.com/token",
+                    httpMethod = HttpMethod.Post,
+                    useDpop = false,
+                    authorizationServer = authorizationService.publicContext,
+                    oauthMetadata = authorizationService.metadata(),
+                )
+            }.message shouldContain "does not match"
+        }
     }
 
     test("instance attestation callbacks receive authorization server context") {
@@ -261,11 +274,13 @@ val OAuth2KtorClientTest by matrixSuite {
                 oauthMetadata = authorizationService.metadata(),
                 authorizationServer = authorizationService.publicContext,
                 scope = requestedScope,
+                issuerMetadata = credentialIssuer.metadata,
             ).getOrThrow()
 
             attestationInput.shouldNotBeNull().also {
                 it.authorizationServer shouldBe authorizationService.publicContext
-                it.preferredClientStatusPeriod shouldBe authorizationService.metadata().preferredClientStatusPeriod
+                it.credentialIssuer shouldBe credentialIssuer.metadata.credentialIssuer
+                it.preferredClientStatusPeriod shouldBe credentialIssuer.metadata.preferredClientStatusPeriod
             }
         }
     }

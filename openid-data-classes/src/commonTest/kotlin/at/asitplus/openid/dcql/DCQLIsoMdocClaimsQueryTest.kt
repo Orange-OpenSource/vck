@@ -1,13 +1,11 @@
 package at.asitplus.openid.dcql
 
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
-import at.asitplus.testballoon.matrix.*
-import com.benasher44.uuid.uuid4
 import at.asitplus.testballoon.matrix.matrixSuite
+import com.benasher44.uuid.uuid4
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import io.ktor.util.*
 import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -16,9 +14,9 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlin.io.encoding.Base64
 import kotlin.random.Random
 
-@Suppress("unused")
 val DCQLIsoMdocClaimsQueryTest by matrixSuite {
     "specification" - {
         "serial names" {
@@ -30,8 +28,8 @@ val DCQLIsoMdocClaimsQueryTest by matrixSuite {
         val values = listOf<DCQLExpectedClaimValue>(
             DCQLExpectedClaimValue.StringValue("test")
         )
-        val namespace = Random.nextBytes(32).encodeBase64()
-        val claimName = Random.nextBytes(32).encodeBase64()
+        val namespace = Base64.encode(Random.nextBytes(32))
+        val claimName = Base64.encode(Random.nextBytes(32))
 
         val value = DCQLIsoMdocClaimsQuery(
             id = id,

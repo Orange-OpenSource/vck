@@ -6,6 +6,7 @@ import at.asitplus.signum.indispensable.CryptoPublicKey
 import at.asitplus.signum.indispensable.Digest
 import at.asitplus.signum.indispensable.KeyAgreementPrivateValue
 import at.asitplus.signum.indispensable.asn1.encoding.encodeTo4Bytes
+import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.ConfirmationClaim
 import at.asitplus.signum.indispensable.josef.JsonWebKey
 import at.asitplus.signum.indispensable.josef.JsonWebKeySet
@@ -25,6 +26,7 @@ import at.asitplus.signum.indispensable.josef.toJsonWebKey
 import at.asitplus.signum.indispensable.josef.toJwsAlgorithm
 import at.asitplus.signum.indispensable.pki.CertificateChain
 import at.asitplus.signum.indispensable.pki.X509Certificate
+import at.asitplus.signum.indispensable.pki.leaf
 import at.asitplus.signum.indispensable.requireSupported
 import at.asitplus.signum.indispensable.symmetric.AuthCapability
 import at.asitplus.signum.indispensable.symmetric.KeyType
@@ -54,8 +56,15 @@ import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.PublishedKeyMaterial
 import at.asitplus.wallet.lib.agent.VerifySignature
 import at.asitplus.wallet.lib.agent.VerifySignatureFun
+import io.matthewnelson.encoding.core.Decoder.Companion.decodeToByteArray
+import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationStrategy
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
 import kotlin.io.encoding.Base64
+import kotlin.jvm.JvmOverloads
 
 
 /** Modify the [JwsHeader] before it being signed. */
@@ -501,7 +510,7 @@ fun interface VerifyJwsSignatureFun {
  * Verifies a JWS signature against a provided public key.
  * Use when the verification key is already resolved out of band.
  */
-class VerifyJwsSignature(
+class VerifyJwsSignature @JvmOverloads constructor(
     val verifySignature: VerifySignatureFun = VerifySignature(),
 ) : VerifyJwsSignatureFun {
     override suspend operator fun invoke(
@@ -530,7 +539,7 @@ fun interface VerifyJwsSignatureWithKeyFun {
  * Verifies a JWS signature using a JSON Web Key.
  * Use when the signer key is available in JWK form.
  */
-class VerifyJwsSignatureWithKey(
+class VerifyJwsSignatureWithKey @JvmOverloads constructor(
     val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(),
 ) : VerifyJwsSignatureWithKeyFun {
     override suspend operator fun invoke(
@@ -550,7 +559,7 @@ fun interface VerifyJwsSignatureWithCnfFun {
  * Verifies a JWS signature using the confirmation claim (cnf) key material.
  * Use when tokens bind signatures to a subject key in the payload.
  */
-class VerifyJwsSignatureWithCnf(
+class VerifyJwsSignatureWithCnf @JvmOverloads constructor(
     val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(),
     /**
      * Need to implement if JSON web keys in JWS headers are referenced by a `kid`, and need to be retrieved from
@@ -591,7 +600,7 @@ class VerifyJwsSignatureWithCnf(
  * The X.509 certificate of the trust anchor MUST NOT be included in the x5c JOSE header of the Status List Token.
  * The X.509 certificate signing the request MUST NOT be self-signed.
  */
-class VerifyStatusListTokenHAIP(
+class VerifyStatusListTokenHAIP @JvmOverloads constructor(
     val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(),
     /** Need to implement if valid keys for JWS are transported somehow out-of-band, e.g. provided by a trust store */
     val trustStoreLookup: TrustStoreLookup = TrustStoreLookup { null },
@@ -644,7 +653,7 @@ fun interface VerifyJwsObjectFun {
  * Verifies a JWS by loading possible signing keys from headers or lookup callbacks.
  * Use for validating incoming JWS objects in verification flows.
  */
-class VerifyJwsObject(
+class VerifyJwsObject @JvmOverloads constructor(
     val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(),
     /**
      * Need to implement if JSON web keys in JWS headers are referenced by a `kid`, and need to be retrieved from
@@ -684,6 +693,71 @@ class VerifyJwsObject(
             (keys.firstOrNull { it.keyId == keyId } ?: keys.singleOrNull())
         }?.toCryptoPublicKey()?.getOrNull()
 
+}
+
+/**
+ * Verifies a JWS object and additionally validates JAdES-B-B requirements.
+ * Ensures that the JWS signature is valid using `VerifyJwsObject` and further enforces
+ * the integrity of the signing certificate chain by validating the `x5t#o`
+ * (X.509 certificate thumbprint) header parameter against the leaf certificate
+ * in the `x5c` chain
+ */
+class VerifyJwsObjectJades(
+    val verifyJwsObject: VerifyJwsObjectFun = VerifyJwsObject(),
+) : VerifyJwsObjectFun {
+
+    @Serializable
+    private data class JadesX5tO(
+        @SerialName("digAlg") val digAlg: String,
+        @SerialName("digVal") val digVal: String
+    )
+
+    override suspend operator fun invoke(jwsObject: JwsCompact): KmmResult<Verifier.Success> = catching {
+        verifyJwsObject(jwsObject).getOrThrow()
+        validateX5tO(jwsObject).getOrThrow()
+        Verifier.Success
+    }
+
+    /**
+     * Validates the 'x5t#o' parameter against the leaf certificate of the 'x5c' chain.
+     * The calculated thumbprint of the leaf certificate must match the value from `x5t#o`
+     */
+    private fun validateX5tO(jwsObject: JwsCompact): KmmResult<Unit> = catching {
+        val headerJsonStr = jwsObject.plainProtectedHeader.decodeToString()
+        val rawHeaderJson = joseCompliantSerializer.parseToJsonElement(headerJsonStr).jsonObject
+        val x5tOElement = rawHeaderJson["x5t#o"] ?: return@catching
+        val x5tO = joseCompliantSerializer.decodeFromJsonElement<JadesX5tO>(x5tOElement)
+
+        val certChain = jwsObject.jwsHeader.certificateChain
+            ?: throw IllegalArgumentException("JAdES Compliance Failure: 'x5t#o' parameter requires an 'x5c' certificate chain.")
+
+        val digestAlgorithm = parseJadesDigestAlgorithm(x5tO.digAlg)
+
+        val certBytes = certChain.leaf.encodeToDer()
+        val calculatedHash = digestAlgorithm.digest(certBytes)
+        val calculatedB64Url = calculatedHash.encodeToString(Base64UrlStrict)
+
+        require (calculatedB64Url == x5tO.digVal) {
+            "JAdES Integrity Violation: The calculated certificate thumbprint does not match 'x5t#o'."
+        }
+    }
+
+    /**
+     * Parses the JAdES digest algorithm string into a [Digest] instance.
+     * Throws [IllegalArgumentException] if the algorithm is forbidden (like SHA-256 in x5t#o) or unsupported.
+     */
+    private fun parseJadesDigestAlgorithm(alg: String): Digest {
+        return when (alg.lowercase()) {
+            "sha-256", "s256" -> throw IllegalArgumentException(
+                "JAdES Compliance Failure: 'sha-256' is forbidden in 'x5t#o'. Use 'x5t#256' instead."
+            )
+            "sha-384", "s384" -> Digest.SHA384
+            "sha-512", "s512" -> Digest.SHA512
+            else -> throw IllegalArgumentException(
+                "Unsupported JAdES digest algorithm: '$alg'. System supports 'sha-384' or 'sha-512'."
+            )
+        }
+    }
 }
 
 /**

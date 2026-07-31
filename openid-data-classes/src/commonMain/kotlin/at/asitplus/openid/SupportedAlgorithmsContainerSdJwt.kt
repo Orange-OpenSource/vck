@@ -1,9 +1,5 @@
 package at.asitplus.openid
 
-import at.asitplus.signum.indispensable.josef.JsonWebAlgorithm
-import at.asitplus.signum.indispensable.josef.JsonWebKeySet
-import at.asitplus.signum.indispensable.josef.JweAlgorithm
-import at.asitplus.signum.indispensable.josef.JweEncryption
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

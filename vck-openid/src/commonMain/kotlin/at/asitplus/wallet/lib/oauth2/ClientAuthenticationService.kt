@@ -10,6 +10,7 @@ import at.asitplus.wallet.lib.jws.VerifyJwsSignatureWithCnf
 import at.asitplus.wallet.lib.jws.VerifyJwsSignatureWithCnfFun
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidClient
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
@@ -19,10 +20,11 @@ import kotlin.time.Duration.Companion.minutes
 /**
  * Simple client authentication service for an OAuth2.0 AS.
  *
- * Implemented from
- * [OAuth 2.0 Attestation-Based Client Authentication](https://www.ietf.org/archive/id/draft-ietf-oauth-attestation-based-client-auth-05.html)
+ * Implemented from:
+ * * [OAuth 2.0 Attestation-Based Client Authentication](https://www.ietf.org/archive/id/draft-ietf-oauth-attestation-based-client-auth-05.html)
+ * * [EUDI TS3 Wallet Unit Attestation 1.5.2](https://github.com/eu-digital-identity-wallet/eudi-doc-standards-and-technical-specifications/blob/main/docs/technical-specifications/ts3-wallet-unit-attestation.md)
  */
-class ClientAuthenticationService(
+class ClientAuthenticationService @JvmOverloads constructor(
     /** Enforce client authentication as defined in OpenID4VC HAIP, i.e. with wallet attestations */
     private val enforceClientAuthentication: Boolean = false,
     /** Used to verify client attestation JWTs */

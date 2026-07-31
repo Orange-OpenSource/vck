@@ -2,7 +2,6 @@ package at.asitplus.wallet.lib.openid
 
 import at.asitplus.KmmResult
 import at.asitplus.catching
-import at.asitplus.catchingUnwrapped
 import at.asitplus.dif.PresentationDefinition
 import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.AuthenticationResponseParameters
@@ -42,6 +41,7 @@ import at.asitplus.wallet.lib.agent.Holder
 import at.asitplus.wallet.lib.agent.HolderAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.agent.SubjectCredentialStore
 import at.asitplus.wallet.lib.cbor.CoseHeaderNone
 import at.asitplus.wallet.lib.cbor.SignCoseDetached
 import at.asitplus.wallet.lib.cbor.SignCoseDetachedFun
@@ -59,6 +59,7 @@ import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidRequest
 import at.asitplus.wallet.lib.utils.DefaultMapStore
 import at.asitplus.wallet.lib.utils.MapStore
 import com.benasher44.uuid.uuid4
+import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 
 /**
@@ -71,7 +72,7 @@ import kotlin.time.Clock
  * show the information to the user,
  * and create the response in [finalizeAuthorizationResponse], and send it back to the verifier.
  */
-class OpenId4VpHolder(
+class OpenId4VpHolder @JvmOverloads constructor(
     /** Key material used to encrypt responses and sign ID tokens. */
     private val keyMaterial: KeyMaterial = EphemeralKeyWithoutCert(),
     /** Holds the credentials and creates the verifiable presentation. */
@@ -108,8 +109,23 @@ class OpenId4VpHolder(
     /** Source for random bytes, i.e., nonces for encrypted responses. */
     private val randomSource: RandomSource = RandomSource.Secure,
     /** Callback to load encryption keys for pre-registered clients. */
-    private val lookupJsonWebKeysForClient: (JsonWebKeyLookupInput) -> JsonWebKeySet? = { null }
+    private val lookupJsonWebKeysForClient: (JsonWebKeyLookupInput) -> JsonWebKeySet? = { null },
+    /**
+     * Supplies the allowed schemes for origins received with OpenID4VP DC API requests.
+     * Values may be normal URI scheme names or a specific platform-origin prefix. The provider
+     * is invoked for every request so applications can update their policy at runtime.
+     */
+    private val allowedDcApiOriginSchemes: suspend () -> Set<String> = { DEFAULT_ALLOWED_DC_API_ORIGIN_SCHEMES },
 ) {
+
+    companion object {
+        const val HTTPS_ORIGIN_SCHEME = "https"
+        const val ANDROID_APK_KEY_HASH_ORIGIN_SCHEME = "android:apk-key-hash"
+        val DEFAULT_ALLOWED_DC_API_ORIGIN_SCHEMES: Set<String> = setOf(
+            HTTPS_ORIGIN_SCHEME,
+            ANDROID_APK_KEY_HASH_ORIGIN_SCHEME,
+        )
+    }
 
     data class JsonWebKeyLookupInput(
         val clientId: String?
@@ -119,7 +135,10 @@ class OpenId4VpHolder(
         .mapNotNull { it.toJwsAlgorithm().getOrNull()?.identifier }
     private val supportedCoseAlgorithms = supportedAlgorithms
         .mapNotNull { it.toCoseAlgorithm().getOrNull()?.coseValue }
-    private val authorizationRequestValidator = AuthorizationRequestValidator(walletNonceMapStore)
+    private val authorizationRequestValidator = AuthorizationRequestValidator(
+        walletNonceMapStore = walletNonceMapStore,
+        allowedDcApiOriginSchemes = allowedDcApiOriginSchemes,
+    )
     private val authenticationResponseFactory = AuthenticationResponseFactory(
         encryptResponse = encryptJarm,
         randomSource = randomSource
@@ -127,15 +146,14 @@ class OpenId4VpHolder(
     private val presentationFactory = PresentationFactory(
         supportedAlgorithms = supportedAlgorithms,
         signDeviceAuthDetached = signDeviceAuthDetached,
-        signIdToken = signIdToken,
-        randomSource = randomSource
+        signIdToken = signIdToken
     )
 
     val metadata: OAuth2AuthorizationServerMetadata by lazy {
         OAuth2AuthorizationServerMetadata(
             issuer = clientId,
             authorizationEndpoint = authorizationEndpoint,
-            responseTypesSupported = setOf(OpenIdConstants.ID_TOKEN, OpenIdConstants.VP_TOKEN),
+            responseTypesSupported = setOf(OpenIdConstants.ID_TOKEN, VP_TOKEN),
             scopesSupported = setOf(OpenIdConstants.SCOPE_OPENID),
             idTokenSigningAlgorithmsSupportedStrings = supportedJwsAlgorithms.toSet(),
             requestObjectSigningAlgorithmsSupportedStrings = supportedJwsAlgorithms.toSet(),
@@ -192,18 +210,28 @@ class OpenId4VpHolder(
     ) = requestParser.parseRequestParameters(input)
         .getOrThrow() as RequestParametersFrom<AuthenticationRequestParameters>
 
-    /** Creates an error response for the [error], which can be sent to the verifier / relying party. */
+    @Deprecated("Use createAuthnErrorResponse with AuthorizationResponsePreparationState parameter",)
     suspend fun createAuthnErrorResponse(
         error: Throwable,
         request: RequestParametersFrom<AuthenticationRequestParameters>,
     ): KmmResult<AuthenticationResponseResult> = catching {
         authenticationResponseFactory.createAuthenticationResponse(
-            request = request,
+            state = startAuthorizationResponsePreparation(request).getOrThrow(),
             response = AuthenticationResponse.Error(
                 error = error.toOAuth2Error(request),
-                clientMetadata = request.parameters.clientMetadata,
-                jsonWebKeys = request.parameters.clientMetadata?.loadJsonWebKeySet()?.keys
-                    ?: lookupJsonWebKeysForClient(JsonWebKeyLookupInput(request.parameters.clientId))?.keys,
+            )
+        )
+    }
+
+    /** Creates an error response for the [error], which can be sent to the verifier / relying party. */
+    suspend fun createAuthnErrorResponse(
+        error: Throwable,
+        state: AuthorizationResponsePreparationState,
+    ): KmmResult<AuthenticationResponseResult> = catching {
+        authenticationResponseFactory.createAuthenticationResponse(
+            state = state,
+            response = AuthenticationResponse.Error(
+                error = error.toOAuth2Error(state.request)
             )
         )
     }
@@ -227,9 +255,9 @@ class OpenId4VpHolder(
             it.getUserSignatureCancellationException()?.let {
                 throw it // DON'T create error response for user initiated signature cancellation, just expose it
             }
-            return createAuthnErrorResponse(it, preparationState.request)
+            return createAuthnErrorResponse(it, preparationState)
         }.let {
-            authenticationResponseFactory.createAuthenticationResponse(preparationState.request, it)
+            authenticationResponseFactory.createAuthenticationResponse(preparationState, it)
         }
     }
 
@@ -266,14 +294,17 @@ class OpenId4VpHolder(
         params: RequestParametersFrom<AuthenticationRequestParameters>,
     ): KmmResult<AuthorizationResponsePreparationState> = catching {
         authorizationRequestValidator.validateAuthorizationRequest(params)
+        val loadedKeys = (params.parameters.clientMetadata?.loadJsonWebKeySet()?.keys
+            ?: lookupJsonWebKeysForClient(JsonWebKeyLookupInput(params.parameters.clientId))?.keys)
+        val jsonWebKeys = loadedKeys?.combine(params.extractLeafCertKey())
         AuthorizationResponsePreparationState(
             request = params,
             credentialPresentationRequest = params.parameters.loadCredentialRequest(),
             clientMetadata = params.parameters.clientMetadata,
-            jsonWebKeys = params.parameters.clientMetadata?.loadJsonWebKeySet()?.keys
-                ?: lookupJsonWebKeysForClient(JsonWebKeyLookupInput(params.parameters.clientId))?.keys,
+            jsonWebKeys = jsonWebKeys,
             requestObjectVerified = (params as? RequestParametersFrom.Jws)?.verified,
-            verifierInfo = params.parameters.verifierInfo
+            verifierInfo = params.parameters.verifierInfo,
+            audience = params.extractAudience(jsonWebKeys)
         )
     }
 
@@ -292,9 +323,9 @@ class OpenId4VpHolder(
             it.getUserSignatureCancellationException()?.let { userCancellationException ->
                 throw userCancellationException // DON'T create error response for user initiated signature cancellation
             }
-            return createAuthnErrorResponse(it, preparationState.request)
+            return createAuthnErrorResponse(it, preparationState)
         }.let {
-            authenticationResponseFactory.createAuthenticationResponse(preparationState.request, it)
+            authenticationResponseFactory.createAuthenticationResponse(preparationState, it)
         }
     }
 
@@ -309,22 +340,14 @@ class OpenId4VpHolder(
         credentialPresentation: CredentialPresentation? = null,
     ): KmmResult<AuthenticationResponse> = catching {
         with(state) {
-            val audience = request.extractAudience(jsonWebKeys)
-            val jsonWebKeys = jsonWebKeys?.combine(request.extractLeafCertKey())
-                ?: lookupJsonWebKeysForClient(JsonWebKeyLookupInput(request.parameters.clientId))?.keys
             val idToken = presentationFactory.createSignedIdToken(clock, keyMaterial.publicKey, request)
                 .getOrNull()
             val presentation = credentialPresentation ?: credentialPresentationRequest?.toCredentialPresentation()
             val resultContainer = presentation?.let {
                 presentationFactory.createPresentation(
+                    state = state,
                     holder = holder,
-                    request = request.parameters,
-                    audience = audience,
-                    nonce = request.parameters.nonce!!,
-                    credentialPresentation = presentation,
-                    clientMetadata = clientMetadata,
-                    jsonWebKeys = jsonWebKeys,
-                    dcApiRequestCallingOrigin = request.callingOrigin()
+                    credentialPresentation = presentation
                 ).getOrThrow()
             }
 
@@ -335,21 +358,20 @@ class OpenId4VpHolder(
                 presentationSubmission = resultContainer?.presentationSubmission,
             )
             AuthenticationResponse.Success(
-                params = parameters,
-                clientMetadata = clientMetadata,
-                jsonWebKeys = jsonWebKeys
+                params = parameters
             )
         }
     }
 
     private fun RequestParametersFrom<AuthenticationRequestParameters>.extractLeafCertKey(): JsonWebKey? =
         (this as? RequestParametersFrom.Jws<AuthenticationRequestParameters>)?.jws?.let {
-            (it as? JwsCompact)?.jwsHeader?.certificateChain?.firstOrNull()?.decodedPublicKey?.getOrNull()?.toJsonWebKey()
+            (it as? JwsCompact)?.jwsHeader?.certificateChain?.firstOrNull()?.decodedPublicKey?.getOrNull()
+                ?.toJsonWebKey()
         }
 
     suspend fun getMatchingCredentials(
         preparationState: AuthorizationResponsePreparationState,
-    ) = catchingUnwrapped {
+    ): KmmResult<CredentialMatchingResult<SubjectCredentialStore.StoreEntry>> = catching {
         when (val presentationRequest = preparationState.credentialPresentationRequest) {
             is CredentialPresentationRequest.DCQLRequest -> holder.matchDCQLQueryAgainstCredentialStoreV2(
                 dcqlQuery = presentationRequest.dcqlQuery,
@@ -389,20 +411,12 @@ class OpenId4VpHolder(
         clientJsonWebKeySet: Collection<JsonWebKey>?,
     ) = when (this) {
         is RequestParametersFrom.DcApiRequest -> "origin:$callingOrigin"
-        else -> parameters.extractAudience(clientJsonWebKeySet)
+        else -> parameters.clientId
+            ?: parameters.issuer
+            ?: clientJsonWebKeySet?.firstOrNull()
+                ?.let { it.keyId ?: it.didEncoded ?: it.jwkThumbprint }
+            ?: throw InvalidRequest("could not parse audience")
     }
-
-    @Throws(OAuth2Exception::class)
-    private fun AuthenticationRequestParameters.extractAudience(
-        clientJsonWebKeySet: Collection<JsonWebKey>?,
-    ) = clientId
-        ?: issuer
-        ?: clientJsonWebKeySet?.firstOrNull()
-            ?.let { it.keyId ?: it.didEncoded ?: it.jwkThumbprint }
-        ?: throw InvalidRequest("could not parse audience")
-
-    private fun RequestParametersFrom<AuthenticationRequestParameters>.callingOrigin() =
-        (this as? RequestParametersFrom.DcApiRequest)?.callingOrigin
 
     private fun RequestParametersFrom<AuthenticationRequestParameters>.credentialIds() =
         (this as? RequestParametersFrom.DcApiRequest)?.credentialIds

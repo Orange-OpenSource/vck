@@ -3,8 +3,8 @@
 package at.asitplus.iso
 
 import at.asitplus.signum.indispensable.cosef.CoseSigned
-import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.cosef.io.ByteStringWrapper
+import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.io.TransformingSerializerTemplate
 import io.matthewnelson.encoding.core.Decoder.Companion.decodeToByteArray

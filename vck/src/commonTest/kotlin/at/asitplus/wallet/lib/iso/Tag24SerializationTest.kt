@@ -29,7 +29,7 @@ import at.asitplus.signum.indispensable.cosef.io.Base16Strict
 import at.asitplus.signum.indispensable.cosef.io.ByteStringWrapper
 import at.asitplus.signum.indispensable.cosef.io.ByteStringWrapperSerializer
 import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
-import at.asitplus.testballoon.matrix.*
+import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.lib.agent.DummyCredentialDataProvider
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.Issuer
@@ -38,7 +38,6 @@ import at.asitplus.wallet.lib.agent.RandomSource
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.ISO_MDOC
 import at.asitplus.wallet.lib.data.rfc3986.toUri
-import at.asitplus.testballoon.matrix.matrixSuite
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.maps.shouldNotBeEmpty

@@ -61,5 +61,6 @@ sealed interface CredentialPresentationRequest {
             presentationRequest = this,
             credentialQuerySubmissions = credentialQuerySubmissions
         )
+
     }
 }

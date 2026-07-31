@@ -26,6 +26,8 @@ data class SdJwtTypeMetadataDefinition(
     val display: SdJwtTypeMetadataTypeDisplayInformationList? = null,
     @SerialName(SerialNames.CLAIMS)
     val claims: SdJwtTypeMetadataClaimInformationList? = null,
+    @SerialName(SerialNames.VCK)
+    val vckExtensions: SdJwtTypeMetadataVckExtensions? = null,
 ) {
     object SerialNames {
         const val VCT = "vct"
@@ -35,6 +37,7 @@ data class SdJwtTypeMetadataDefinition(
         const val EXTENDS_INTEGRITY = "extends#integrity"
         const val DISPLAY = "display"
         const val CLAIMS = "claims"
+        const val VCK = "vck"
     }
 
     fun toSdJwtTypeMetadata(): SdJwtTypeMetadata {
@@ -47,6 +50,7 @@ data class SdJwtTypeMetadataDefinition(
             description = description,
             display = display,
             claims = claims,
+            vckExtensions = vckExtensions,
         )
     }
 
@@ -80,7 +84,8 @@ data class SdJwtTypeMetadataDefinition(
                     }
                     childClaimInfo.extendFrom(baseClaimInfo)
                 }.values.filterNotNull()
-            }?.let(::SdJwtTypeMetadataClaimInformationList) ?: base.claims
+            }?.let(::SdJwtTypeMetadataClaimInformationList) ?: base.claims,
+            vckExtensions = vckExtensions ?: base.vckExtensions,
         )
     }
 }

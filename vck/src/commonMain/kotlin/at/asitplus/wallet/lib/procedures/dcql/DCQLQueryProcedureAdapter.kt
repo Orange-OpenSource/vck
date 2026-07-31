@@ -16,7 +16,6 @@ package at.asitplus.wallet.lib.procedures.dcql
  * see the "LICENSE" file for more details
  */
 
-import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.openid.dcql.DCQLAuthorityKeyIdentifier
 import at.asitplus.openid.dcql.DCQLCredentialClaimStructure
 import at.asitplus.openid.dcql.DCQLIsoMdocCredential
@@ -37,9 +36,11 @@ import at.asitplus.signum.indispensable.asn1.authorityKeyIdentifier_2_5_29_35
 import at.asitplus.signum.indispensable.asn1.decodeRethrowing
 import at.asitplus.signum.indispensable.asn1.encoding.Asn1
 import at.asitplus.signum.indispensable.asn1.encoding.decode
+import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.pki.X509Certificate
 import at.asitplus.wallet.lib.agent.SubjectCredentialStore
 import at.asitplus.wallet.lib.agent.Verifier
+import at.asitplus.wallet.lib.agent.Verifier.VerifyPresentationResult
 import at.asitplus.wallet.lib.data.CredentialToJsonConverter
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
 import at.asitplus.wallet.lib.jws.SdJwtSigned
@@ -47,7 +48,7 @@ import kotlin.jvm.JvmInline
 
 @JvmInline
 value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
-    fun select(
+    suspend fun select(
         credentials: List<SubjectCredentialStore.StoreEntry>
     ): DCQLQueryMatchingResult = dcqlQuery.findCredentialQueryMatches(
         availableCredentials = credentials.map {
@@ -56,45 +57,31 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
     )
 
     fun checkSubmissionRequirements(
-        queryResponse: DCQLQueryResponse<Verifier.VerifyPresentationResult>,
+        queryResponse: DCQLQueryResponse<VerifyPresentationResult>,
     ) = dcqlQuery.checkSubmissionRequirements(
         dcqlQueryResponse = queryResponse,
-        parseSdJwtCredential = {
-            it.toDCQLSdJwtCredential()
-        },
-        parseVcJwsCredential = {
-            it.toDCQLVcJwsCredential()
-        },
-        parseIsoMdocCredential = {
-            it.toDCQLIsoMdocCredential()
-        },
+        parseSdJwtCredential = { it.toDCQLSdJwtCredential() },
+        parseVcJwsCredential = { it.toDCQLVcJwsCredential() },
+        parseIsoMdocCredential = { it.toDCQLIsoMdocCredential() },
     )
 
-    private fun Verifier.VerifyPresentationResult.toDCQLSdJwtCredential(): DCQLSdJwtCredential = when (this) {
-        is Verifier.VerifyPresentationResult.SuccessSdJwt -> toDCQLCredential()
-
-        is Verifier.VerifyPresentationResult.Success,
-        is Verifier.VerifyPresentationResult.SuccessIso,
-        is Verifier.VerifyPresentationResult.SuccessUnsigned -> throw IllegalArgumentException("Cannot create DCQLSdJwtCredentialQueryResponse from validation result $this")
+    private fun VerifyPresentationResult.toDCQLSdJwtCredential(): DCQLSdJwtCredential = when (this) {
+        is VerifyPresentationResult.SuccessSdJwt -> toDCQLCredential()
+        else -> throw IllegalArgumentException("Cannot create DCQLSdJwtCredential from validation result $this")
     }
 
-    private fun Verifier.VerifyPresentationResult.toDCQLVcJwsCredential(): DCQLVcJwsCredential = when (this) {
-        is Verifier.VerifyPresentationResult.Success -> toDCQLCredential()
-        is Verifier.VerifyPresentationResult.SuccessUnsigned -> toDCQLCredential()
-
-        is Verifier.VerifyPresentationResult.SuccessSdJwt,
-        is Verifier.VerifyPresentationResult.SuccessIso -> throw IllegalArgumentException("Cannot create DCQLSdJwtCredentialQueryResponse from validation result $this")
+    private fun VerifyPresentationResult.toDCQLVcJwsCredential(): DCQLVcJwsCredential = when (this) {
+        is VerifyPresentationResult.Success -> toDCQLCredential()
+        is VerifyPresentationResult.SuccessUnsigned -> toDCQLCredential()
+        else -> throw IllegalArgumentException("Cannot create DCQLVcJwsCredential from validation result $this")
     }
 
-    private fun Verifier.VerifyPresentationResult.toDCQLIsoMdocCredential(): DCQLIsoMdocCredential = when (this) {
-        is Verifier.VerifyPresentationResult.SuccessIso -> toDCQLCredential()
-
-        is Verifier.VerifyPresentationResult.Success,
-        is Verifier.VerifyPresentationResult.SuccessSdJwt,
-        is Verifier.VerifyPresentationResult.SuccessUnsigned -> throw IllegalArgumentException("Cannot create DCQLSdJwtCredentialQueryResponse from validation result $this")
+    private fun VerifyPresentationResult.toDCQLIsoMdocCredential(): DCQLIsoMdocCredential = when (this) {
+        is VerifyPresentationResult.SuccessIso -> toDCQLCredential()
+        else -> throw IllegalArgumentException("Cannot create DCQLIsoMdocCredential from validation result $this")
     }
 
-    private fun Verifier.VerifyPresentationResult.SuccessUnsigned.toDCQLCredential(): DCQLVcJwsCredential {
+    private fun VerifyPresentationResult.SuccessUnsigned.toDCQLCredential(): DCQLVcJwsCredential {
         require(vc.freshnessSummary.isFresh) {
             "Expected credential to be fresh, but was ${vc.freshnessSummary}"
         }
@@ -108,7 +95,7 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
         )
     }
 
-    private fun Verifier.VerifyPresentationResult.Success.toDCQLCredential(): DCQLVcJwsCredential {
+    private fun VerifyPresentationResult.Success.toDCQLCredential(): DCQLVcJwsCredential {
         require(vp.invalidVerifiableCredentials.isEmpty()) {
             "Expected only valid verifiable credentials, but got invalid credentials ${vp.invalidVerifiableCredentials}"
         }
@@ -132,7 +119,7 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
         )
     }
 
-    private fun Verifier.VerifyPresentationResult.SuccessIso.toDCQLCredential(): DCQLIsoMdocCredential {
+    private fun VerifyPresentationResult.SuccessIso.toDCQLCredential(): DCQLIsoMdocCredential {
         require(documents.size == 1) {
             "Expected only one document per credential, but received ${documents.size}: $documents"
         }
@@ -153,7 +140,7 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
         )
     }
 
-    private fun Verifier.VerifyPresentationResult.SuccessSdJwt.toDCQLCredential() = DCQLSdJwtCredential(
+    private fun VerifyPresentationResult.SuccessSdJwt.toDCQLCredential() = DCQLSdJwtCredential(
         claimStructure = DCQLCredentialClaimStructure.JsonBasedStructure(reconstructedJsonObject),
         satisfiesCryptographicHolderBinding = verifiableCredentialSdJwt.confirmationClaim != null,
         authorityKeyIdentifiers = sdJwtSigned.jws.jwsHeader.certificateChain?.flatMap {
@@ -163,13 +150,13 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
     )
 
 
-    private fun SubjectCredentialStore.StoreEntry.toDCQLCredential() = when (this) {
+    private suspend fun SubjectCredentialStore.StoreEntry.toDCQLCredential() = when (this) {
         is SubjectCredentialStore.StoreEntry.Iso -> toDCQLCredential()
         is SubjectCredentialStore.StoreEntry.SdJwt -> toDCQLCredential()
         is SubjectCredentialStore.StoreEntry.Vc -> toDCQLCredential()
     }
 
-    private fun SubjectCredentialStore.StoreEntry.Iso.toDCQLCredential() = DCQLIsoMdocCredential(
+    private suspend fun SubjectCredentialStore.StoreEntry.Iso.toDCQLCredential() = DCQLIsoMdocCredential(
         claimStructure = DCQLCredentialClaimStructure.IsoMdocStructure(
             issuerSigned.namespaces?.mapValues { entry ->
                 entry.value.entries.associate {
@@ -181,7 +168,7 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
         authorityKeyIdentifiers = issuerSigned.issuerAuth.unprotectedHeader?.certificateChain?.flatMap {
             X509Certificate.decodeFromByteArray(it)?.getAuthorityKeyIdentifier() ?: listOf()
         } ?: listOf(),
-        documentType = scheme!!.isoDocType!!
+        documentType = schemeIdentifier ?: issuerSigned.issuerAuth.payload?.docType ?: resolveScheme().isoDocType!!
     )
 
     private fun SubjectCredentialStore.StoreEntry.SdJwt.toDCQLCredential() = DCQLSdJwtCredential(
@@ -194,7 +181,7 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
         ).getOrThrow().jws.jwsHeader.certificateChain?.flatMap {
             it.getAuthorityKeyIdentifier()
         } ?: listOf(),
-        type = scheme!!.sdJwtType!!
+        type = sdJwt.verifiableCredentialType,
     )
 
     private fun SubjectCredentialStore.StoreEntry.Vc.toDCQLCredential() = DCQLVcJwsCredential(
@@ -222,7 +209,7 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
 /**
  * To be moved into Signum.
  *
- * [RFC 5280 4.2.1.1. Authority Key Identifier](https://www.rfc-editor.org/rfc/rfc5280.html#section-4.2.1.1)
+ * [RFC 5280 4.2.1.1. Authority Key Identifier](https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1)
  * ```
  *    id-ce-authorityKeyIdentifier OBJECT IDENTIFIER ::=  { id-ce 35 }
  *
