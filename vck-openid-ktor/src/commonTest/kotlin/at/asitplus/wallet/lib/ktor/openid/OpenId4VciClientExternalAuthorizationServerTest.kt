@@ -11,6 +11,7 @@ import at.asitplus.openid.SupportedCredentialFormatIsoMdoc
 import at.asitplus.openid.SupportedCredentialFormatSdJwt
 import at.asitplus.openid.TokenIntrospectionRequest
 import at.asitplus.openid.TokenRequestParameters
+import at.asitplus.signum.indispensable.Digest
 import at.asitplus.signum.indispensable.josef.io.joseCompliantSerializer
 import at.asitplus.testballoon.matrix.matrixSuite
 import at.asitplus.wallet.eupid.EU_PID_DOCTYPE
@@ -33,7 +34,6 @@ import at.asitplus.wallet.lib.data.CredentialScheme
 import at.asitplus.wallet.lib.data.IsoMdocCredentialScheme
 import at.asitplus.wallet.lib.data.SdJwtCredentialScheme
 import at.asitplus.wallet.lib.data.rfc3986.toUri
-import at.asitplus.wallet.lib.extensions.supportedSdAlgorithms
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.ktor.openid.TestUtils.dummyUser
@@ -105,7 +105,7 @@ val OpenId4VciClientExternalAuthorizationServerTest by matrixSuite {
                         it.credentialScheme as SdJwtCredentialScheme,
                         it.subjectPublicKey,
                         OidcUserInfoExtended.fromOidcUserInfo(OidcUserInfo("subject")).getOrThrow(),
-                        sdAlgorithm = supportedSdAlgorithms.random()
+                        sdAlgorithm = Digest.SHA256
                     )
 
                     ISO_MDOC -> Iso(
