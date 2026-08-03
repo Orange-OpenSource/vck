@@ -16,6 +16,7 @@ Release 8.0.0 (unreleased):
     - Add `Holder.matchPresentationRequestAgainstCredentialStore()` as a protocol-neutral matching entry point and move `CredentialMatchingResult` with its `DCQLMatchingResult`, `IsoDeviceRetrievalMatchingResult`, and deprecated `PresentationExchangeMatchingResult` subtypes from `vck-openid` to `vck`
     - Extract format-specific submission resolution, validation, and response creation from `HolderAgent` into an internal presentation response coordinator
     - Deprecate format specific methods in `Holder`, all to be replaced with `matchPresentationRequestAgainstCredentialStore()`: `matchInputDescriptorsAgainstCredentialStoreV2()`, `matchDeviceRetrievalAgainstCredentialStore()`, `evaluateInputDescriptorAgainstCredential()`, `matchDCQLQueryAgainstCredentialStoreV2()`
+    - Match non-fully specified COSE algorithms with fully specified ones
 - Deprecations:
     - Remove code deprecated in 7.0.0, e.g. various `Iso180137AnnexC*` and related classes
     - Support all classes used for Presentation Exchange requests and so on, e.g., `CredentialPresentationRequest.PresentationExchangeRequest` or `PresentationExchangeCredentialDisclosure` or `CredentialPresentation.PresentationExchangePresentation`
