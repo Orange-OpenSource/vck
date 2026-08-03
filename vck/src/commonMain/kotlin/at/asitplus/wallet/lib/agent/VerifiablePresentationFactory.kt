@@ -63,13 +63,15 @@ class VerifiablePresentationFactory(
     private val signKeyBinding: SignJwtFun<KeyBindingJws> =
         SignJwt(keyMaterial, JwsHeaderNone()),
 ) {
-
+    @Deprecated("Use createVerifiablePresentation(request, isoPresentationParameters) instead")
     suspend fun createVerifiablePresentation(
         request: PresentationRequestParameters,
         credentialAndDisclosedAttributes: Map<StoreEntry.Iso, Collection<NormalizedJsonPath>>,
     ): KmmResult<CreatePresentationResult.DeviceResponse> = createVerifiablePresentation(
         request = request,
-        credentialAndDisclosedAttributes = credentialAndDisclosedAttributes.entries.map { it.key to it.value },
+        isoPresentationParameters = credentialAndDisclosedAttributes.map { (credential, claims) ->
+            IsoPresentationParameters.create(credential, claims).getOrThrow()
+        }
     )
 
     /**
@@ -78,11 +80,11 @@ class VerifiablePresentationFactory(
      */
     suspend fun createVerifiablePresentation(
         request: PresentationRequestParameters,
-        credentialAndDisclosedAttributes: Collection<Pair<StoreEntry.Iso, Collection<NormalizedJsonPath>>>,
+        isoPresentationParameters: Collection<IsoPresentationParameters>,
     ): KmmResult<CreatePresentationResult.DeviceResponse> = catching {
         createIsoPresentation(
             request = request,
-            credentialAndRequestedClaims = credentialAndDisclosedAttributes,
+            isoPresentationParameters = isoPresentationParameters,
         )
     }
 
@@ -90,6 +92,7 @@ class VerifiablePresentationFactory(
         request: PresentationRequestParameters,
         credential: StoreEntry,
         disclosedAttributes: Collection<NormalizedJsonPath>,
+        zkMetadata: ZkMetadata? = null
     ): KmmResult<CreatePresentationResult> = catching {
         when (credential) {
             is StoreEntry.Vc -> createVcPresentation(
@@ -105,7 +108,11 @@ class VerifiablePresentationFactory(
 
             is StoreEntry.Iso -> createIsoPresentation(
                 request = request,
-                credentialAndRequestedClaims = listOf(credential to disclosedAttributes),
+                isoPresentationParameters = listOf(IsoPresentationParameters.create(
+                    credential = credential,
+                    claims = disclosedAttributes,
+                    zkMetadata = zkMetadata
+                ).getOrThrow()),
             )
         }
     }
@@ -114,6 +121,7 @@ class VerifiablePresentationFactory(
         request: PresentationRequestParameters,
         credential: StoreEntry,
         disclosedAttributes: DCQLCredentialQueryMatchingResult,
+        zkMetadata: ZkMetadata? = null
     ): KmmResult<CreatePresentationResult> = catching {
         when (credential) {
             is StoreEntry.Vc -> if (disclosedAttributes !is AllClaimsMatchingResult) {
@@ -131,8 +139,8 @@ class VerifiablePresentationFactory(
 
             is StoreEntry.Iso -> createIsoPresentation(
                 request = request,
-                credentialAndRequestedClaims = listOf(
-                    credential to disclosedAttributes.toRequestedIsoClaims(credential)
+                isoPresentationParameters = listOf(IsoPresentationParameters.create(
+                    credential, disclosedAttributes.toRequestedIsoClaims(credential), zkMetadata).getOrThrow()
                 ),
             )
         }
@@ -176,11 +184,11 @@ class VerifiablePresentationFactory(
 
     private suspend fun createIsoPresentation(
         request: PresentationRequestParameters,
-        credentialAndRequestedClaims: Collection<Pair<StoreEntry.Iso, Collection<NormalizedJsonPath>>>,
+        isoPresentationParameters: Collection<IsoPresentationParameters>,
     ) = CreatePresentationResult.DeviceResponse(
         deviceResponse = DeviceResponse(
             parsedVersion = Version(1, 0),
-            documents = credentialAndRequestedClaims.map { (credential, requestedClaims) ->
+            documents = isoPresentationParameters.map { (credential, requestedClaims) ->
                 credential.discloseRequestedClaims(requestedClaims, request)
             }.toTypedArray(),
             status = 0U,
