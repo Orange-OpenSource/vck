@@ -134,7 +134,7 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
             val session = scope.verifier.consumeChallenge(request.nonce)
             presentationResults.shouldHaveSize(2).forEach { result ->
                 result.shouldBeInstanceOf<CreatePresentationResult.DeviceResponse>()
-                session.verifyPresentationIsoMdoc(result.deviceResponse, documentVerifier()).getOrThrow()
+                session.verifyPresentationIsoMdoc(result.deviceResponse) { documentVerifier() }.getOrThrow()
                     .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>().apply {
                         documents.shouldBeSingleton().forEach {
                             it.freshnessSummary.tokenStatusValidationResult
@@ -145,7 +145,7 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
             presentationResults
                 .filterIsInstance<CreatePresentationResult.DeviceResponse>()
                 .map { resp ->
-                    session.verifyPresentationIsoMdoc(resp.deviceResponse, documentVerifier()).getOrThrow()
+                    session.verifyPresentationIsoMdoc(resp.deviceResponse) { documentVerifier() }.getOrThrow()
                 }
                 .flatMap { it.shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>().documents }
                 .flatMap { it.validItems }.apply {
@@ -200,7 +200,7 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.DeviceRetrievalParameters>()
 
             it.verifier.consumeChallenge(request.nonce)
-                .verifyPresentationIsoMdoc(result.deviceResponse, documentVerifier()).getOrThrow()
+                .verifyPresentationIsoMdoc(result.deviceResponse) { documentVerifier() }.getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>()
                 .documents.shouldHaveSize(2).flatMap { it.validItems }.apply {
                     first { it.elementIdentifier == CLAIM_GIVEN_NAME }.elementValue shouldBe "Susanne"

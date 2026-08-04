@@ -22,8 +22,10 @@ import kotlin.jvm.JvmOverloads
  * verify the presentations of that response with the [ChallengeSession] it returns.
  *
  * This is deliberately not a [Verifier] itself, so that a presentation cannot be verified without accounting for
- * the challenge it answers. [verifier] is the plain [Verifier] to use where a challenge is out of scope, e.g. ISO
- * mdoc responses that are bound through their session transcript, and [nonceService] is the raw nonce store.
+ * the challenge it answers: the [ChallengeSession] passes the challenge to the SD-JWT and VC-JWT verification of
+ * the delegate, and hands it to the caller-provided factory that builds the mdoc device signature check, which
+ * binds it through the session transcript. [verifier] is the plain [Verifier] to use where a challenge is out of
+ * scope, e.g. ISO/IEC 18013-7 Annex C responses, and [nonceService] is the raw nonce store.
  *
  * The deprecated `verifyPresentation*` methods here instead take the challenge from the presentation itself and
  * accept it as long as it is still known to [nonceService], i.e. a presentation created for one request also
@@ -136,7 +138,7 @@ class NonceChallengeVerifier @JvmOverloads constructor(
      * A response may contain several presentations, but they all answer the single [challenge] of the request,
      * so it is verified and consumed once, in [consumeChallenge], and not per presentation.
      */
-    inner class ChallengeSession internal constructor(val challenge: String) {
+    inner class ChallengeSession internal constructor(internal val challenge: String) {
 
         /** @see Verifier.verifyPresentationSdJwt */
         suspend fun verifyPresentationSdJwt(
@@ -165,12 +167,17 @@ class NonceChallengeVerifier @JvmOverloads constructor(
             input: String,
         ): KmmResult<VerifyPresentationResult.SuccessUnsigned> = verifier.verifyUnsignedVcJws(input)
 
-        /** @see Verifier.verifyPresentationIsoMdoc */
+        /**
+         * @param verifyDocument Builds the check for the mdoc device signature from the [challenge] that the
+         * presentations of this response answer, e.g. from the session transcript binding it, see
+         * [at.asitplus.wallet.lib.MdocDeviceSignatureVerifier].
+         * @see Verifier.verifyPresentationIsoMdoc
+         */
         suspend fun verifyPresentationIsoMdoc(
             input: DeviceResponse,
-            verifyDocument: suspend (MobileSecurityObject, Document) -> Boolean,
+            verifyDocument: (challenge: String) -> suspend (MobileSecurityObject, Document) -> Boolean,
         ): KmmResult<VerifyPresentationResult.SuccessIso> =
-            verifier.verifyPresentationIsoMdoc(input, verifyDocument)
+            verifier.verifyPresentationIsoMdoc(input, verifyDocument(challenge))
     }
 
     /** Consume only after delegated verification succeeds, so failed attempts do not burn a valid challenge. */

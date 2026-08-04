@@ -165,17 +165,18 @@ internal class VpTokenValidator(
             ClaimFormat.MSO_MDOC -> session.verifyPresentationIsoMdoc(
                 input = relatedPresentation.extractContent().decodeToByteArray(Base64UrlStrict)
                     .let { coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(it) },
-                verifyDocument = mdocDeviceSignatureVerifier.verifyDocument(
+            ) { challenge ->
+                mdocDeviceSignatureVerifier.verifyDocument(
                     sessionTranscript = createSessionTranscript(
                         clientId = clientId,
-                        nonce = session.challenge,
+                        nonce = challenge,
                         responseUrl = responseUrl,
                         clientIdRequired = clientIdRequired,
                         origin = origin,
                         recipientKey = if (input.hasBeenEncrypted) decryptionKeyMaterial.jsonWebKey else null,
                     )
                 )
-            )
+            }
 
             else -> throw IllegalArgumentException("descriptor.format: $claimFormat")
         }.getOrThrow()
