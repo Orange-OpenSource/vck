@@ -165,7 +165,7 @@ val OpenId4VpSdJwtProtocolTest by matrixSuite {
             // restore the stored request, so only the consumed challenge can reject the genuine response
             it.stateToAuthnRequestStore.put(state, storedRequest)
             it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
-                .exceptionOrNull().shouldNotBeNull().message shouldContain "nonce not valid"
+                .exceptionOrNull().shouldNotBeNull().message shouldContain "nonce invalid or already used"
         }
 
         "Selective Disclosure with EU PID credential" {

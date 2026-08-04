@@ -44,6 +44,7 @@ import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.runBlocking
 
@@ -122,7 +123,8 @@ val ValidatorVpTest by matrixSuite {
 
             val vp = presentationParameters.verifiablePresentations.values.first().first()
                 .shouldBeInstanceOf<CreatePresentationResult.VpJws>()
-            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow()
+            it.verifier.consumeChallenge(request.nonce)
+                .verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow()
         }
 
         "Presentation of VC from different holder is detected" {
@@ -139,7 +141,8 @@ val ValidatorVpTest by matrixSuite {
                 request,
             ).shouldBeInstanceOf<CreatePresentationResult.VpJws>()
 
-            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow().also {
+            it.verifier.consumeChallenge(request.nonce)
+                .verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow().also {
                 it.vp.freshVerifiableCredentials.shouldBeEmpty()
                 it.vp.notVerifiablyFreshVerifiableCredentials.shouldBeEmpty()
                 it.vp.invalidVerifiableCredentials.shouldBe(holderVc.map { it.vcSerialized })
@@ -147,6 +150,7 @@ val ValidatorVpTest by matrixSuite {
         }
 
         "wrong challenge in VP leads to error" {
+            val request = it.verifier.createPresentationRequest()
             val presentationParameters = it.holder.createPresentation(
                 request = PresentationRequestParameters(nonce = "challenge", audience = it.verifierId),
                 credentialPresentation = singularDcqlPresentation,
@@ -155,8 +159,9 @@ val ValidatorVpTest by matrixSuite {
             val vp = presentationParameters.verifiablePresentations.values.firstOrNull()?.firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.VpJws>()
             shouldThrowAny {
-                it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow()
-            }
+                it.verifier.consumeChallenge(request.nonce)
+                    .verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow()
+            }.message shouldContain "nonce invalid"
         }
 
         "wrong audience in VP leads to error" {
@@ -169,7 +174,8 @@ val ValidatorVpTest by matrixSuite {
             val vp = presentationParameters.verifiablePresentations.values.first().first()
                 .shouldBeInstanceOf<CreatePresentationResult.VpJws>()
             shouldThrowAny {
-                it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow()
+                it.verifier.consumeChallenge(request.nonce)
+                    .verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow()
             }
         }
 
@@ -193,7 +199,8 @@ val ValidatorVpTest by matrixSuite {
                     ) shouldBe true
                 }
 
-            it.verifier.verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow().also {
+            it.verifier.consumeChallenge(request.nonce)
+                .verifyPresentationVcJwt(vp.jwsSigned.shouldNotBeNull()).getOrThrow().also {
                 it.shouldBeInstanceOf<VerifyPresentationResult.Success>()
                 it.vp.freshVerifiableCredentials.shouldBeEmpty()
             }
@@ -224,7 +231,7 @@ val ValidatorVpTest by matrixSuite {
                 VerifiablePresentationJws.serializer()
             ).getOrThrow()
 
-            it.verifier.verifyPresentationVcJwt(vpJws).getOrThrow()
+            it.verifier.consumeChallenge(request.nonce).verifyPresentationVcJwt(vpJws).getOrThrow()
                 .shouldBeInstanceOf<VerifyPresentationResult.Success>()
         }
 
@@ -251,7 +258,7 @@ val ValidatorVpTest by matrixSuite {
                 VerifiablePresentationJws.serializer()
             ).getOrThrow()
 
-            it.verifier.verifyPresentationVcJwt(vpJws).getOrThrow()
+            it.verifier.consumeChallenge(request.nonce).verifyPresentationVcJwt(vpJws).getOrThrow()
                 .shouldBeInstanceOf<VerifyPresentationResult.Success>()
         }
 
@@ -274,7 +281,7 @@ val ValidatorVpTest by matrixSuite {
             ).getOrThrow()
 
             shouldThrowAny {
-                it.verifier.verifyPresentationVcJwt(vpJws).getOrThrow()
+                it.verifier.consumeChallenge(request.nonce).verifyPresentationVcJwt(vpJws).getOrThrow()
             }
         }
 
@@ -300,7 +307,7 @@ val ValidatorVpTest by matrixSuite {
             ).getOrThrow()
 
             shouldThrowAny {
-                it.verifier.verifyPresentationVcJwt(vpJws).getOrThrow()
+                it.verifier.consumeChallenge(request.nonce).verifyPresentationVcJwt(vpJws).getOrThrow()
             }
         }
     }

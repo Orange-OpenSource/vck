@@ -40,6 +40,7 @@ import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.NonceChallengeVerifier
+import at.asitplus.wallet.lib.agent.NonceChallengeVerifier.ChallengeSession
 import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKey
@@ -121,7 +122,6 @@ class DcApiVerifier @JvmOverloads constructor(
         supportedJweEncryptionAlgorithms = supportedJweEncryptionAlgorithms,
     )
     private val vpTokenValidator = VpTokenValidator(
-        nonceAwareVerifier = nonceAwareVerifier,
         mdocDeviceSignatureVerifier = mdocDeviceSignatureVerifier,
         createSessionTranscript = DcApiSessionTranscriptCalculator(),
         decryptionKeyMaterial = decryptionKeyMaterial,
@@ -276,11 +276,11 @@ class DcApiVerifier @JvmOverloads constructor(
         Napier.d("validateAuthnResponse: $input")
         val authnRequest = requestFactory.loadAuthnRequest(input, externalId)
 
-        val expectedNonce = authnRequest.nonce
-            ?: throw IllegalArgumentException("nonce not present in ${authnRequest}")
-        require(nonceAwareVerifier.verifyAndRemoveNonce(expectedNonce)) {
-            "nonce not valid: $expectedNonce, not known to us"
-        }
+        // the request has been consumed above, and an authentication response is not retryable,
+        // so end the challenge's lifecycle here, no matter how validating the response turns out
+        val session = nonceAwareVerifier.consumeChallenge(
+            authnRequest.nonce ?: throw IllegalArgumentException("nonce not present in $authnRequest")
+        )
 
         val responseType = authnRequest.responseType?.let { ResponseType(it) }
         require(responseType != null) {
@@ -292,7 +292,7 @@ class DcApiVerifier @JvmOverloads constructor(
 
         AuthnResponseResult(
             idTokenValidationResult = null,
-            vpTokenValidationResult = validateVpToken(authnRequest, input, expectedOrigin),
+            vpTokenValidationResult = validateVpToken(authnRequest, input, expectedOrigin, session),
             request = authnRequest,
         )
     }
@@ -353,6 +353,7 @@ class DcApiVerifier @JvmOverloads constructor(
         authnRequest: AuthenticationRequestParameters,
         responseParameters: ResponseParametersFrom,
         expectedOrigin: String,
+        session: ChallengeSession,
     ): KmmResult<VpTokenValidationResult> = catching {
         val originalResponseParameters = responseParameters.originalResponseParameters
         require(originalResponseParameters is ResponseParametersFrom.DcApi) {
@@ -368,6 +369,7 @@ class DcApiVerifier @JvmOverloads constructor(
             authnRequest = authnRequest,
             responseParameters = responseParameters,
             origin = expectedOrigin,
+            session = session,
         ).getOrThrow()
     }
 

@@ -19,6 +19,7 @@ import at.asitplus.wallet.lib.NonceService
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.NonceChallengeVerifier
+import at.asitplus.wallet.lib.agent.NonceChallengeVerifier.ChallengeSession
 import at.asitplus.wallet.lib.agent.Verifier
 import at.asitplus.wallet.lib.agent.VerifierAgent
 import at.asitplus.wallet.lib.cbor.VerifyCoseSignatureWithKey
@@ -95,7 +96,6 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         supportedJweEncryptionAlgorithms = supportedJweEncryptionAlgorithms,
     )
     private val vpTokenValidator = VpTokenValidator(
-        nonceAwareVerifier = nonceAwareVerifier,
         mdocDeviceSignatureVerifier = MdocDeviceSignatureVerifier(verifyCoseSignature = verifyCoseSignature),
         createSessionTranscript = UrlSessionTranscriptCalculator(),
         decryptionKeyMaterial = decryptionKeyMaterial
@@ -215,11 +215,11 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         Napier.d("validateAuthnResponse: $input")
         val authnRequest = requestFactory.loadAuthnRequest(input)
 
-        val expectedNonce = authnRequest.nonce
-            ?: throw IllegalArgumentException("nonce not present in $authnRequest")
-        require(nonceAwareVerifier.verifyAndRemoveNonce(expectedNonce)) {
-            "nonce not valid: $expectedNonce, not known to us"
-        }
+        // the request has been consumed above, and an authentication response is not retryable,
+        // so end the challenge's lifecycle here, no matter how validating the response turns out
+        val session = nonceAwareVerifier.consumeChallenge(
+            authnRequest.nonce ?: throw IllegalArgumentException("nonce not present in $authnRequest")
+        )
 
         val responseType = authnRequest.responseType?.let { ResponseType(it) }
         require(responseType != null) {
@@ -231,7 +231,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
 
         AuthnResponseResult(
             idTokenValidationResult = null,
-            vpTokenValidationResult = validateVpToken(authnRequest, input),
+            vpTokenValidationResult = validateVpToken(authnRequest, input, session),
             request = authnRequest,
         )
     }
@@ -244,6 +244,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
     private suspend fun validateVpToken(
         authnRequest: AuthenticationRequestParameters,
         responseParameters: ResponseParametersFrom,
+        session: ChallengeSession,
     ): KmmResult<VpTokenValidationResult> = catching {
         require(responseParameters.originalResponseParameters !is ResponseParametersFrom.DcApi) {
             "DCAPI verification is not supported, use DcApiVerifier"
@@ -252,6 +253,7 @@ class OpenId4VpVerifier @JvmOverloads constructor(
             authnRequest = authnRequest,
             responseParameters = responseParameters,
             origin = null,
+            session = session,
         ).getOrThrow()
     }
 }

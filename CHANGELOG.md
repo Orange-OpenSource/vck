@@ -31,12 +31,13 @@ Release 8.0.0 (unreleased):
     - Deprecate all classes used for Presentation Exchange requests and so on, e.g., `CredentialPresentationRequest.PresentationExchangeRequest` or `PresentationExchangeCredentialDisclosure` or `CredentialPresentation.PresentationExchangePresentation`
     - Deprecate member `invalidItems` in `IsoDocumentParsed`, method `ValidatorMdoc.verifyDocument()` will throw instead of filling invalid items
     - In `ProofValidator` deprecate constructor argument `verifyAttestationProof`, replace with `statusListTokenResolver` and `keyAttestationIssuer`
+    - In `NonceChallengeVerifier` deprecate `verifyPresentationSdJwt()`, `verifyPresentationVcJwt()` and `verifyPresentationIsoMdoc()`, which take the challenge from the presentation itself, to be replaced with `consumeChallenge()` and the returned `ChallengeSession`
 - Refactorings:
     - In ISO data classes like `DeviceResponse`, `DeviceRequest`, `MobileSecurityObject` replace the String `version` with a typed `parsedVersion` from [kotlin-semver](https://github.com/z4kn4fein/kotlin-semver)
     - In ISO data class `MobileSecurityObject` replace the String `digestAlgorithm` with a typed `digest` from Signum
     - In `CredentialToBeIssued.Iso` add a property to specify the digest algorithm to be used in the MSO
-- Misc:
     - Add method `getCertificateChain` to class `KeyStoreMaterial`
+    - In `NonceChallengeVerifier` add `consumeChallenge()`, which consumes the challenge of the request an authentication response refers to and returns a `NonceChallengeVerifier.ChallengeSession` to verify all presentations of that response with, as used by `OpenId4VpVerifier` and `DcApiVerifier`
 
 Release 7.0.0:
 - Credential definitions:

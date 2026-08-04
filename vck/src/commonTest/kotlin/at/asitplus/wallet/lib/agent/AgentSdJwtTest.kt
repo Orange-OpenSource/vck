@@ -41,6 +41,7 @@ import com.benasher44.uuid.uuid4
 import io.kotest.assertions.throwables.shouldThrowAny
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldNotBeInstanceOf
 import kotlinx.coroutines.runBlocking
@@ -111,7 +112,7 @@ val AgentSdJwtTest by matrixSuite {
                 validSdJwtCredential = credential,
                 claimName = CLAIM_GIVEN_NAME
             )
-            it.verifier.verifyPresentationSdJwt(sdJwt.sdJwt).getOrThrow()
+            it.verifier.consumeChallenge(request.nonce).verifyPresentationSdJwt(sdJwt.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     reconstructedJsonObject.keys shouldContain CLAIM_GIVEN_NAME
                     freshnessSummary.tokenStatusValidationResult
@@ -138,7 +139,7 @@ val AgentSdJwtTest by matrixSuite {
             val vp = presentationParameters.verifiablePresentations.values.flatten().firstOrNull()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
+            it.verifier.consumeChallenge(request.nonce).verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>().apply {
                     reconstructedJsonObject[CLAIM_GIVEN_NAME]?.jsonPrimitive?.content shouldBe "Susanne"
                     reconstructedJsonObject[CLAIM_DATE_OF_BIRTH]?.jsonPrimitive?.content shouldBe "1990-01-01"
@@ -167,7 +168,7 @@ val AgentSdJwtTest by matrixSuite {
             val malformedVpSdJwt = vp.serialized.replaceAfterLast("~", freshKbJwt.substringAfterLast("~"))
 
             shouldThrowAny {
-                it.verifier.verifyPresentationSdJwt(
+                it.verifier.consumeChallenge(request.nonce).verifyPresentationSdJwt(
                     SdJwtSigned.parseCatching(malformedVpSdJwt).getOrThrow(),
                 ).getOrThrow()
             }
@@ -194,8 +195,8 @@ val AgentSdJwtTest by matrixSuite {
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
             shouldThrowAny {
-                it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
-            }
+                it.verifier.consumeChallenge(request.nonce).verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
+            }.message shouldContain "Challenge not correct"
         }
 
         "dcql: revoked sd jwt" {
@@ -222,7 +223,7 @@ val AgentSdJwtTest by matrixSuite {
                         storeEntry.sdJwt.statusElement.shouldBeInstanceOf<StatusListInfo>().index,
                     ) shouldBe true
                 }
-            it.verifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
+            it.verifier.consumeChallenge(request.nonce).verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .freshnessSummary.tokenStatusValidationResult
                 .shouldBeInstanceOf<TokenStatusValidationResult.Invalid>()
@@ -264,7 +265,7 @@ val AgentSdJwtTest by matrixSuite {
             val vp = presentationParameters.verifiablePresentations.values.first().first()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            haipVerifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
+            haipVerifier.consumeChallenge(request.nonce).verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .freshnessSummary.tokenStatusValidationResult
                 .shouldBeInstanceOf<TokenStatusValidationResult.Valid>()
@@ -314,7 +315,8 @@ val AgentSdJwtTest by matrixSuite {
             val vp = presentationParameters.verifiablePresentations.values.first().first()
                 .shouldBeInstanceOf<CreatePresentationResult.SdJwt>()
 
-            val test = haipVerifier.verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
+            val test = haipVerifier.consumeChallenge(request.nonce)
+                .verifyPresentationSdJwt(vp.sdJwt).getOrThrow()
 
             test.shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessSdJwt>()
                 .freshnessSummary.tokenStatusValidationResult

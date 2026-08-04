@@ -16,7 +16,7 @@ import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.wallet.lib.MdocDeviceSignatureVerifier
 import at.asitplus.wallet.lib.agent.KeyMaterial
-import at.asitplus.wallet.lib.agent.Verifier
+import at.asitplus.wallet.lib.agent.NonceChallengeVerifier.ChallengeSession
 import at.asitplus.wallet.lib.agent.Verifier.VerifyPresentationResult
 import at.asitplus.wallet.lib.data.VerifiablePresentationJws
 import at.asitplus.wallet.lib.jws.SdJwtSigned
@@ -40,8 +40,6 @@ import kotlin.coroutines.cancellation.CancellationException
  * the injected [SessionTranscriptCalculator].
  */
 internal class VpTokenValidator(
-    /** Verifies the presentations in the response; the verifiers pass their [at.asitplus.wallet.lib.agent.NonceChallengeVerifier]. */
-    private val nonceAwareVerifier: Verifier,
     /** Verifies the mdoc device signature against the session transcript. */
     private val mdocDeviceSignatureVerifier: MdocDeviceSignatureVerifier,
     /** Calculates the ISO session transcript for the transport the response was received over. */
@@ -56,15 +54,16 @@ internal class VpTokenValidator(
      * as referenced by [OpenID for VP](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html).
      *
      * [origin] is the calling origin from the W3C Digital Credentials API, or `null` for URL/QR transport.
+     *
+     * [session] is the consumed challenge of [authnRequest], which all presentations of the response answer.
      */
     @Throws(IllegalArgumentException::class, CancellationException::class)
     suspend fun validateVpToken(
         authnRequest: AuthenticationRequestParameters,
         responseParameters: ResponseParametersFrom,
         origin: String?,
+        session: ChallengeSession,
     ): KmmResult<VpTokenValidationResult> = catching {
-        val expectedNonce = authnRequest.nonce
-            ?: throw IllegalArgumentException("nonce not present in $authnRequest")
         val vpToken = responseParameters.parameters.vpToken
             ?: throw IllegalArgumentException("vp_token not present in ${responseParameters.parameters}")
         // We do not support mapping "scope" in request to DCQL queries
@@ -82,7 +81,7 @@ internal class VpTokenValidator(
                 verifyPresentationResult(
                     claimFormat = credentialQuery.format.toClaimFormat(),
                     relatedPresentation = it.jsonPrimitive,
-                    expectedNonce = expectedNonce,
+                    session = session,
                     input = responseParameters,
                     clientId = authnRequest.clientId,
                     responseUrl = authnRequest.responseUrl ?: authnRequest.redirectUrlExtracted,
@@ -126,7 +125,7 @@ internal class VpTokenValidator(
     private suspend fun verifyPresentationResult(
         claimFormat: ClaimFormat,
         relatedPresentation: JsonElement,
-        expectedNonce: String,
+        session: ChallengeSession,
         input: ResponseParametersFrom,
         clientId: String?,
         responseUrl: String?,
@@ -140,9 +139,8 @@ internal class VpTokenValidator(
                 val sdJwt = SdJwtSigned.parseCatching(relatedPresentation.extractContent()).getOrElse {
                     throw IllegalArgumentException("relatedPresentation")
                 }
-                nonceAwareVerifier.verifyPresentationSdJwt(
+                session.verifyPresentationSdJwt(
                     input = sdJwt,
-                    challenge = expectedNonce,
                     transactionData = transactionData,
                     requireCryptographicHolderBinding = requireCryptographicHolderBinding != false,
                     // OpenID4VP over DC API binds the KB-JWT to the calling Origin; other transports use client_id.
@@ -151,27 +149,26 @@ internal class VpTokenValidator(
             }
 
             ClaimFormat.JWT_VP -> if (requireCryptographicHolderBinding != false) {
-                nonceAwareVerifier.verifyPresentationVcJwt(
+                session.verifyPresentationVcJwt(
                     input = JwsCompactTyped<VerifiablePresentationJws>(
                         relatedPresentation.extractContent()
                     ),
-                    challenge = expectedNonce
                 )
             } else {
-                nonceAwareVerifier.verifyUnsignedVcJws(
+                session.verifyUnsignedVcJws(
                     input = relatedPresentation.extractContent()
                 ).map {
                     VerifyPresentationResult.SuccessUnsigned(it.vc)
                 }
             }
 
-            ClaimFormat.MSO_MDOC -> nonceAwareVerifier.verifyPresentationIsoMdoc(
+            ClaimFormat.MSO_MDOC -> session.verifyPresentationIsoMdoc(
                 input = relatedPresentation.extractContent().decodeToByteArray(Base64UrlStrict)
                     .let { coseCompliantSerializer.decodeFromByteArray<DeviceResponse>(it) },
                 verifyDocument = mdocDeviceSignatureVerifier.verifyDocument(
                     sessionTranscript = createSessionTranscript(
                         clientId = clientId,
-                        nonce = expectedNonce,
+                        nonce = session.challenge,
                         responseUrl = responseUrl,
                         clientIdRequired = clientIdRequired,
                         origin = origin,

@@ -20,6 +20,13 @@ import kotlin.jvm.JvmOverloads
  * Adds nonce-backed challenge creation and replay protection to a plain [Verifier].
  *
  * [VerifierAgent] remains the explicit-challenge verifier; this wrapper owns the challenge lifecycle.
+ *
+ * Mint a challenge with [createPresentationRequest], spend it with [consumeChallenge] once the response to that
+ * request arrives, and verify the presentations of that response with the [ChallengeSession] it returns.
+ *
+ * The deprecated `verifyPresentation*` methods here instead take the challenge from the presentation itself and
+ * accept it as long as it is still known to [nonceService], i.e. a presentation created for one request also
+ * satisfies another request of ours that is still open.
  */
 class NonceChallengeVerifier @JvmOverloads constructor(
     val verifierId: String,
@@ -56,6 +63,10 @@ class NonceChallengeVerifier @JvmOverloads constructor(
      * default. Protocol callers must pass their transport-specific audience, such as `origin:<origin>` for
      * OpenID4VP over the DC API.
      */
+    @Deprecated(
+        "Consume the challenge of the request that was answered with consumeChallenge(), " +
+                "and verify the presentations of that response with the returned ChallengeSession"
+    )
     suspend fun verifyPresentationSdJwt(
         input: SdJwtSigned,
         transactionData: List<TransactionDataBase64Url>? = null,
@@ -75,6 +86,10 @@ class NonceChallengeVerifier @JvmOverloads constructor(
     }
 
     /** Uses the challenge embedded in the VP JWT. */
+    @Deprecated(
+        "Consume the challenge of the request that was answered with consumeChallenge(), " +
+                "and verify the presentations of that response with the returned ChallengeSession"
+    )
     suspend fun verifyPresentationVcJwt(
         input: JwsCompactTyped<VerifiablePresentationJws>,
     ): KmmResult<VerifyPresentationResult.Success> = verifyWithChallenge(
@@ -87,6 +102,10 @@ class NonceChallengeVerifier @JvmOverloads constructor(
         )
     }
 
+    @Deprecated(
+        "Consume the challenge of the request that was answered with consumeChallenge(), " +
+                "and verify the presentations of that response with the returned ChallengeSession"
+    )
     suspend fun verifyPresentationIsoMdoc(
         input: DeviceResponse,
         verifyDocument: suspend (MobileSecurityObject, Document) -> Boolean,
@@ -98,6 +117,62 @@ class NonceChallengeVerifier @JvmOverloads constructor(
         verifier.verifyPresentationIsoMdoc(input, verifyDocument)
     }
 
+    /**
+     * Consumes the challenge that has been answered: it must be one of ours, and it must not be usable again.
+     *
+     * Protocol verifiers call this as soon as they have loaded the request a response refers to, since an
+     * authentication response is not retryable, and verify the presentations of that response with the returned
+     * [ChallengeSession], no matter how that validation turns out.
+     */
+    suspend fun consumeChallenge(challenge: String): ChallengeSession {
+        require(verifyAndRemoveNonce(challenge)) { "nonce invalid or already used: $challenge" }
+        return ChallengeSession(challenge)
+    }
+
+    /**
+     * A challenge of ours that has been answered and is consumed, i.e. no longer known to
+     * [at.asitplus.wallet.lib.NonceService], to verify the presentations of that one response with.
+     *
+     * A response may contain several presentations, but they all answer the single [challenge] of the request,
+     * so it is verified and consumed once, in [consumeChallenge], and not per presentation.
+     */
+    inner class ChallengeSession internal constructor(val challenge: String) {
+
+        /** @see Verifier.verifyPresentationSdJwt */
+        suspend fun verifyPresentationSdJwt(
+            input: SdJwtSigned,
+            transactionData: List<TransactionDataBase64Url>? = null,
+            requireCryptographicHolderBinding: Boolean = true,
+            audience: String? = null,
+        ): KmmResult<VerifyPresentationResult.SuccessSdJwt> = verifier.verifyPresentationSdJwt(
+            input = input,
+            challenge = challenge,
+            transactionData = transactionData,
+            requireCryptographicHolderBinding = requireCryptographicHolderBinding,
+            audience = audience,
+        )
+
+        /** @see Verifier.verifyPresentationVcJwt */
+        suspend fun verifyPresentationVcJwt(
+            input: JwsCompactTyped<VerifiablePresentationJws>,
+        ): KmmResult<VerifyPresentationResult.Success> = verifier.verifyPresentationVcJwt(
+            input = input,
+            challenge = challenge,
+        )
+
+        /** @see Verifier.verifyUnsignedVcJws */
+        suspend fun verifyUnsignedVcJws(
+            input: String,
+        ): KmmResult<VerifyPresentationResult.SuccessUnsigned> = verifier.verifyUnsignedVcJws(input)
+
+        /** @see Verifier.verifyPresentationIsoMdoc */
+        suspend fun verifyPresentationIsoMdoc(
+            input: DeviceResponse,
+            verifyDocument: suspend (MobileSecurityObject, Document) -> Boolean,
+        ): KmmResult<VerifyPresentationResult.SuccessIso> =
+            verifier.verifyPresentationIsoMdoc(input, verifyDocument)
+    }
+
     /** Consume only after delegated verification succeeds, so failed attempts do not burn a valid challenge. */
     private suspend fun <T> verifyWithChallenge(
         challenge: String?,
@@ -107,7 +182,7 @@ class NonceChallengeVerifier @JvmOverloads constructor(
         val nonce = challenge ?: throw IllegalArgumentException(missingChallengeMessage)
         require(verifyNonce(nonce)) { "nonce invalid: $nonce" }
         val result = verify(nonce).getOrThrow()
-        require(verifyAndRemoveNonce(nonce)) { "nonce invalid or already used: $nonce" }
+        consumeChallenge(nonce)
         result
     }
 }
