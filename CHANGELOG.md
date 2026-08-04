@@ -21,7 +21,8 @@ Release 8.0.0 (unreleased):
     - Reject credential presentations containing any invalid issuer signed items according to ISO 18013-5 9.3.1 Inspection procedure for issuer data authentication
     - Correctly validate credential submissions for DCQL queries
     - Add `VerifierInfo` to `OpenId4VpRequestOptions`
-    - Do not accept responses for the same `state` twice
+    - Do not accept responses for the same `state` twice for OpenID4VP flows
+    - Do not accept responses for the same `externalId` twice for DCAPI flows
 - OpenID for Verifiable Credential Issuance:
     - Rework validation of key attestation statements
 - Deprecations:

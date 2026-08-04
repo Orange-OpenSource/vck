@@ -50,6 +50,7 @@ import at.asitplus.wallet.lib.utils.DefaultMapStore
 import com.benasher44.uuid.uuid4
 import io.github.z4kn4fein.semver.Version
 import io.kotest.matchers.collections.shouldBeSingleton
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -159,6 +160,67 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
                 validItems.firstOrNull { it.elementIdentifier == CLAIM_DATE_OF_BIRTH }
                     .shouldNotBeNull().elementValue shouldBe LocalDate(1990, 1, 1)
             }
+        }
+
+        test("replay: the same wallet response must not be accepted twice") { f ->
+            val transactionId = uuid4().toString()
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
+
+            val dcApiResponse = f.walletResponse(isoMdocRequest)
+
+            f.verifier.validateIsoResponse(
+                receivedData = dcApiResponse,
+                externalId = transactionId,
+                expectedOrigin = callingOrigin,
+            ).getOrThrow().documents.shouldBeSingleton()
+
+            // there is no nonce to consume in this flow, so the stored request is what makes it single-use:
+            // resubmitting the very same encrypted device response must not validate again
+            f.verifier.validateIsoResponse(
+                receivedData = dcApiResponse,
+                externalId = transactionId,
+                expectedOrigin = callingOrigin,
+            ).isFailure shouldBe true
+            f.stateToIsoMdocRequestStore.get(transactionId).shouldBeNull()
+        }
+
+        test("replay through the public API must not be accepted twice either") { f ->
+            val transactionId = uuid4().toString()
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
+
+            val dcApiResponse = IsoMdocResponse(f.walletResponse(isoMdocRequest))
+
+            f.verifier.validateAuthnResponse(
+                input = dcApiResponse,
+                externalId = transactionId,
+                expectedOrigin = callingOrigin,
+            ).getOrThrow().shouldBeInstanceOf<Iso180137AnnexCWrapper>()
+
+            f.verifier.validateAuthnResponse(
+                input = dcApiResponse,
+                externalId = transactionId,
+                expectedOrigin = callingOrigin,
+            ).isFailure shouldBe true
+        }
+
+        test("a rejected attempt consumes the transaction id, so the genuine response is not accepted later") { f ->
+            val transactionId = uuid4().toString()
+            val isoMdocRequest = f.createIsoMdocRequest(transactionId)
+
+            val dcApiResponse = f.walletResponse(isoMdocRequest)
+
+            // fails on the session transcript, but has consumed the stored request
+            f.verifier.validateIsoResponse(
+                receivedData = dcApiResponse,
+                externalId = transactionId,
+                expectedOrigin = "https://evil.example.com",
+            ).isFailure shouldBe true
+
+            f.verifier.validateIsoResponse(
+                receivedData = dcApiResponse,
+                externalId = transactionId,
+                expectedOrigin = callingOrigin,
+            ).isFailure shouldBe true
         }
 
         test("public API forwards the expected origin for Annex C") { f ->

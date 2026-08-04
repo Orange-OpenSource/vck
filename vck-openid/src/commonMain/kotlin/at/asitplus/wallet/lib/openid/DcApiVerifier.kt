@@ -307,14 +307,13 @@ class DcApiVerifier @JvmOverloads constructor(
         externalId: String,
         expectedOrigin: String
     ): KmmResult<Iso180137AnnexCWrapper> = catching {
-        val isoMdocRequest = stateToIsoMdocRequestStore.get(externalId)!!
+        val isoMdocRequest = stateToIsoMdocRequestStore.remove(externalId)
+            ?: throw IllegalStateException("Can't load request for response to $externalId")
         val decryptionKey = decryptionKeyMaterial.getUnderLyingSigner() as? Signer.ECDSA
             ?: throw IllegalStateException("Expected ECDSA decryption key material")
-
-        val encryptedResponseData = receivedData.response.encryptedResponseData
         val serializedOrigin = expectedOrigin.serializeOrigin()
             ?: throw IllegalStateException("Expected origin invalid")
-
+        val encryptedResponseData = receivedData.response.encryptedResponseData
         val sessionTranscript = createDcApiSessionTranscriptAnnexC(
             DCAPIInfo(
                 encryptionInfo = isoMdocRequest.encryptionInfo,
