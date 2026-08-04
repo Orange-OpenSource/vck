@@ -158,7 +158,7 @@ internal class OpenId4VpRequestFactory(
         val storedId = externalId
             ?: input.parameters.state
             ?: throw IllegalArgumentException("Neither externalId nor state given")
-        val authnRequest = stateToAuthnRequestStore.get(storedId)
+        val authnRequest = stateToAuthnRequestStore.remove(storedId)
             ?: throw IllegalArgumentException("No authn request found for $storedId")
         if (authnRequest.responseMode?.requiresEncryption == true)
             require(input.hasBeenEncrypted) {

@@ -1,5 +1,7 @@
 package at.asitplus.wallet.lib.openid
 
+import at.asitplus.openid.AuthenticationResponseParameters
+import at.asitplus.openid.ResponseParametersFrom
 import at.asitplus.openid.dcql.DCQLClaimsPathPointer
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
@@ -101,6 +103,34 @@ val OpenId4VpSdJwtProtocolTest by matrixSuite {
                 .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
             it.verifierOid4vp.validateAuthnResponse(authnResponse.url).getOrThrow()
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url).isFailure shouldBe true
+        }
+
+        "a rejected response consumes the request, so the genuine one is not accepted afterwards" {
+            val state = uuid4().toString()
+            val authnRequest = it.verifierOid4vp.createAuthnRequest(
+                OpenId4VpRequestOptions(
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        RequestOptionsCredential(
+                            credentialScheme = AtomicAttribute2023,
+                            representation = SD_JWT,
+                            attributePaths = setOf(DCQLClaimsPathPointer(CLAIM_GIVEN_NAME))
+                        )
+                    ).toDCQLRequest(),
+                    state = state,
+                ),
+                CreationOptions.Query(it.walletUrl)
+            ).getOrThrow().url
+
+            val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
+                .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
+
+            // anyone knowing the state may post a response: this one carries no vp_token and is not accepted,
+            // but it burns the request, as the nonce is only consumed for fully valid responses
+            it.verifierOid4vp.validateAuthnResponse(
+                ResponseParametersFrom.Post(AuthenticationResponseParameters(state = state))
+            ).getOrThrow().vpTokenValidationResult.shouldNotBeNull().isFailure shouldBe true
+
             it.verifierOid4vp.validateAuthnResponse(authnResponse.url).isFailure shouldBe true
         }
 
