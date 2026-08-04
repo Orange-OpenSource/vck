@@ -100,16 +100,33 @@ class ProofValidator @JvmOverloads constructor(
     @Suppress("DEPRECATION")
     suspend fun validateProofExtractSubjectPublicKeys(
         params: CredentialRequestParameters,
-    ): Collection<CryptoPublicKey> = params.proofs?.validateProof()
-        ?: throw InvalidProof("proof not contained in request")
+    ): Collection<CryptoPublicKey> = params.proofs?.validateProof()?.let {
+        it.nonces.forEach {
+            if (!clientNonceService.verifyAndRemoveNonce(it))
+                throw InvalidNonce("nonce already used: $it")
+        }
+        it.keys
+    } ?: throw InvalidProof("proof not contained in request")
 
-    private suspend fun CredentialRequestProofContainer.validateProof() = when {
-        jwt != null -> jwtParsed?.flatMap { it.validateJwtProof() }
-        attestation != null -> attestationParsed?.flatMap { it.validateAttestationProof() }
+    /** Small container to expire nonces only after collecting all proofs and extracting all keys */
+    private data class KeysAndNonces(
+        val keys: Collection<CryptoPublicKey>,
+        val nonces: Set<String>,
+    )
+
+    private suspend fun CredentialRequestProofContainer.validateProof(): KeysAndNonces? = when {
+        jwt != null -> jwtParsed?.map { it.validateJwtProof() }
+            ?.takeIf { it.isNotEmpty() }
+            ?.reduce { acc, nonces -> KeysAndNonces(acc.keys + nonces.keys, acc.nonces + nonces.nonces) }
+
+        attestation != null -> attestationParsed?.map { it.validateAttestationProof() }
+            ?.takeIf { it.isNotEmpty() }
+            ?.reduce { acc, nonces -> KeysAndNonces(acc.keys + nonces.keys, acc.nonces + nonces.nonces) }
+
         else -> null
     }
 
-    private suspend fun JwsCompactTyped<JsonWebToken>.validateJwtProof(): Collection<CryptoPublicKey> {
+    private suspend fun JwsCompactTyped<JsonWebToken>.validateJwtProof(): KeysAndNonces {
         if (jws.jwsHeader.type != OpenIdConstants.PROOF_JWT_TYPE) {
             throw InvalidProof("invalid typ: ${jws.jwsHeader.type}")
         }
@@ -134,14 +151,20 @@ class ProofValidator @JvmOverloads constructor(
             verifyJwsSignatureWithKey(jws, keyAttestation.payload.attestedKeys.first()).getOrElse {
                 throw InvalidProof("JWT proof not signed with key at index 0 of attested_keys", it)
             }
-            return attestedKeys
+            return KeysAndNonces(
+                keys = attestedKeys,
+                nonces = setOf(payload.nonce!!)
+            )
         }
 
         verifyJwsObject(jws).getOrElse {
             throw InvalidProof("invalid signature: $this.", it)
         }
-        return listOf(
-            jws.jwsHeader.publicKey ?: throw InvalidProof("could not extract public key from ${jws.jwsHeader}")
+        return KeysAndNonces(
+            keys = listOf(
+                jws.jwsHeader.publicKey ?: throw InvalidProof("could not extract public key from ${jws.jwsHeader}")
+            ),
+            nonces = setOf(payload.nonce!!)
         )
     }
 
@@ -149,11 +172,14 @@ class ProofValidator @JvmOverloads constructor(
      * OID4VCI 8.2.1.3: The Credential Issuer SHOULD issue a Credential for each cryptographic public key specified
      * in the `attested_keys` claim.
      */
-    private suspend fun JwsCompactTyped<KeyAttestationJwt>.validateAttestationProof(): Collection<CryptoPublicKey> {
+    private suspend fun JwsCompactTyped<KeyAttestationJwt>.validateAttestationProof(): KeysAndNonces {
         if (payload.nonce == null || !clientNonceService.verifyNonce(payload.nonce!!)) {
             throw InvalidNonce("invalid nonce: ${payload.nonce}")
         }
-        return validateKeyAttestation()
+        return KeysAndNonces(
+            keys = validateKeyAttestation(),
+            nonces = setOf(payload.nonce!!)
+        )
     }
 
     private suspend fun JwsCompactTyped<KeyAttestationJwt>.validateKeyAttestation(): Collection<CryptoPublicKey> {

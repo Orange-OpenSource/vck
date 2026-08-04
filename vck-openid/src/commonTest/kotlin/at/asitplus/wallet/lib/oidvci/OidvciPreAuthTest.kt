@@ -20,6 +20,7 @@ import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
 import at.asitplus.wallet.lib.openid.DummyOAuth2IssuerCredentialDataProvider
 import at.asitplus.wallet.lib.openid.DummyUserProvider
 import com.benasher44.uuid.uuid4
+import io.kotest.assertions.throwables.shouldThrowExactly
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -33,7 +34,7 @@ val OidvciPreAuthTest by matrixSuite {
             val mapper = DefaultCredentialSchemeMapper()
             val authorizationService = SimpleAuthorizationService(
                 strategy = CredentialAuthorizationServiceStrategy(
-                    credentialSchemes =  AttributeIndex.schemeSet,
+                    credentialSchemes = AttributeIndex.schemeSet,
                     mapper = mapper,
                 ),
             )
@@ -43,7 +44,7 @@ val OidvciPreAuthTest by matrixSuite {
                     identifier = "https://issuer.example.com".toUri(),
                     randomSource = RandomSource.Default
                 ),
-                credentialSchemes =  AttributeIndex.schemeSet,
+                credentialSchemes = AttributeIndex.schemeSet,
                 credentialSchemeMapper = mapper,
             )
             val client = WalletService()
@@ -77,27 +78,80 @@ val OidvciPreAuthTest by matrixSuite {
             val credentialFormat = it.issuer.metadata.supportedCredentialConfigurations!![credentialIdToRequest]
                 .shouldNotBeNull()
 
-            val token = it.getToken(credentialOffer, setOf(credentialIdToRequest))
-            token.authorizationDetails.shouldNotBeNull()
-                .first().shouldBeInstanceOf<OpenIdAuthorizationDetails>()
+            val token = it.getToken(credentialOffer, setOf(credentialIdToRequest)).apply {
+                authorizationDetails.shouldNotBeNull()
+                    .first().shouldBeInstanceOf<OpenIdAuthorizationDetails>()
+            }
             val clientNonce = it.issuer.nonceWithDpopNonce().getOrThrow().response.clientNonce
 
-            val request = it.client.createCredential(
-                tokenResponse = token,
-                metadata = it.issuer.metadata,
-                credentialFormat = credentialFormat,
-                clientNonce = clientNonce,
-            ).getOrThrow().shouldBeSingleton().first()
-
-            val credential = it.issuer.credential(
+            it.issuer.credential(
                 authorizationHeader = token.toHttpHeaderValue(),
-                params = request,
+                params = it.client.createCredential(
+                    tokenResponse = token,
+                    metadata = it.issuer.metadata,
+                    credentialFormat = credentialFormat,
+                    clientNonce = clientNonce,
+                ).getOrThrow().shouldBeSingleton().first(),
                 credentialDataProvider = DummyOAuth2IssuerCredentialDataProvider,
             ).getOrThrow()
                 .shouldBeInstanceOf<CredentialIssuer.CredentialResponse.Plain>()
-                .response
-            credential.credentials.shouldNotBeEmpty()
+                .response.credentials.shouldNotBeEmpty()
                 .first().credentialString.shouldNotBeNull()
+        }
+
+        test("client nonce can only be used for one call to credential endpoint") {
+            val credentialIdToRequest = it.mapper.toCredentialIdentifier(AtomicAttribute2023, PLAIN_JWT)
+            val credentialOffer = it.authorizationService.offerWithPreAuthnForUserForSchemes(
+                user = DummyUserProvider.user,
+                credentialIssuer = it.issuer.publicContext,
+                schemes = setOf(AtomicAttribute2023 to PLAIN_JWT)
+            )
+            val credentialFormat = it.issuer.metadata.supportedCredentialConfigurations!![credentialIdToRequest]
+                .shouldNotBeNull()
+
+            val token = it.getToken(credentialOffer, setOf(credentialIdToRequest)).apply {
+                authorizationDetails.shouldNotBeNull()
+                    .first().shouldBeInstanceOf<OpenIdAuthorizationDetails>()
+            }
+            val clientNonce = it.issuer.nonceWithDpopNonce().getOrThrow().response.clientNonce
+
+            it.issuer.credential(
+                authorizationHeader = token.toHttpHeaderValue(),
+                params = it.client.createCredential(
+                    tokenResponse = token,
+                    metadata = it.issuer.metadata,
+                    credentialFormat = credentialFormat,
+                    clientNonce = clientNonce,
+                ).getOrThrow().shouldBeSingleton().first(),
+                credentialDataProvider = DummyOAuth2IssuerCredentialDataProvider,
+            ).getOrThrow()
+                .shouldBeInstanceOf<CredentialIssuer.CredentialResponse.Plain>()
+                .response.credentials.shouldNotBeEmpty()
+                .first().credentialString.shouldNotBeNull()
+
+            val freshOffer = it.authorizationService.offerWithPreAuthnForUserForSchemes(
+                user = DummyUserProvider.user,
+                credentialIssuer = it.issuer.publicContext,
+                schemes = setOf(AtomicAttribute2023 to PLAIN_JWT)
+            )
+            val freshFormat = it.issuer.metadata.supportedCredentialConfigurations!![credentialIdToRequest]
+                .shouldNotBeNull()
+            val freshToken = it.getToken(freshOffer, setOf(credentialIdToRequest)).apply {
+                authorizationDetails.shouldNotBeNull()
+                    .first().shouldBeInstanceOf<OpenIdAuthorizationDetails>()
+            }
+            shouldThrowExactly<OAuth2Exception.InvalidNonce> {
+                it.issuer.credential(
+                    authorizationHeader = freshToken.toHttpHeaderValue(),
+                    params = it.client.createCredential(
+                        tokenResponse = freshToken,
+                        metadata = it.issuer.metadata,
+                        credentialFormat = freshFormat,
+                        clientNonce = clientNonce, // same as before
+                    ).getOrThrow().shouldBeSingleton().first(),
+                    credentialDataProvider = DummyOAuth2IssuerCredentialDataProvider,
+                ).getOrThrow()
+            }
         }
 
         test("process with pre-authorized code, credential offer, and authorization details for all credentials") {
@@ -111,7 +165,6 @@ val OidvciPreAuthTest by matrixSuite {
                 .toSet()
 
             val token = it.getToken(credentialOffer, credentialIdsToRequest)
-            val clientNonce = it.issuer.nonceWithDpopNonce().getOrThrow().response.clientNonce
             val authnDetails = token.authorizationDetails
                 .shouldNotBeNull()
                 .shouldHaveSize(6)
@@ -127,7 +180,7 @@ val OidvciPreAuthTest by matrixSuite {
                         tokenResponse = token,
                         metadata = it.issuer.metadata,
                         credentialFormat = credentialFormat,
-                        clientNonce = clientNonce,
+                        clientNonce = it.issuer.nonceWithDpopNonce().getOrThrow().response.clientNonce,
                     ).getOrThrow().first(),
                     credentialDataProvider = DummyOAuth2IssuerCredentialDataProvider,
                 ).getOrThrow()

@@ -48,6 +48,7 @@ import at.asitplus.wallet.mdl.MDL_DOCTYPE
 import com.benasher44.uuid.uuid4
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.throwables.shouldThrowExactly
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.collections.shouldBeSingleton
 import io.kotest.matchers.collections.shouldHaveSize
@@ -223,6 +224,43 @@ val OidvciCodeFlowTest by matrixSuite {
                     .response
                     .credentials.shouldNotBeEmpty().first()
                     .credentialString.shouldNotBeNull()
+            }
+        }
+
+        test("nonce can only be used for one call to credential endpoint") {
+            val requestOptions = RequestOptions(AtomicAttribute2023, PLAIN_JWT)
+            val credentialFormat = it.client.selectSupportedCredentialFormat(requestOptions, it.issuer.metadata)
+                .shouldNotBeNull()
+            val scope = credentialFormat.scope.shouldNotBeNull()
+            val token = it.getToken(scope)
+            val clientNonce = it.issuer.nonceWithDpopNonce().getOrThrow().response.clientNonce
+
+            it.issuer.credential(
+                authorizationHeader = token.toHttpHeaderValue(),
+                params = it.client.createCredential(
+                    tokenResponse = token,
+                    metadata = it.issuer.metadata,
+                    credentialFormat = credentialFormat,
+                    clientNonce = clientNonce,
+                ).getOrThrow().shouldBeSingleton().first(),
+                credentialDataProvider = DummyOAuth2IssuerCredentialDataProvider,
+            ).getOrThrow()
+                .shouldBeInstanceOf<CredentialIssuer.CredentialResponse.Plain>()
+                .response.credentials.shouldNotBeEmpty()
+                .first().credentialString.shouldNotBeNull()
+
+            val freshToken = it.getToken(scope)
+            shouldThrowExactly<OAuth2Exception.InvalidNonce> {
+                it.issuer.credential(
+                    authorizationHeader = freshToken.toHttpHeaderValue(),
+                    params = it.client.createCredential(
+                        tokenResponse = freshToken,
+                        metadata = it.issuer.metadata,
+                        credentialFormat = credentialFormat,
+                        clientNonce = clientNonce, // same clientNonce as before!
+                    ).getOrThrow().shouldBeSingleton().first(),
+                    credentialDataProvider = DummyOAuth2IssuerCredentialDataProvider,
+                ).getOrThrow()
             }
         }
 
@@ -602,14 +640,10 @@ val OidvciCodeFlowTest by matrixSuite {
                 .first().credentialString.shouldNotBeNull()
 
             val issuerSigned = coseCompliantSerializer.decodeFromByteArray<IssuerSigned>(
-                serializedCredential.decodeToByteArray(
-                    Base64()
-                )
+                serializedCredential.decodeToByteArray(Base64())
             )
 
-            val namespaces = issuerSigned.namespaces
-                .shouldNotBeNull()
-
+            val namespaces = issuerSigned.namespaces.shouldNotBeNull()
             namespaces.keys.first() shouldBe "org.iso.18013.5.1"
             val numberOfClaims = namespaces.values.firstOrNull()?.entries?.size.shouldNotBeNull()
             numberOfClaims shouldBeGreaterThan 1

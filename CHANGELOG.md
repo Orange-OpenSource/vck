@@ -26,6 +26,7 @@ Release 8.0.0 (unreleased):
     - Consume the request's nonce when validating an authentication response, regardless of the validation result, i.e. authentication responses are not retryable
 - OpenID for Verifiable Credential Issuance:
     - Rework validation of key attestation statements
+    - Make sure a `nonce` provided by the credential issuer can only be used for one request to the credential endpoint
 - Deprecations:
     - Remove code deprecated in 7.0.0, e.g. various `Iso180137AnnexC*` and related classes
     - Deprecate all classes used for Presentation Exchange requests and so on, e.g., `CredentialPresentationRequest.PresentationExchangeRequest` or `PresentationExchangeCredentialDisclosure` or `CredentialPresentation.PresentationExchangePresentation`
