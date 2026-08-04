@@ -129,9 +129,12 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.DCQLParameters>()
 
             val presentationResults = presentationParameters.verifiablePresentations.values.flatten()
+            // all presentations of this response answer the single challenge of the request above,
+            // so it is consumed once, and not per presentation
+            val session = scope.verifier.consumeChallenge(request.nonce)
             presentationResults.shouldHaveSize(2).forEach { result ->
                 result.shouldBeInstanceOf<CreatePresentationResult.DeviceResponse>()
-                scope.verifier.verifyPresentationIsoMdoc(result.deviceResponse, documentVerifier()).getOrThrow()
+                session.verifyPresentationIsoMdoc(result.deviceResponse, documentVerifier()).getOrThrow()
                     .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>().apply {
                         documents.shouldBeSingleton().forEach {
                             it.freshnessSummary.tokenStatusValidationResult
@@ -142,7 +145,7 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
             presentationResults
                 .filterIsInstance<CreatePresentationResult.DeviceResponse>()
                 .map { resp ->
-                    scope.verifier.verifyPresentationIsoMdoc(resp.deviceResponse, documentVerifier()).getOrThrow()
+                    session.verifyPresentationIsoMdoc(resp.deviceResponse, documentVerifier()).getOrThrow()
                 }
                 .flatMap { it.shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>().documents }
                 .flatMap { it.validItems }.apply {
@@ -180,10 +183,11 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
         }
 
         test("device retrieval: multiple document requests produce one device response") {
+            val request = it.verifier.createPresentationRequest(
+                calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
+            )
             val result = it.holder.createDefaultPresentation(
-                request = it.verifier.createPresentationRequest(
-                    calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
-                ),
+                request = request,
                 credentialPresentationRequest = CredentialPresentationRequest.IsoDeviceRetrieval(
                     DeviceRequest(
                         parsedVersion = Version(1, 0),
@@ -195,7 +199,8 @@ val AgentIsoMdocMultipleDocumentsTest by matrixSuite {
                 ),
             ).getOrThrow().shouldBeInstanceOf<PresentationResponseParameters.DeviceRetrievalParameters>()
 
-            it.verifier.verifyPresentationIsoMdoc(result.deviceResponse, documentVerifier()).getOrThrow()
+            it.verifier.consumeChallenge(request.nonce)
+                .verifyPresentationIsoMdoc(result.deviceResponse, documentVerifier()).getOrThrow()
                 .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>()
                 .documents.shouldHaveSize(2).flatMap { it.validItems }.apply {
                     first { it.elementIdentifier == CLAIM_GIVEN_NAME }.elementValue shouldBe "Susanne"

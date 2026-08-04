@@ -17,12 +17,13 @@ import at.asitplus.wallet.lib.jws.SdJwtSigned
 import kotlin.jvm.JvmOverloads
 
 /**
- * Adds nonce-backed challenge creation and replay protection to a plain [Verifier].
+ * Owns the lifecycle of the challenges that presentations are verified against: mint one with
+ * [createPresentationRequest], spend it with [consumeChallenge] once the response to that request arrives, and
+ * verify the presentations of that response with the [ChallengeSession] it returns.
  *
- * [VerifierAgent] remains the explicit-challenge verifier; this wrapper owns the challenge lifecycle.
- *
- * Mint a challenge with [createPresentationRequest], spend it with [consumeChallenge] once the response to that
- * request arrives, and verify the presentations of that response with the [ChallengeSession] it returns.
+ * This is deliberately not a [Verifier] itself, so that a presentation cannot be verified without accounting for
+ * the challenge it answers. [verifier] is the plain [Verifier] to use where a challenge is out of scope, e.g. ISO
+ * mdoc responses that are bound through their session transcript, and [nonceService] is the raw nonce store.
  *
  * The deprecated `verifyPresentation*` methods here instead take the challenge from the presentation itself and
  * accept it as long as it is still known to [nonceService], i.e. a presentation created for one request also
@@ -32,8 +33,7 @@ class NonceChallengeVerifier @JvmOverloads constructor(
     val verifierId: String,
     val verifier: Verifier = VerifierAgent(identifier = verifierId),
     val nonceService: NonceService = DefaultNonceService(),
-) : Verifier by verifier,
-    NonceService by nonceService {
+) {
 
     /**
      * Holder-facing presentation request input using a fresh challenge.
@@ -48,7 +48,7 @@ class NonceChallengeVerifier @JvmOverloads constructor(
         calcIsoSessionTranscript: suspend () -> SessionTranscript = { throw IllegalStateException(
             "Session transcript calculation callback was not provided. This is required for ISO mDoc presentations.") },
     ) = PresentationRequestParameters(
-        nonce = provideNonce(),
+        nonce = nonceService.provideNonce(),
         audience = verifierId,
         transactionData = transactionData,
         calcIsoDeviceSignaturePlain = calcIsoDeviceSignaturePlain,
@@ -125,7 +125,7 @@ class NonceChallengeVerifier @JvmOverloads constructor(
      * [ChallengeSession], no matter how that validation turns out.
      */
     suspend fun consumeChallenge(challenge: String): ChallengeSession {
-        require(verifyAndRemoveNonce(challenge)) { "nonce invalid or already used: $challenge" }
+        require(nonceService.verifyAndRemoveNonce(challenge)) { "nonce invalid or already used: $challenge" }
         return ChallengeSession(challenge)
     }
 
@@ -180,7 +180,7 @@ class NonceChallengeVerifier @JvmOverloads constructor(
         verify: suspend (String) -> KmmResult<T>,
     ): KmmResult<T> = catching {
         val nonce = challenge ?: throw IllegalArgumentException(missingChallengeMessage)
-        require(verifyNonce(nonce)) { "nonce invalid: $nonce" }
+        require(nonceService.verifyNonce(nonce)) { "nonce invalid: $nonce" }
         val result = verify(nonce).getOrThrow()
         consumeChallenge(nonce)
         result

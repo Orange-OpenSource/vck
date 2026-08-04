@@ -77,10 +77,11 @@ val AgentIsoMdocTest by matrixSuite {
 
             if (mode == IsoRevocationMode.STATUS_LIST) {
                 "device retrieval: creates one device response with the requested claim" {
+                    val request = it.verifier.createPresentationRequest(
+                        calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
+                    )
                     val result = it.holder.createDefaultPresentation(
-                        request = it.verifier.createPresentationRequest(
-                            calcIsoDeviceSignaturePlain = simpleSigner(it.signer),
-                        ),
+                        request = request,
                         credentialPresentationRequest = CredentialPresentationRequest.IsoDeviceRetrieval(
                             isoDeviceRequest(CLAIM_GIVEN_NAME)
                         )
@@ -90,7 +91,8 @@ val AgentIsoMdocTest by matrixSuite {
                         .issuerSigned.namespaces.shouldNotBeNull()
                         .getValue(ConstantIndex.AtomicAttribute2023.isoNamespace).entries.shouldBeSingleton()
                         .single().value.elementIdentifier shouldBe CLAIM_GIVEN_NAME
-                    it.verifier.verifyPresentationIsoMdoc(result.deviceResponse, documentVerifier()).getOrThrow()
+                    it.verifier.consumeChallenge(request.nonce)
+                        .verifyPresentationIsoMdoc(result.deviceResponse, documentVerifier()).getOrThrow()
                         .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>()
                 }
 
@@ -193,12 +195,16 @@ val AgentIsoMdocTest by matrixSuite {
                     }
 
                     val firstVp = it.createDcqlDeviceResponse(CLAIM_GIVEN_NAME)
-                    val secondVp = createDcqlDeviceResponse(
-                        holder = secondHolder,
-                        request = it.verifier.createPresentationRequest(
-                            calcIsoDeviceSignaturePlain = simpleSigner(SignCose(keyMaterial = secondHolderKeyMaterial)),
+                    val secondRequest = it.verifier.createPresentationRequest(
+                        calcIsoDeviceSignaturePlain = simpleSigner(SignCose(keyMaterial = secondHolderKeyMaterial)),
+                    )
+                    val secondVp = PresentedIsoResponse(
+                        request = secondRequest,
+                        response = createDcqlDeviceResponse(
+                            holder = secondHolder,
+                            request = secondRequest,
+                            attributeNames = arrayOf(CLAIM_GIVEN_NAME),
                         ),
-                        attributeNames = arrayOf(CLAIM_GIVEN_NAME),
                     )
 
                     it.revokeSingleStoredCredential() shouldBe true
@@ -217,19 +223,19 @@ val AgentIsoMdocTest by matrixSuite {
                 "identifier list: verifier rejects presentation when resolver returns status list token" {
                     val vp = it.createDcqlDeviceResponse(CLAIM_GIVEN_NAME)
 
-                    val mismatchedVerifier = NonceChallengeVerifier(
-                        verifierId = it.verifierId,
-                        verifier = VerifierAgent(
-                            identifier = it.verifierId,
-                            validatorMdoc = ValidatorMdoc(
-                                validator = Validator(
-                                    tokenStatusResolver = statusListResolver(it.statusListIssuer)
-                                )
-                            ),
+                    // no challenge involved here: this verifies the token status of a presentation
+                    // that was created for a challenge of another verifier
+                    val mismatchedVerifier = VerifierAgent(
+                        identifier = it.verifierId,
+                        validatorMdoc = ValidatorMdoc(
+                            validator = Validator(
+                                tokenStatusResolver = statusListResolver(it.statusListIssuer)
+                            )
                         ),
                     )
 
-                    mismatchedVerifier.verifyPresentationIsoMdoc(vp.deviceResponse, documentVerifier()).getOrThrow()
+                    mismatchedVerifier.verifyPresentationIsoMdoc(vp.response.deviceResponse, documentVerifier())
+                        .getOrThrow()
                         .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>()
                         .documents.shouldBeSingleton().first().freshnessSummary.tokenStatusValidationResult
                         .shouldBeInstanceOf<TokenStatusValidationResult.Rejected>()
@@ -345,14 +351,27 @@ private fun statusListResolver(statusListIssuer: StatusListAgent) = TokenStatusR
     }
 )
 
-private suspend fun IsoMdocFixture.createDcqlDeviceResponse(vararg attributeNames: String) = createDcqlDeviceResponse(
-    holder = holder,
-    request = verifier.createPresentationRequest(calcIsoDeviceSignaturePlain = simpleSigner(signer)),
-    attributeNames = attributeNames,
+/** A device response together with the request it answers, so that its challenge can be consumed. */
+private data class PresentedIsoResponse(
+    val request: PresentationRequestParameters,
+    val response: CreatePresentationResult.DeviceResponse,
 )
 
-private suspend fun IsoMdocFixture.verifyPresentation(deviceResponse: CreatePresentationResult.DeviceResponse) =
-    verifier.verifyPresentationIsoMdoc(deviceResponse.deviceResponse, documentVerifier()).getOrThrow()
+private suspend fun IsoMdocFixture.createDcqlDeviceResponse(vararg attributeNames: String) =
+    verifier.createPresentationRequest(calcIsoDeviceSignaturePlain = simpleSigner(signer)).let { request ->
+        PresentedIsoResponse(
+            request = request,
+            response = createDcqlDeviceResponse(
+                holder = holder,
+                request = request,
+                attributeNames = attributeNames,
+            ),
+        )
+    }
+
+private suspend fun IsoMdocFixture.verifyPresentation(presented: PresentedIsoResponse) =
+    verifier.consumeChallenge(presented.request.nonce)
+        .verifyPresentationIsoMdoc(presented.response.deviceResponse, documentVerifier()).getOrThrow()
         .shouldBeInstanceOf<Verifier.VerifyPresentationResult.SuccessIso>()
 
 private suspend fun IsoMdocFixture.revokeSingleStoredCredential(): Boolean {
