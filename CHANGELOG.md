@@ -23,6 +23,7 @@ Release 8.0.0 (unreleased):
     - Add `VerifierInfo` to `OpenId4VpRequestOptions`
     - Do not accept responses for the same `state` twice for OpenID4VP flows
     - Do not accept responses for the same `externalId` twice for DCAPI flows
+    - Consume the request's nonce when validating an authentication response, regardless of the validation result, i.e. authentication responses are not retryable
 - OpenID for Verifiable Credential Issuance:
     - Rework validation of key attestation statements
 - Deprecations:

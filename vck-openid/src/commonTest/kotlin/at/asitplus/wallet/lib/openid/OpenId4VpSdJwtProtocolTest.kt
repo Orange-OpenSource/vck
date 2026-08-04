@@ -1,5 +1,6 @@
 package at.asitplus.wallet.lib.openid
 
+import at.asitplus.openid.AuthenticationRequestParameters
 import at.asitplus.openid.AuthenticationResponseParameters
 import at.asitplus.openid.ResponseParametersFrom
 import at.asitplus.openid.dcql.DCQLClaimsPathPointer
@@ -17,6 +18,7 @@ import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.ConstantIndex.AtomicAttribute2023.CLAIM_GIVEN_NAME
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.SD_JWT
 import at.asitplus.wallet.lib.openid.DummyCredentialDataProvider.issueAndStoreSdJwt
+import at.asitplus.wallet.lib.utils.DefaultMapStore
 import com.benasher44.uuid.uuid4
 import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.collections.shouldBeSingleton
@@ -46,9 +48,11 @@ val OpenId4VpSdJwtProtocolTest by matrixSuite {
                     holder = holderAgent,
                     randomSource = RandomSource.Default,
                 )
+                val stateToAuthnRequestStore = DefaultMapStore<String, AuthenticationRequestParameters>()
                 val verifierOid4vp = OpenId4VpVerifier(
                     keyMaterial = verifierKeyMaterial,
-                    clientIdScheme = ClientIdScheme.RedirectUri(clientId)
+                    clientIdScheme = ClientIdScheme.RedirectUri(clientId),
+                    stateToAuthnRequestStore = stateToAuthnRequestStore,
                 )
             }
         }
@@ -126,12 +130,42 @@ val OpenId4VpSdJwtProtocolTest by matrixSuite {
                 .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
 
             // anyone knowing the state may post a response: this one carries no vp_token and is not accepted,
-            // but it burns the request, as the nonce is only consumed for fully valid responses
+            // but it burns the request, as authentication responses are never retryable
             it.verifierOid4vp.validateAuthnResponse(
                 ResponseParametersFrom.Post(AuthenticationResponseParameters(state = state))
             ).getOrThrow().vpTokenValidationResult.shouldNotBeNull().isFailure shouldBe true
 
             it.verifierOid4vp.validateAuthnResponse(authnResponse.url).isFailure shouldBe true
+        }
+
+        "the challenge is consumed even when the response is rejected" {
+            val state = uuid4().toString()
+            val authnRequest = it.verifierOid4vp.createAuthnRequest(
+                OpenId4VpRequestOptions(
+                    presentationRequest = CredentialPresentationRequestBuilder(
+                        RequestOptionsCredential(
+                            credentialScheme = AtomicAttribute2023,
+                            representation = SD_JWT,
+                            attributePaths = setOf(DCQLClaimsPathPointer(CLAIM_GIVEN_NAME))
+                        )
+                    ).toDCQLRequest(),
+                    state = state,
+                ),
+                CreationOptions.Query(it.walletUrl)
+            ).getOrThrow().url
+
+            val authnResponse = it.holderOid4vp.createAuthnResponse(authnRequest).getOrThrow()
+                .shouldBeInstanceOf<AuthenticationResponseResult.Redirect>()
+            val storedRequest = it.stateToAuthnRequestStore.get(state).shouldNotBeNull()
+
+            it.verifierOid4vp.validateAuthnResponse(
+                ResponseParametersFrom.Post(AuthenticationResponseParameters(state = state))
+            ).getOrThrow().vpTokenValidationResult.shouldNotBeNull().isFailure shouldBe true
+
+            // restore the stored request, so only the consumed challenge can reject the genuine response
+            it.stateToAuthnRequestStore.put(state, storedRequest)
+            it.verifierOid4vp.validateAuthnResponse(authnResponse.url)
+                .exceptionOrNull().shouldNotBeNull().message shouldContain "nonce not valid"
         }
 
         "Selective Disclosure with EU PID credential" {

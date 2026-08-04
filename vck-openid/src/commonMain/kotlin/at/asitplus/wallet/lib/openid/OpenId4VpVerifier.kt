@@ -215,6 +215,12 @@ class OpenId4VpVerifier @JvmOverloads constructor(
         Napier.d("validateAuthnResponse: $input")
         val authnRequest = requestFactory.loadAuthnRequest(input)
 
+        val expectedNonce = authnRequest.nonce
+            ?: throw IllegalArgumentException("nonce not present in $authnRequest")
+        require(nonceAwareVerifier.verifyAndRemoveNonce(expectedNonce)) {
+            "nonce not valid: $expectedNonce, not known to us"
+        }
+
         val responseType = authnRequest.responseType?.let { ResponseType(it) }
         require(responseType != null) {
             "No response type was specified in the original authentication request."
@@ -223,31 +229,12 @@ class OpenId4VpVerifier @JvmOverloads constructor(
             "Response type must contain `vp_token`"
         }
 
-        val expectedNonce = authnRequest.nonce
-            ?: throw IllegalArgumentException("nonce not present in $authnRequest")
-
-        val vpTokenValidationResult = validateVpToken(authnRequest, input)
-
         AuthnResponseResult(
             idTokenValidationResult = null,
-            vpTokenValidationResult = vpTokenValidationResult,
+            vpTokenValidationResult = validateVpToken(authnRequest, input),
             request = authnRequest,
-        ).also {
-            if (it.isFullyValid()) {
-                require(nonceAwareVerifier.verifyAndRemoveNonce(expectedNonce)) {
-                    "nonce not valid: $expectedNonce, not known to us"
-                }
-            }
-        }
+        )
     }
-
-    private fun AuthnResponseResult.isFullyValid(): Boolean =
-        vpTokenValidationResult?.isFailure != true &&
-                (vpTokenValidationResult?.getOrNull()?.isFullyValid() ?: false)
-
-    private fun VpTokenValidationResult.isFullyValid(): Boolean =
-        presentationResults.all { it.isSuccess } &&
-                (this !is VpTokenValidationResultDCQL || submissionRequirementsValidationResult.isSuccess)
 
     /**
      * Validates the `vp_token` of the response with the shared [VpTokenValidator],
