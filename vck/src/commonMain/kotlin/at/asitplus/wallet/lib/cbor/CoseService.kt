@@ -117,7 +117,7 @@ fun interface SignCoseFun<P> {
  * Signs a COSE payload with [KeyMaterial] while applying header modifiers.
  * Use when creating COSE signatures for credentials or device responses.
  */
-class SignCose<P : Any>(
+class SignCose<P : Any> @JvmOverloads constructor(
     val keyMaterial: KeyMaterial,
     val protectedHeaderModifier: CoseHeaderIdentifierFun<KeyMaterial>? = null,
     val unprotectedHeaderModifier: CoseHeaderIdentifierFun<KeyMaterial>? = null,
@@ -158,7 +158,7 @@ fun interface MacCoseFun<P> {
  * Creates a COSE MAC for a payload using a symmetric [CoseKey].
  * Use when integrity protection (without signatures) is required.
  */
-class MacCose<P : Any>(
+class MacCose<P : Any> @JvmOverloads constructor(
     val keyMaterial: CoseKey,
     val protectedHeaderModifier: CoseHeaderIdentifierFun<CoseKey>? = null,
     val unprotectedHeaderModifier: CoseHeaderIdentifierFun<CoseKey>? = null,
@@ -198,7 +198,7 @@ fun interface SignCoseDetachedFun<P> {
 /**
  * Create a [CoseSigned] with detached payload,
  * setting protected and unprotected headers, and applying [CoseHeaderIdentifierFun]. */
-class SignCoseDetached<P : Any>(
+class SignCoseDetached<P : Any> @JvmOverloads constructor(
     val keyMaterial: KeyMaterial,
     val protectedHeaderModifier: CoseHeaderIdentifierFun<KeyMaterial>? = null,
     val unprotectedHeaderModifier: CoseHeaderIdentifierFun<KeyMaterial>? = null,
@@ -239,7 +239,7 @@ fun interface MacCoseDetachedFun<P> {
  * Creates a COSE MAC with a detached payload using a symmetric [CoseKey].
  * Use when the payload is transmitted separately from the MAC object.
  */
-class MacCoseDetached<P : Any>(
+class MacCoseDetached<P : Any> @JvmOverloads constructor(
     val keyMaterial: CoseKey,
     val protectedHeaderModifier: CoseHeaderIdentifierFun<CoseKey>? = null,
     val unprotectedHeaderModifier: CoseHeaderIdentifierFun<CoseKey>? = null,
@@ -325,19 +325,37 @@ fun interface VerifyCoseSignatureFun<P> {
 }
 
 /**
- * Verifies COSE signatures using keys from headers or a lookup callback.
- * Use when validating signed COSE objects in verifier flows.
+ * Verifies COSE signatures against the key material asserted by the [CoseSigned] itself, i.e. its headers
+ * (see [CoseHeader.kid], [CoseHeader.certificateChain]).
+ *
+ * This makes **no trust decision**: it only establishes that the object is signed by whoever it claims signed
+ * it. Where the signer needs to be an entity from a trust list, use [VerifyCoseSignatureTrusted] instead.
  */
 class VerifyCoseSignature<P : Any> @JvmOverloads constructor(
     val verifyCoseSignature: VerifyCoseSignatureWithKeyFun<P> = VerifyCoseSignatureWithKey<P>(),
-    /** Need to implement if valid keys for CoseSigned are transported somehow out-of-band, e.g. provided by a trust store */
-    val publicKeyLookup: PublicCoseKeyLookup = PublicCoseKeyLookup { null },
 ) : VerifyCoseSignatureFun<P> {
+
+    /** Set only by the deprecated constructor taking a [PublicCoseKeyLookup]. */
+    private var trustedDelegate: VerifyCoseSignatureFun<P>? = null
+
+    @Deprecated(
+        "A key lookup used to be ignored whenever the COSE headers asserted a key themselves, so it could " +
+                "not enforce anything. Use VerifyCoseSignatureTrusted to treat the keys as a trust list, or drop " +
+                "the parameter to keep verifying against the key asserted by the CoseSigned.",
+        ReplaceWith("VerifyCoseSignatureTrusted(verifyCoseSignature, publicKeyLookup)")
+    )
+    constructor(
+        verifyCoseSignature: VerifyCoseSignatureWithKeyFun<P> = VerifyCoseSignatureWithKey<P>(),
+        publicKeyLookup: PublicCoseKeyLookup,
+    ) : this(verifyCoseSignature) {
+        trustedDelegate = VerifyCoseSignatureTrusted(verifyCoseSignature, publicKeyLookup)
+    }
+
     override suspend operator fun invoke(
         coseSigned: CoseSigned<P>,
         externalAad: ByteArray,
         detachedPayload: ByteArray?,
-    ) = catching {
+    ) = trustedDelegate?.invoke(coseSigned, externalAad, detachedPayload) ?: catching {
         coseSigned.loadPublicKeys().also {
             Napier.d("Public keys available: ${it.size}")
         }.firstNotNullOf { coseKey ->
@@ -346,8 +364,44 @@ class VerifyCoseSignature<P : Any> @JvmOverloads constructor(
     }
 
     suspend fun CoseSigned<*>.loadPublicKeys(): Set<CoseKey> =
-        (protectedHeader.publicKey ?: unprotectedHeader?.publicKey)?.let { setOf(it) }
-            ?: publicKeyLookup(this) ?: setOf()
+        (protectedHeader.publicKey ?: unprotectedHeader?.publicKey)?.let { setOf(it) } ?: setOf()
+}
+
+/**
+ * Verifies COSE signatures against a fixed set of trusted keys, e.g. entries of a trust list, supplied by
+ * [trustedKeys].
+ *
+ * Those keys are the *only* accepted signers: key material asserted by the [CoseSigned] itself
+ * (see [CoseHeader.kid], [CoseHeader.certificateChain]) never supplies a verification key. If the headers do
+ * assert a key, it must be contained in [trustedKeys], otherwise verification fails.
+ *
+ * Note that this does not build a certificate path to a trust anchor, it compares public keys.
+ */
+class VerifyCoseSignatureTrusted<P : Any> @JvmOverloads constructor(
+    val verifyCoseSignature: VerifyCoseSignatureWithKeyFun<P> = VerifyCoseSignatureWithKey<P>(),
+    val trustedKeys: PublicCoseKeyLookup,
+) : VerifyCoseSignatureFun<P> {
+    override suspend operator fun invoke(
+        coseSigned: CoseSigned<P>,
+        externalAad: ByteArray,
+        detachedPayload: ByteArray?,
+    ) = catching {
+        val trusted = trustedKeys(coseSigned) ?: setOf()
+        require(trusted.isNotEmpty()) { "No trusted keys" }
+        // If the object names its signer, that signer has to be trusted, we don't fall back to the other entries
+        val headerKey = coseSigned.protectedHeader.publicKey ?: coseSigned.unprotectedHeader?.publicKey
+        val candidates = headerKey?.let { key ->
+            // Compare the actual public key, as `alg` or `kid` may differ between header and trust list entry
+            val trustedPublicKeys = trusted.mapNotNull { it.toCryptoPublicKey().getOrNull() }
+            require(key.toCryptoPublicKey().getOrNull() in trustedPublicKeys) {
+                "Signer asserted in COSE header is not trusted"
+            }
+            setOf(key)
+        } ?: trusted
+        candidates.firstNotNullOf { coseKey ->
+            verifyCoseSignature(coseSigned, coseKey, externalAad, detachedPayload).getOrNull()
+        }
+    }
 }
 
 fun interface VerifyCoseSignatureWithKeyFun<P> {

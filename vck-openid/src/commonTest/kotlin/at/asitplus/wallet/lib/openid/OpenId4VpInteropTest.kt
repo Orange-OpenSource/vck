@@ -33,6 +33,7 @@ import at.asitplus.wallet.lib.data.VerifiableCredentialSdJwt
 import at.asitplus.wallet.lib.data.rfc3986.toUri
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.VerifyJwsObject
+import at.asitplus.wallet.lib.jws.VerifyJwsObjectTrusted
 import at.asitplus.wallet.lib.jws.VerifyJwsSignatureWithKey
 import at.asitplus.wallet.lib.oidvci.formUrlEncode
 import com.benasher44.uuid.uuid4
@@ -68,7 +69,7 @@ val OpenId4VpInteropTest by matrixSuite {
             val holderAgent = HolderAgent(
                 holderKeyMaterial,
                 validatorSdJwt = ValidatorSdJwt(
-                    verifyJwsObject = VerifyJwsObject(publicKeyLookup = { setOf(issuerKeyMaterial.publicKey.toJsonWebKey()) })
+                    verifyJwsObject = VerifyJwsObjectTrusted(trustedKeys = { setOf(issuerKeyMaterial.publicKey.toJsonWebKey()) })
                 )
             ).also {
                 it.storeCredential(
@@ -104,8 +105,8 @@ val OpenId4VpInteropTest by matrixSuite {
                     verifier = VerifierAgent(
                         identifier = clientIdScheme.clientId,
                         validatorSdJwt = ValidatorSdJwt(
-                            verifyJwsObject = VerifyJwsObject(
-                                publicKeyLookup = {
+                            verifyJwsObject = VerifyJwsObjectTrusted(
+                                trustedKeys = {
                                     setOf(
                                         issuerKeyMaterial.publicKey.toJsonWebKey(),
                                         holderKeyMaterial.publicKey.toJsonWebKey(),

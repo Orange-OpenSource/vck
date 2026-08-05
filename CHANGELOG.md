@@ -27,6 +27,10 @@ Release 8.0.0 (unreleased):
 - OpenID for Verifiable Credential Issuance:
     - Rework validation of key attestation statements
     - Make sure a `nonce` provided by the credential issuer can only be used for one request to the credential endpoint
+- Signature verification:
+    - `VerifyJwsObject` and `VerifyCoseSignature` now only ever use the key material asserted by the JWS header resp. the COSE headers, and make no trust decision
+    - Add `VerifyJwsObjectTrusted` and `VerifyCoseSignatureTrusted`, where the supplied keys are the only accepted signers
+    - Note that neither builds a certificate path to a trust anchor, they compare public keys
 - Deprecations:
     - Remove code deprecated in 7.0.0, e.g. various `Iso180137AnnexC*` and related classes
     - Deprecate all classes used for Presentation Exchange requests and so on, e.g., `CredentialPresentationRequest.PresentationExchangeRequest` or `PresentationExchangeCredentialDisclosure` or `CredentialPresentation.PresentationExchangePresentation`
@@ -34,6 +38,7 @@ Release 8.0.0 (unreleased):
     - In `ProofValidator` deprecate constructor argument `verifyAttestationProof`, replace with `statusListTokenResolver` and `keyAttestationIssuer`
     - In `NonceChallengeVerifier` deprecate `verifyPresentationSdJwt()`, `verifyPresentationVcJwt()` and `verifyPresentationIsoMdoc()`, which take the challenge from the presentation itself, to be replaced with `consumeChallenge()` and the returned `ChallengeSession`
     - `NonceChallengeVerifier` does not implement `Verifier` and `NonceService` anymore, so a presentation cannot be verified without accounting for the challenge it answers; use the `ChallengeSession` from `consumeChallenge()`, or the properties `verifier` for challenge-free verification and `nonceService` for raw nonce access
+    - Deprecate passing `publicKeyLookup` to `VerifyJwsObject` and `VerifyCoseSignature`, callers are rerouted to the trusted variants, use `VerifyJwsObjectTrusted` resp. `VerifyCoseSignatureTrusted` explicitly, or drop the parameter to keep verifying against the asserted key
 - Refactorings:
     - In ISO data classes like `DeviceResponse`, `DeviceRequest`, `MobileSecurityObject` replace the String `version` with a typed `parsedVersion` from [kotlin-semver](https://github.com/z4kn4fein/kotlin-semver)
     - In ISO data class `MobileSecurityObject` replace the String `digestAlgorithm` with a typed `digest` from Signum

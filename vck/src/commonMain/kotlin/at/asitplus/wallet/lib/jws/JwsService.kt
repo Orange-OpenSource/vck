@@ -649,8 +649,14 @@ fun interface VerifyJwsObjectFun {
 }
 
 /**
- * Verifies a JWS by loading possible signing keys from headers or lookup callbacks.
- * Use for validating incoming JWS objects in verification flows.
+ * Verifies a JWS against the key material asserted by the JWS itself, i.e. its header values
+ * (see [JwsHeader.jsonWebKey], [JwsHeader.keyId], [JwsHeader.certificateChain]) or a JSON web key set
+ * referenced by [JwsHeader.jsonWebKeySetUrl].
+ *
+ * This makes **no trust decision**: it only establishes that the JWS is internally consistent, i.e. signed by
+ * whoever the JWS claims signed it. Use it where a self-asserted key is the correct input (holder key binding,
+ * proof of possession, DPoP). Where the signer needs to be an entity from a trust list, use
+ * [VerifyJwsObjectTrusted] instead.
  */
 class VerifyJwsObject @JvmOverloads constructor(
     val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(),
@@ -659,10 +665,26 @@ class VerifyJwsObject @JvmOverloads constructor(
      * the `jku`.
      */
     val jwkSetRetriever: JwkSetRetrieverFunction = JwkSetRetrieverFunction { null },
-    /** Need to implement if valid keys for JWS are transported somehow out-of-band, e.g. provided by a trust store */
-    val publicKeyLookup: PublicJsonWebKeyLookup = PublicJsonWebKeyLookup { null },
 ) : VerifyJwsObjectFun {
-    override suspend operator fun invoke(jwsObject: JwsCompact) = catching {
+
+    /** Set only by the deprecated constructor taking a [PublicJsonWebKeyLookup]. */
+    private var trustedDelegate: VerifyJwsObjectFun? = null
+
+    @Deprecated(
+        "A key lookup used to be ignored whenever the JWS header asserted a key itself, so it could not " +
+                "enforce anything. Use VerifyJwsObjectTrusted to treat the keys as a trust list, or drop the " +
+                "parameter to keep verifying against the key asserted by the JWS.",
+        ReplaceWith("VerifyJwsObjectTrusted(verifyJwsSignature, publicKeyLookup)")
+    )
+    constructor(
+        verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(),
+        jwkSetRetriever: JwkSetRetrieverFunction = JwkSetRetrieverFunction { null },
+        publicKeyLookup: PublicJsonWebKeyLookup,
+    ) : this(verifyJwsSignature, jwkSetRetriever) {
+        trustedDelegate = VerifyJwsObjectTrusted(verifyJwsSignature, publicKeyLookup)
+    }
+
+    override suspend operator fun invoke(jwsObject: JwsCompact) = trustedDelegate?.invoke(jwsObject) ?: catching {
         require(jwsObject.loadPublicKeys().any { verifyJwsSignature(jwsObject, it).isSuccess }) {
             "Invalid Signature"
         }
@@ -671,15 +693,13 @@ class VerifyJwsObject @JvmOverloads constructor(
 
     /**
      * Returns a list of public keys that may have been used to sign this [JwsCompact]
-     * by evaluating its header values (see [JwsHeader.jsonWebKey], [JwsHeader.jsonWebKeySetUrl])
-     * as well as out-of-band transmitted keys from [publicKeyLookup].
+     * by evaluating its header values (see [JwsHeader.jsonWebKey], [JwsHeader.jsonWebKeySetUrl]).
      */
     private suspend fun JwsCompact.loadPublicKeys(): Set<CryptoPublicKey> =
         jwsHeader.publicKey?.let { setOf(it) }
             ?: jwsHeader.jsonWebKeySetUrl?.let {
                 retrieveJwkFromKeySetUrl(it, jwsHeader.keyId)?.let { setOf(it) }
-            } ?: publicKeyLookup(this)?.mapNotNull { jwk -> jwk.toCryptoPublicKey().getOrNull() }?.toSet()
-            ?: setOf()
+            } ?: setOf()
 
     /**
      * Either take the single key from the JSON Web Key Set, or the one matching the keyId
@@ -695,13 +715,44 @@ class VerifyJwsObject @JvmOverloads constructor(
 }
 
 /**
+ * Verifies a JWS against a fixed set of trusted keys, e.g. entries of a trust list, supplied by [trustedKeys].
+ *
+ * Those keys are the *only* accepted signers: key material asserted by the JWS itself
+ * ([JwsHeader.jsonWebKey], [JwsHeader.keyId], [JwsHeader.certificateChain], [JwsHeader.jsonWebKeySetUrl])
+ * never supplies a verification key. If the header does assert a key, it must be contained in [trustedKeys],
+ * otherwise verification fails.
+ *
+ * Note that this does not build a certificate path to a trust anchor, it compares public keys.
+ */
+class VerifyJwsObjectTrusted @JvmOverloads constructor(
+    val verifyJwsSignature: VerifyJwsSignatureFun = VerifyJwsSignature(),
+    val trustedKeys: PublicJsonWebKeyLookup,
+) : VerifyJwsObjectFun {
+    override suspend operator fun invoke(jwsObject: JwsCompact) = catching {
+        val trusted = trustedKeys(jwsObject)
+            ?.mapNotNull { it.toCryptoPublicKey().getOrNull() }
+            ?.toSet() ?: setOf()
+        require(trusted.isNotEmpty()) { "No trusted keys" }
+        // If the JWS names its signer, that signer has to be trusted, we don't fall back to the other entries
+        val candidates = jwsObject.jwsHeader.publicKey?.let { headerKey ->
+            require(headerKey in trusted) { "Signer asserted in JWS header is not trusted" }
+            setOf(headerKey)
+        } ?: trusted
+        require(candidates.any { verifyJwsSignature(jwsObject, it).isSuccess }) {
+            "Invalid Signature"
+        }
+        Verifier.Success
+    }
+}
+
+/**
  * Verifies a JWS object and additionally validates JAdES-B-B requirements.
  * Ensures that the JWS signature is valid using `VerifyJwsObject` and further enforces
  * the integrity of the signing certificate chain by validating the `x5t#o`
  * (X.509 certificate thumbprint) header parameter against the leaf certificate
  * in the `x5c` chain
  */
-class VerifyJwsObjectJades(
+class VerifyJwsObjectJades @JvmOverloads constructor(
     val verifyJwsObject: VerifyJwsObjectFun = VerifyJwsObject(),
 ) : VerifyJwsObjectFun {
 
@@ -736,7 +787,7 @@ class VerifyJwsObjectJades(
         val calculatedHash = digestAlgorithm.digest(certBytes)
         val calculatedB64Url = calculatedHash.encodeToString(Base64UrlStrict)
 
-        require (calculatedB64Url == x5tO.digVal) {
+        require(calculatedB64Url == x5tO.digVal) {
             "JAdES Integrity Violation: The calculated certificate thumbprint does not match 'x5t#o'."
         }
     }
@@ -750,6 +801,7 @@ class VerifyJwsObjectJades(
             "sha-256", "s256" -> throw IllegalArgumentException(
                 "JAdES Compliance Failure: 'sha-256' is forbidden in 'x5t#o'. Use 'x5t#256' instead."
             )
+
             "sha-384", "s384" -> Digest.SHA384
             "sha-512", "s512" -> Digest.SHA512
             else -> throw IllegalArgumentException(
