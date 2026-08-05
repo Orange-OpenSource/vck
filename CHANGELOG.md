@@ -31,6 +31,7 @@ Release 8.0.0 (unreleased):
     - `VerifyJwsObject` and `VerifyCoseSignature` now only ever use the key material asserted by the JWS header resp. the COSE headers, and make no trust decision
     - Add `VerifyJwsObjectTrusted` and `VerifyCoseSignatureTrusted`, where the supplied keys are the only accepted signers
     - Note that neither builds a certificate path to a trust anchor, they compare public keys
+    - In `ValidatorSdJwt.verifyVpSdJwt()` reject presentations whose SD-JWT carries no `cnf`: the key binding JWT used to be verified against a key asserted in its own header in that case, which proves nothing about the holder
 - Deprecations:
     - Remove code deprecated in 7.0.0, e.g. various `Iso180137AnnexC*` and related classes
     - Deprecate all classes used for Presentation Exchange requests and so on, e.g., `CredentialPresentationRequest.PresentationExchangeRequest` or `PresentationExchangeCredentialDisclosure` or `CredentialPresentation.PresentationExchangePresentation`

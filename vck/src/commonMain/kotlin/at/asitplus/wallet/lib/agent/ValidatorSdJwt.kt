@@ -65,14 +65,12 @@ class ValidatorSdJwt @JvmOverloads constructor(
             throw Throwable("No key binding JWT")
         }
         sdJwtResult.sdJwtSigned.keyBindingJws?.also { keyBindingSigned ->
-            vcSdJwt.confirmationClaim?.let {
-                if (!verifyJwsSignatureWithCnf(keyBindingSigned.jws, it)) {
-                    throw Throwable("Key binding JWT not verified (from cnf)")
-                }
-            } ?: run {
-                verifyJwsObject(keyBindingSigned.jws).getOrElse {
-                    throw Throwable("Key binding JWT not verified. $it")
-                }
+            // The KB-JWT has to be verified against the key the issuer bound the credential to. Falling back to a key
+            // asserted by the KB-JWT itself would prove nothing about the holder, so a missing cnf is an error.
+            val confirmationClaim = vcSdJwt.confirmationClaim
+                ?: throw Throwable("No cnf in SD-JWT to verify the key binding JWT against")
+            if (!verifyJwsSignatureWithCnf(keyBindingSigned.jws, confirmationClaim)) {
+                throw Throwable("Key binding JWT not verified (from cnf)")
             }
 
             val keyBinding = keyBindingSigned.payload
