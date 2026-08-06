@@ -23,6 +23,7 @@ import at.asitplus.iso.DeviceSigned
 import at.asitplus.iso.Document
 import at.asitplus.iso.IssuerSigned
 import at.asitplus.iso.IssuerSignedItem
+import at.asitplus.iso.ZkDocument
 import at.asitplus.jsonpath.core.NormalizedJsonPath
 import at.asitplus.jsonpath.core.NormalizedJsonPathSegment
 import at.asitplus.openid.dcql.DCQLClaimsQueryResult
@@ -48,6 +49,7 @@ import at.asitplus.wallet.lib.jws.JwsHeaderNone
 import at.asitplus.wallet.lib.jws.SdJwtSigned
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
+import at.asitplus.wallet.lib.zk.iso.IsoMdocZkEngine
 import io.github.aakira.napier.Napier
 import io.github.z4kn4fein.semver.Version
 import kotlinx.serialization.json.JsonArray
@@ -62,6 +64,7 @@ class VerifiablePresentationFactory(
         SignJwt(keyMaterial, JwsHeaderCertOrJwk()),
     private val signKeyBinding: SignJwtFun<KeyBindingJws> =
         SignJwt(keyMaterial, JwsHeaderNone()),
+    private val mdocZkEngine: IsoMdocZkEngine = IsoMdocZkEngine()
 ) {
     @Deprecated("Use createVerifiablePresentation(request, isoPresentationParameters) instead")
     suspend fun createVerifiablePresentation(
@@ -185,21 +188,45 @@ class VerifiablePresentationFactory(
     private suspend fun createIsoPresentation(
         request: PresentationRequestParameters,
         isoPresentationParameters: Collection<IsoPresentationParameters>,
-    ) = CreatePresentationResult.DeviceResponse(
-        deviceResponse = DeviceResponse(
-            parsedVersion = Version(1, 0),
-            documents = isoPresentationParameters.map { (credential, requestedClaims) ->
-                credential.discloseRequestedClaims(requestedClaims, request)
-            }.toTypedArray(),
-            status = 0U,
-        ),
-    )
+    ): CreatePresentationResult.DeviceResponse {
+        suspend fun disclosePlainDocument(param: IsoPresentationParameters) = param.credential
+            .discloseRequestedClaims(param.claims, request)
+            .getOrThrow()
+
+        val plainDocuments = mutableListOf<Document>()
+        val zkDocuments = mutableListOf<ZkDocument>()
+
+        isoPresentationParameters.forEach { param ->
+            val zkMetadata = param.zkMetadata
+            if (zkMetadata is ZkMetadata.IsoMdocZk) {
+                mdocZkEngine.generate(request, param).fold(
+                    onSuccess = { zkDocuments += it.toZkDocument() },
+                    onFailure = { error ->
+                        if (zkMetadata.zkInfo.zkRequired) throw error
+                        plainDocuments += disclosePlainDocument(param)
+                    }
+                )
+            } else {
+                plainDocuments += disclosePlainDocument(param)
+            }
+        }
+
+        return CreatePresentationResult.DeviceResponse(
+            deviceResponse = DeviceResponse(
+                parsedVersion = Version(1, 0),
+                documents = plainDocuments.toTypedArray(),
+                zkDocuments = zkDocuments.toTypedArray(),
+                status = 0u
+            ),
+        )
+    }
+
 
     // allows disclosure of attributes from different namespaces
     private suspend fun StoreEntry.Iso.discloseRequestedClaims(
         requestedClaims: Collection<NormalizedJsonPath>,
         request: PresentationRequestParameters,
-    ): Document {
+    ): KmmResult<Document> = catching {
         // grouping by namespace and all requested claims for that namespace
         val namespaceToAttributesMap: Map<String, List<String>> = requestedClaims
             .mapNotNull { it.toIsoNamespaceAttribute() }
@@ -216,7 +243,7 @@ class VerifiablePresentationFactory(
         val deviceSignature = request.calcIsoDeviceSignaturePlain(input)
             ?: throw PresentationException("calcIsoDeviceSignature not implemented")
 
-        return Document(
+        Document(
             docType = schemeIdentifier,
             issuerSigned = IssuerSigned.fromIssuerSignedItems(
                 namespacedItems = disclosedItems,

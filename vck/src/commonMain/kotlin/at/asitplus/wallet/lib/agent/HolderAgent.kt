@@ -25,6 +25,7 @@ import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.jws.SignJwtFun
 import at.asitplus.wallet.lib.procedures.dcql.DCQLQueryAdapter
 import at.asitplus.wallet.lib.procedures.iso.DeviceRetrievalProcedure
+import at.asitplus.wallet.lib.zk.iso.IsoMdocZkEngine
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -45,8 +46,14 @@ class HolderAgent @JvmOverloads constructor(
     private val signVerifiablePresentation: SignJwtFun<VerifiablePresentationJws> =
         SignJwt(keyMaterial, JwsHeaderCertOrJwk()),
     private val signKeyBinding: SignJwtFun<KeyBindingJws> = SignJwt(keyMaterial, JwsHeaderNone()),
+    private val mdocZkEngine: IsoMdocZkEngine = IsoMdocZkEngine(),
     private val verifiablePresentationFactory: VerifiablePresentationFactory =
-        VerifiablePresentationFactory(keyMaterial, signVerifiablePresentation, signKeyBinding),
+        VerifiablePresentationFactory(
+            keyMaterial = keyMaterial,
+            signVerifiablePresentation = signVerifiablePresentation,
+            signKeyBinding = signKeyBinding,
+            mdocZkEngine = mdocZkEngine
+        ),
     private val difInputEvaluator: PresentationExchangeInputEvaluator = PresentationExchangeInputEvaluator,
 ) : Holder {
 
