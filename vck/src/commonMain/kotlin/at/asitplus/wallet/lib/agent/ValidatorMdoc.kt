@@ -93,22 +93,18 @@ class ValidatorMdoc @JvmOverloads constructor(
             "document callback failed: $document"
         }
 
-        val validItems = mutableListOf<IssuerSignedItem>()
-        val invalidItems = mutableListOf<IssuerSignedItem>()
-        issuerSigned.namespaces?.forEach { (namespace, issuerSignedItems) ->
-            issuerSignedItems.entries.forEach {
-                if (it.verify(mso.valueDigests[namespace], mso.digest)) {
-                    validItems += it.value
-                } else {
-                    invalidItems += it.value
+        val validItems = issuerSigned.namespaces?.flatMap { (namespace, issuerSignedItems) ->
+            issuerSignedItems.entries.map {
+                require(it.verify(mso.valueDigests[namespace], mso.digest)) {
+                    "IssuerSigned item has invalid digest: ${it.value.elementIdentifier}"
                 }
+                it.value
             }
         }
         return IsoDocumentParsed(
             document = document,
             mso = mso,
-            validItems = validItems,
-            invalidItems = invalidItems,
+            validItems = validItems.orEmpty(),
             freshnessSummary = validator.checkCredentialFreshness(issuerSigned),
             documentErrors = documentErrors,
         )

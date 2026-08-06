@@ -92,7 +92,6 @@ val OpenId4VpIsoProtocolTest by matrixSuite {
                         .shouldBeInstanceOf<SuccessIso>()
                         .documents.first().apply {
                             validItems.shouldNotBeEmpty()
-                            invalidItems.shouldBeEmpty()
                         }
                 }
         }
@@ -120,7 +119,6 @@ val OpenId4VpIsoProtocolTest by matrixSuite {
                         .shouldBeInstanceOf<SuccessIso>()
                         .documents.first().apply {
                             validItems.shouldNotBeEmpty()
-                            invalidItems.shouldBeEmpty()
                         }
                 }
         }
@@ -149,7 +147,6 @@ val OpenId4VpIsoProtocolTest by matrixSuite {
                         .documents.first().apply {
                             validItems.shouldBeSingleton()
                             validItems.shouldHaveSingleElement { it.elementIdentifier == requestedClaim }
-                            invalidItems.shouldBeEmpty()
                         }
                 }
         }
@@ -187,7 +184,6 @@ val OpenId4VpIsoProtocolTest by matrixSuite {
                         .documents.first().apply {
                             validItems.shouldBeSingleton()
                             validItems.shouldHaveSingleElement { it.elementIdentifier == requestedClaim }
-                            invalidItems.shouldBeEmpty()
                         }
                 }
         }
@@ -225,7 +221,6 @@ val OpenId4VpIsoProtocolTest by matrixSuite {
                         .documents.first().apply {
                             validItems.shouldBeSingleton()
                             validItems.shouldHaveSingleElement { it.elementIdentifier == requestedClaim }
-                            invalidItems.shouldBeEmpty()
                         }
                 }
         }
@@ -298,7 +293,6 @@ val OpenId4VpIsoProtocolTest by matrixSuite {
                         .documents.first().apply {
                             validItems.shouldBeSingleton()
                             validItems.shouldHaveSingleElement { it.elementIdentifier == FAMILY_NAME }
-                            invalidItems.shouldBeEmpty()
                         }
                 }
         }

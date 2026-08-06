@@ -122,21 +122,24 @@ value class DCQLQueryAdapter(val dcqlQuery: DCQLQuery) {
         require(documents.size == 1) {
             "Expected only one document per credential, but received ${documents.size}: $documents"
         }
-        val document = documents.first()
-        return DCQLIsoMdocCredential(
-            DCQLCredentialClaimStructure.IsoMdocStructure(
-                document.document.issuerSigned.namespaces?.mapValues {
-                    it.value.entries.associate {
-                        it.value.elementIdentifier to it.value.elementValue
-                    }
-                } ?: mapOf()
-            ),
-            documentType = document.document.docType,
-            satisfiesCryptographicHolderBinding = true,
-            authorityKeyIdentifiers = document.document.issuerSigned.issuerAuth.unprotectedHeader?.certificateChain?.flatMap {
-                X509Certificate.decodeFromByteArray(it)?.getAuthorityKeyIdentifier() ?: listOf()
-            } ?: listOf(),
-        )
+        with(documents.first()) {
+            return DCQLIsoMdocCredential(
+                DCQLCredentialClaimStructure.IsoMdocStructure(
+                    document.issuerSigned.namespaces?.mapValues {
+                        it.value.entries
+                            .filter { it.value in validItems }
+                            .associate {
+                                it.value.elementIdentifier to it.value.elementValue
+                            }
+                    } ?: mapOf()
+                ),
+                documentType = document.docType,
+                satisfiesCryptographicHolderBinding = document.issuerSigned.issuerAuth.payload?.deviceKeyInfo != null,
+                authorityKeyIdentifiers = document.issuerSigned.issuerAuth.unprotectedHeader?.certificateChain?.flatMap {
+                    X509Certificate.decodeFromByteArray(it)?.getAuthorityKeyIdentifier() ?: listOf()
+                } ?: listOf(),
+            )
+        }
     }
 
     private fun VerifyPresentationResult.SuccessSdJwt.toDCQLCredential() = DCQLSdJwtCredential(

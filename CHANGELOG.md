@@ -14,19 +14,22 @@ Release 8.0.0 (unreleased):
     - Keep direct ISO Device Retrieval responses separate from OpenID4VP `vp_token` responses, and fix JSON round trips for ISO presentation requests
     - Migrate ISO/IEC 18013-7 Annex C holder and iOS pre-request matching from Presentation Exchange to ISO Device Retrieval; replace `IosDcApiMdocPreRequestSummary.toDifInputDescriptors()` with `toDeviceRequest()`
     - Add `Holder.matchPresentationRequestAgainstCredentialStore()` as a protocol-neutral matching entry point and move `CredentialMatchingResult` with its `DCQLMatchingResult`, `IsoDeviceRetrievalMatchingResult`, and deprecated `PresentationExchangeMatchingResult` subtypes from `vck-openid` to `vck`
+    - Use correct digest for validating KB JWT of SD-JWT VC
     - Extract format-specific submission resolution, validation, and response creation from `HolderAgent` into an internal presentation response coordinator
     - Deprecate format specific methods in `Holder`, all to be replaced with `matchPresentationRequestAgainstCredentialStore()`: `matchInputDescriptorsAgainstCredentialStoreV2()`, `matchDeviceRetrievalAgainstCredentialStore()`, `evaluateInputDescriptorAgainstCredential()`, `matchDCQLQueryAgainstCredentialStoreV2()`
     - Match non-fully specified COSE algorithms with fully specified ones
+    - Reject credential presentations containing any invalid issuer signed items according to ISO 18013-5 9.3.1 Inspection procedure for issuer data authentication
+    - Correctly validate credential submissions for DCQL queries
 - Deprecations:
     - Remove code deprecated in 7.0.0, e.g. various `Iso180137AnnexC*` and related classes
-    - Support all classes used for Presentation Exchange requests and so on, e.g., `CredentialPresentationRequest.PresentationExchangeRequest` or `PresentationExchangeCredentialDisclosure` or `CredentialPresentation.PresentationExchangePresentation`
+    - Deprecate all classes used for Presentation Exchange requests and so on, e.g., `CredentialPresentationRequest.PresentationExchangeRequest` or `PresentationExchangeCredentialDisclosure` or `CredentialPresentation.PresentationExchangePresentation`
+    - Deprecate member `invalidItems` in `IsoDocumentParsed`, method `Validatormdoc.verifyDocument()` will throw instead of filling invalid items
 - Refactorings:
     - In ISO data classes like `DeviceResponse`, `DeviceRequest`, `MobileSecurityObject` replace the String `version` with a typed `parsedVersion` from [kotlin-semver](https://github.com/z4kn4fein/kotlin-semver)
     - In ISO data class `MobileSecurityObject` replace the String `digestAlgorithm` with a typed `digest` from Signum
     - In `CredentialToBeIssued.Iso` add a property to specify the digest algorithm to be used in the MSO
-    - Use correct digest for validating KB JWT of SD-JWT VC
 
-Release 7.0.0 (unreleased):
+Release 7.0.0:
 - Credential definitions:
     - Move `CredentialScheme` out of `ConstantIndex`
     - Provide type alias for `CredentialRepresentation`

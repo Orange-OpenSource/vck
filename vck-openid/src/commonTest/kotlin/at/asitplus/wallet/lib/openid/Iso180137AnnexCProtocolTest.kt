@@ -160,7 +160,6 @@ val Iso180137AnnexCProtocolTest by matrixSuite {
                     .shouldNotBeNull().elementValue shouldBe "Susanne"
                 validItems.firstOrNull { it.elementIdentifier == CLAIM_DATE_OF_BIRTH }
                     .shouldNotBeNull().elementValue shouldBe LocalDate(1990, 1, 1)
-                invalidItems shouldBe emptyList()
             }
         }
 
