@@ -120,7 +120,9 @@ val OpenId4VciClientTest by matrixSuite {
             publicContext = publicContext,
             credentialEndpointPath = credentialEndpointPath,
             nonceEndpointPath = nonceEndpointPath,
-            proofValidator = ProofValidator(verifyAttestationProof = { true }, publicContext = publicContext)
+            proofValidator = ProofValidator(
+                publicContext = publicContext
+            )
         )
         val mockEngine = MockEngine { request ->
             when {

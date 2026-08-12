@@ -38,16 +38,26 @@ import at.asitplus.signum.indispensable.josef.KeyAttestationJwt
 import at.asitplus.signum.indispensable.josef.KeyStorageStatus
 import at.asitplus.testballoon.matrix.fixture
 import at.asitplus.testballoon.matrix.matrixSuite
+import at.asitplus.wallet.lib.DefaultZlibService
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
 import at.asitplus.wallet.lib.agent.IssuerAgent
 import at.asitplus.wallet.lib.agent.KeyMaterial
 import at.asitplus.wallet.lib.agent.RandomSource
+import at.asitplus.wallet.lib.agent.validation.StatusListTokenResolver
 import at.asitplus.wallet.lib.data.AtomicAttribute2023
 import at.asitplus.wallet.lib.data.AttributeIndex
 import at.asitplus.wallet.lib.data.ConstantIndex
 import at.asitplus.wallet.lib.data.ConstantIndex.CredentialRepresentation.PLAIN_JWT
+import at.asitplus.wallet.lib.data.MediaTypes
+import at.asitplus.wallet.lib.data.StatusListJwt
 import at.asitplus.wallet.lib.data.VerifiableCredentialJws
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListTokenPayload
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListView
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatus
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.primitives.TokenStatusBitSize
+import at.asitplus.wallet.lib.data.rfc3986.UniformResourceIdentifier
 import at.asitplus.wallet.lib.data.rfc3986.toUri
+import at.asitplus.wallet.lib.extensions.toStatusList
 import at.asitplus.wallet.lib.jws.JwsHeaderCertOrJwk
 import at.asitplus.wallet.lib.jws.SignJwt
 import at.asitplus.wallet.lib.oauth2.OAuth2Client
@@ -76,6 +86,7 @@ import kotlin.time.Duration.Companion.days
 val OidvciAttestationTest by matrixSuite {
     fixture {
         object {
+            val walletProviderKeyMaterial = EphemeralKeyWithoutCert()
             val authorizationService = SimpleAuthorizationService(
                 strategy = CredentialAuthorizationServiceStrategy(AttributeIndex.schemeSet),
             )
@@ -88,8 +99,8 @@ val OidvciAttestationTest by matrixSuite {
                 ),
                 credentialSchemes = AttributeIndex.schemeSet,
                 proofValidator = ProofValidator(
-                    verifyAttestationProof = { true },
                     requireKeyAttestation = true, // this is important, to require key attestation
+                    keyAttestationIssuer = walletProviderKeyMaterial,
                 )
             )
             val state = uuid4().toString()
@@ -117,7 +128,6 @@ val OidvciAttestationTest by matrixSuite {
                 return authorizationService.token(tokenRequest, null).getOrThrow()
             }
 
-            val walletProviderKeyMaterial = EphemeralKeyWithoutCert()
             val clientKeyMaterial = EphemeralKeyWithoutCert()
 
             var client = WalletService(
@@ -186,7 +196,7 @@ val OidvciAttestationTest by matrixSuite {
             }
         }
 
-        test("use key attestation for proof, issuer does not verify it") {
+        test("reject key attestation in JWT proof, signed by a key other than keyAttestationIssuer") {
             it.issuer = CredentialIssuer(
                 authorizationService = it.authorizationService,
                 issuer = IssuerAgent(
@@ -195,8 +205,9 @@ val OidvciAttestationTest by matrixSuite {
                 ),
                 credentialSchemes = AttributeIndex.schemeSet,
                 proofValidator = ProofValidator(
-                    verifyAttestationProof = { false }, // do not accept key attestation
                     requireKeyAttestation = true, // this is important, to require key attestation
+                    // the client's attestation is signed by walletProviderKeyMaterial, so it must not be accepted
+                    keyAttestationIssuer = EphemeralKeyWithoutCert(),
                 )
             )
 
@@ -221,8 +232,85 @@ val OidvciAttestationTest by matrixSuite {
                         params = request,
                         credentialDataProvider = DummyOAuth2IssuerCredentialDataProvider,
                     ).getOrThrow()
-                }
+                }.message shouldContain "key attestation not verified"
             }
+        }
+
+        test("reject attestation proof signed by a key other than keyAttestationIssuer") {
+            val validator = ProofValidator(keyAttestationIssuer = it.walletProviderKeyMaterial)
+            val nonce = validator.nonce().clientNonce
+            // a rogue wallet provider signs a well-formed attestation, embedding its own key in the JWS header,
+            // so the attestation is self-consistent but not issued by the trusted wallet provider
+            val rogueAttestation = buildValidKeyAttestation(
+                signerKeyMaterial = EphemeralKeyWithoutCert(),
+                attestedKey = it.clientKeyMaterial,
+                nonce = nonce,
+            )
+
+            shouldThrow<OAuth2Exception> {
+                validator.validateProofExtractSubjectPublicKeys(
+                    CredentialRequestParameters(
+                        proofs = CredentialRequestProofContainer(attestation = setOf(rogueAttestation.jws))
+                    )
+                )
+            }.message shouldContain "key attestation not verified"
+
+            // the very same attestation from the trusted wallet provider is accepted, i.e. only the signer differs
+            val trustedAttestation = buildValidKeyAttestation(
+                signerKeyMaterial = it.walletProviderKeyMaterial,
+                attestedKey = it.clientKeyMaterial,
+                nonce = nonce,
+            )
+            validator.validateProofExtractSubjectPublicKeys(
+                CredentialRequestParameters(
+                    proofs = CredentialRequestProofContainer(attestation = setOf(trustedAttestation.jws))
+                )
+            ) shouldContainExactly listOf(it.clientKeyMaterial.jsonWebKey.toCryptoPublicKey().getOrThrow())
+        }
+
+        test("reject key attestation whose key storage status is revoked") {
+            val validator = ProofValidator(
+                keyAttestationIssuer = it.walletProviderKeyMaterial,
+                statusListTokenResolver = StatusListTokenResolver { statusListUrl ->
+                    buildStatusListToken(statusListUrl, revokedIndex = KEY_STORAGE_STATUS_INDEX)
+                },
+            )
+            val nonce = validator.nonce().clientNonce
+            val attestation = buildValidKeyAttestation(
+                signerKeyMaterial = it.walletProviderKeyMaterial,
+                attestedKey = it.clientKeyMaterial,
+                nonce = nonce,
+            )
+
+            shouldThrow<OAuth2Exception> {
+                validator.validateProofExtractSubjectPublicKeys(
+                    CredentialRequestParameters(
+                        proofs = CredentialRequestProofContainer(attestation = setOf(attestation.jws))
+                    )
+                )
+            }.message shouldContain "TokenStatus invalid"
+        }
+
+        test("accept key attestation whose key storage status is valid") {
+            val validator = ProofValidator(
+                keyAttestationIssuer = it.walletProviderKeyMaterial,
+                statusListTokenResolver = StatusListTokenResolver { statusListUrl ->
+                    // some other key storage is revoked, but not the one of this attestation
+                    buildStatusListToken(statusListUrl, revokedIndex = KEY_STORAGE_STATUS_INDEX + 1)
+                },
+            )
+            val nonce = validator.nonce().clientNonce
+            val attestation = buildValidKeyAttestation(
+                signerKeyMaterial = it.walletProviderKeyMaterial,
+                attestedKey = it.clientKeyMaterial,
+                nonce = nonce,
+            )
+
+            validator.validateProofExtractSubjectPublicKeys(
+                CredentialRequestParameters(
+                    proofs = CredentialRequestProofContainer(attestation = setOf(attestation.jws))
+                )
+            ) shouldContainExactly listOf(it.clientKeyMaterial.jsonWebKey.toCryptoPublicKey().getOrThrow())
         }
 
         test("require key attestation for proof, but do not provide one") {
@@ -331,8 +419,8 @@ val OidvciAttestationTest by matrixSuite {
                 ),
                 credentialSchemes = AttributeIndex.schemeSet,
                 proofValidator = ProofValidator(
-                    verifyAttestationProof = { false }, // do not accept key attestation
                     requireKeyAttestation = false,
+                    keyAttestationIssuer = EphemeralKeyWithoutCert() // not matching our walletProviderKeyMaterial
                 )
             )
             it.client = WalletService(loadKeyAttestation = { catchingUnwrapped { TODO() }.wrap() })
@@ -374,9 +462,8 @@ val OidvciAttestationTest by matrixSuite {
             // but must not be accepted here.
             val restrictedValidator = ProofValidator(
                 supportedAlgorithms = setOf(JwsAlgorithm.Signature.ES256),
-                verifyAttestationProof = { true },
-                requireKeyAttestation = true,
                 publicContext = "https://wallet.a-sit.at/credential-issuer",
+                keyAttestationIssuer = it.walletProviderKeyMaterial
             )
             val nonce = restrictedValidator.nonce().clientNonce
 
@@ -558,6 +645,31 @@ private suspend fun WalletService.loadTestKeyAttestation(
     ).getOrThrow()
 }
 
+/** Index of the key storage status of the attestations built here, see [buildValidKeyAttestation]. */
+private const val KEY_STORAGE_STATUS_INDEX = 7
+
+/** Status list token for [statusListUrl], with only [revokedIndex] set to [TokenStatus.Invalid]. */
+private suspend fun buildStatusListToken(
+    statusListUrl: UniformResourceIdentifier,
+    revokedIndex: Int,
+) = StatusListJwt(
+    value = SignJwt<StatusListTokenPayload>(EphemeralKeyWithoutCert(), JwsHeaderCertOrJwk())(
+        type = MediaTypes.STATUSLIST_JWT,
+        payload = StatusListTokenPayload(
+            subject = statusListUrl,
+            issuedAt = System.now(),
+            revocationList = StatusListView.fromTokenStatuses(
+                tokenStatuses = List(revokedIndex + 1) {
+                    if (it == revokedIndex) TokenStatus.Invalid else TokenStatus.Valid
+                },
+                statusBitSize = TokenStatusBitSize.ONE,
+            ).toStatusList(DefaultZlibService(), null),
+        ),
+        serializer = StatusListTokenPayload.serializer(),
+    ).getOrThrow(),
+    resolvedAt = System.now(),
+)
+
 private suspend fun buildValidKeyAttestation(
     signerKeyMaterial: KeyMaterial,
     attestedKey: KeyMaterial,
@@ -575,7 +687,7 @@ private suspend fun buildValidKeyAttestation(
         keyStorageStatus = KeyStorageStatus(
             status = buildJsonObject {
                 putJsonObject("status_list") {
-                    put("idx", 7)
+                    put("idx", KEY_STORAGE_STATUS_INDEX)
                     put("uri", "https://example.org/status/key-storage")
                 }
             },

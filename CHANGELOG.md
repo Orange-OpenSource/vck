@@ -21,10 +21,13 @@ Release 8.0.0 (unreleased):
     - Reject credential presentations containing any invalid issuer signed items according to ISO 18013-5 9.3.1 Inspection procedure for issuer data authentication
     - Correctly validate credential submissions for DCQL queries
     - Add `VerifierInfo` to `OpenId4VpRequestOptions`
+- OpenID for Verifiable Credential Issuance:
+    - Rework validation of key attestation statements
 - Deprecations:
     - Remove code deprecated in 7.0.0, e.g. various `Iso180137AnnexC*` and related classes
     - Deprecate all classes used for Presentation Exchange requests and so on, e.g., `CredentialPresentationRequest.PresentationExchangeRequest` or `PresentationExchangeCredentialDisclosure` or `CredentialPresentation.PresentationExchangePresentation`
-    - Deprecate member `invalidItems` in `IsoDocumentParsed`, method `Validatormdoc.verifyDocument()` will throw instead of filling invalid items
+    - Deprecate member `invalidItems` in `IsoDocumentParsed`, method `ValidatorMdoc.verifyDocument()` will throw instead of filling invalid items
+    - In `ProofValidator` deprecate constructor argument `verifyAttestationProof`, replace with `statusListTokenResolver` and `keyAttestationIssuer`
 - Refactorings:
     - In ISO data classes like `DeviceResponse`, `DeviceRequest`, `MobileSecurityObject` replace the String `version` with a typed `parsedVersion` from [kotlin-semver](https://github.com/z4kn4fein/kotlin-semver)
     - In ISO data class `MobileSecurityObject` replace the String `digestAlgorithm` with a typed `digest` from Signum

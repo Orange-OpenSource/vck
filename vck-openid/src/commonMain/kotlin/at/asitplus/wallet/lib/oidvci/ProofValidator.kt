@@ -9,12 +9,18 @@ import at.asitplus.openid.KeyAttestationRequired
 import at.asitplus.openid.OpenIdConstants
 import at.asitplus.openid.SupportedCredentialFormat
 import at.asitplus.signum.indispensable.CryptoPublicKey
+import at.asitplus.signum.indispensable.josef.JsonWebKey
 import at.asitplus.signum.indispensable.josef.JsonWebToken
 import at.asitplus.signum.indispensable.josef.JwsAlgorithm
 import at.asitplus.signum.indispensable.josef.JwsCompactTyped
 import at.asitplus.signum.indispensable.josef.KeyAttestationJwt
 import at.asitplus.wallet.lib.DefaultNonceService
 import at.asitplus.wallet.lib.NonceService
+import at.asitplus.wallet.lib.agent.EphemeralKeyWithoutCert
+import at.asitplus.wallet.lib.agent.KeyMaterial
+import at.asitplus.wallet.lib.agent.validation.StatusListTokenResolver
+import at.asitplus.wallet.lib.agent.validation.toTokenStatusResolver
+import at.asitplus.wallet.lib.data.rfc.tokenStatusList.StatusListInfo
 import at.asitplus.wallet.lib.jws.VerifyJwsObject
 import at.asitplus.wallet.lib.jws.VerifyJwsObjectFun
 import at.asitplus.wallet.lib.jws.VerifyJwsSignatureWithKey
@@ -22,6 +28,8 @@ import at.asitplus.wallet.lib.jws.VerifyJwsSignatureWithKeyFun
 import at.asitplus.wallet.lib.oauth2.SimpleAuthorizationService
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidNonce
 import at.asitplus.wallet.lib.oidvci.OAuth2Exception.InvalidProof
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlin.jvm.JvmOverloads
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -49,11 +57,16 @@ class ProofValidator @JvmOverloads constructor(
     /** Time leeway for verification of timestamps in proof elements in credential requests. */
     private val timeLeeway: Duration = 5.minutes,
     /** Callback to verify a received [KeyAttestationJwt] proof in credential requests. */
+    @Deprecated("Set a statusListTokenResolver and provide keyAttestationIssuer instead")
     private val verifyAttestationProof: suspend (JwsCompactTyped<KeyAttestationJwt>) -> Boolean = { true },
     /** Turn on to require key attestation support in the [validProofTypes]. */
     private val requireKeyAttestation: Boolean = false,
     /** Used to provide challenges to clients to include in proof of possession of key material. */
     private val clientNonceService: NonceService = DefaultNonceService(),
+    /** Used to verify the validity of a key attestation. */
+    private val statusListTokenResolver: StatusListTokenResolver? = null,
+    /** Used to verify the signature of the key attestation statements. */
+    private val keyAttestationIssuer: KeyMaterial = EphemeralKeyWithoutCert()
 ) {
 
     /** Valid proof types for [SupportedCredentialFormat.supportedProofTypes]. */
@@ -158,7 +171,6 @@ class ProofValidator @JvmOverloads constructor(
         if (payload.attestedKeys.isEmpty()) {
             throw InvalidProof("key attestation contains no attested_keys")
         }
-
         if (payload.issuedAt > (clock.now() + timeLeeway)) {
             throw InvalidProof("issuedAt in future: ${payload.issuedAt}")
         }
@@ -179,9 +191,18 @@ class ProofValidator @JvmOverloads constructor(
         if (keyStorageStatus.expiration < (clock.now() - timeLeeway)) {
             throw InvalidProof("key_storage_status expiration in past: ${keyStorageStatus.expiration}")
         }
-        if (!verifyAttestationProof.invoke(this)) {
-            throw InvalidProof("key attestation not verified: $this")
+
+        val statusList = keyStorageStatus.status[StatusListInfo.SerialNames.STATUS_LIST_INFO]
+            ?: throw InvalidProof("Unknown status information in status")
+        val statusListInfo = Json.decodeFromJsonElement<StatusListInfo>(statusList)
+        val tokenStatus = statusListTokenResolver?.toTokenStatusResolver()?.invoke(statusListInfo)
+            ?.getOrElse { throw InvalidProof("could not resolve key_storage_status", it) }
+        if (tokenStatus?.isValid == false) {
+            throw InvalidProof("TokenStatus invalid")
         }
+
+        verifyJwsSignatureWithKey(jws, keyAttestationIssuer.jsonWebKey)
+            .onFailure { throw InvalidProof("key attestation not verified: $this", it) }
 
         return payload.attestedKeys.map { it.toCryptoPublicKey().getOrThrow() }
     }

@@ -72,28 +72,11 @@ class CredentialIssuer @JvmOverloads constructor(
     private val nonceEndpointPath: String = "/nonce",
     /** Turn on to require key attestation support in the [metadata]. */
     private val requireKeyAttestation: Boolean = false,
-    /** Used to verify proof of posession of key material in credential requests. */
+    /** Used to verify proof of possession of key material and key attestations in credential requests. */
     private val proofValidator: ProofValidator = ProofValidator(
         publicContext = publicContext,
         requireKeyAttestation = requireKeyAttestation,
-        verifyAttestationProof = {
-            val tokenStatusValid = catchingUnwrapped {
-                it.payload.keyStorageStatus?.status?.get(StatusListInfo.SerialNames.STATUS_LIST_INFO)?.let { statusList ->
-                    Json.decodeFromJsonElement<StatusListInfo>(statusList).let { statusListInfo ->
-                        if (statusListTokenResolver?.toTokenStatusResolver()
-                                ?.invoke(statusListInfo as RevocationListInfo)
-                                ?.getOrThrow() == TokenStatus.Invalid
-                        ) throw Throwable("TokenStatus invalid")
-                    }
-                }
-            }.isSuccess
-
-            val signatureValid = catchingUnwrapped {
-                VerifyJwsObject().verifyJwsSignature(it.jws, it.jws.jwsHeader.publicKey!!).isSuccess
-            }.getOrDefault(false)
-
-            return@ProofValidator (tokenStatusValid && signatureValid)
-        }
+        statusListTokenResolver = statusListTokenResolver
     ),
     /** Used to provide signed metadata in [signedMetadata]. */
     private val signMetadata: SignJwtFun<IssuerMetadata> = SignJwt(EphemeralKeyWithoutCert(), JwsHeaderCertOrJwk()),
